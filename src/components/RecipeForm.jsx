@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
 export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const router = useRouter()
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     name: recipe.name || '',
     description: recipe.description || '',
@@ -115,6 +117,10 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
         throw new Error('Please fill in all required fields')
       }
 
+      if (!user) {
+        throw new Error('You must be logged in to save a recipe')
+      }
+
       // Clean up empty values
       const cleanedIngredients = formData.ingredients.filter(i => i.trim())
       const cleanedInstructions = formData.instructions.filter(i => i.trim())
@@ -129,6 +135,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
         cook_time: parseInt(formData.cook_time) || 0,
         servings: parseInt(formData.servings) || 0,
         category_id: formData.category_id,
+        user_id: user.id,
         updated_at: new Date().toISOString()
       }
 
