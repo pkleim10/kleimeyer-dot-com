@@ -170,13 +170,13 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 divide-y divide-gray-200 bg-white p-6 rounded-lg shadow">
+    <form onSubmit={handleSubmit} className="space-y-8 divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800 p-6 rounded-lg shadow">
       {error && (
-        <div className="rounded-md bg-red-50 p-4 mb-6">
+        <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4 mb-6">
           <div className="flex">
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
-              <div className="mt-2 text-sm text-red-700">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error</h3>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-400">
                 <p>{error}</p>
               </div>
             </div>
@@ -184,16 +184,16 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
         </div>
       )}
 
-      <div className="space-y-8 divide-y divide-gray-200">
+      <div className="space-y-8 divide-y divide-gray-200 dark:divide-slate-700">
         <div className="pt-8">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">Recipe Information</h3>
-            <p className="mt-1 text-sm text-gray-500">Basic information about the recipe.</p>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Recipe Information</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Basic information about the recipe.</p>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
             <div className="sm:col-span-4">
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Recipe Name *
               </label>
               <div className="mt-1">
@@ -203,14 +203,14 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   id="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                   required
                 />
               </div>
             </div>
 
             <div className="sm:col-span-6">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Description
               </label>
               <div className="mt-1">
@@ -220,14 +220,14 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   rows={3}
                   value={formData.description}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
-              <p className="mt-2 text-sm text-gray-500">Brief description of the recipe.</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Brief description of the recipe.</p>
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="category_id" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Category *
               </label>
               <div className="mt-1">
@@ -236,7 +236,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   name="category_id"
                   value={formData.category_id}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                   required
                 >
                   <option value="">Select a category</option>
@@ -250,7 +250,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="prep_time" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="prep_time" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Prep Time (minutes)
               </label>
               <div className="mt-1">
@@ -261,13 +261,13 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   min="0"
                   value={formData.prep_time}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="cook_time" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="cook_time" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Cook Time (minutes)
               </label>
               <div className="mt-1">
@@ -278,13 +278,13 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   min="0"
                   value={formData.cook_time}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="servings" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="servings" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Servings
               </label>
               <div className="mt-1">
@@ -295,7 +295,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   min="1"
                   value={formData.servings}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
             </div>
@@ -304,27 +304,29 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
 
         <div className="pt-8">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">Ingredients</h3>
-            <p className="mt-1 text-sm text-gray-500">List all ingredients needed for the recipe.</p>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Ingredients</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">List all ingredients needed for the recipe.</p>
           </div>
           <div className="mt-6 space-y-4">
             {formData.ingredients.map((ingredient, index) => (
-              <div key={index} className="flex items-center">
+              <div key={index} className="flex items-center space-x-2">
                 <div className="flex-grow">
                   <input
                     type="text"
                     value={ingredient}
                     onChange={(e) => handleIngredientChange(index, e.target.value)}
-                    placeholder={`Ingredient ${index + 1}`}
-                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    placeholder="e.g. 2 cups flour"
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                     required
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => removeIngredient(index)}
-                  className="ml-2 inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                   disabled={formData.ingredients.length <= 1}
+                  className={`inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
+                    formData.ingredients.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -335,7 +337,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
             <button
               type="button"
               onClick={addIngredient}
-              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900"
             >
               Add Ingredient
             </button>
@@ -344,43 +346,44 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
 
         <div className="pt-8">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">Instructions</h3>
-            <p className="mt-1 text-sm text-gray-500">Step-by-step instructions for preparing the recipe.</p>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Instructions</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Step-by-step instructions for preparing the recipe.</p>
           </div>
           <div className="mt-6 space-y-4">
             {formData.instructions.map((instruction, index) => (
-              <div key={index} className="flex items-center">
-                <div className="w-8 flex-shrink-0 text-right">
-                  <span className="text-gray-500 font-medium">{index + 1}.</span>
+              <div key={index} className="flex items-start space-x-2">
+                <div className="mt-1 flex-shrink-0">
+                  <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-500 dark:bg-indigo-600 text-white text-sm font-medium">
+                    {index + 1}
+                  </span>
                 </div>
-                <div className="flex-grow mx-2">
+                <div className="flex-grow">
                   <textarea
                     value={instruction}
                     onChange={(e) => handleInstructionChange(index, e.target.value)}
-                    placeholder={`Step ${index + 1}`}
                     rows={2}
-                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                     required
                   />
                 </div>
-                <div className="flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => removeInstruction(index)}
-                    className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                    disabled={formData.instructions.length <= 1}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => removeInstruction(index)}
+                  disabled={formData.instructions.length <= 1}
+                  className={`inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
+                    formData.instructions.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
             ))}
             <button
               type="button"
               onClick={addInstruction}
-              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900"
             >
               Add Step
             </button>
@@ -389,19 +392,31 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       </div>
 
       <div className="pt-5">
-        <div className="flex justify-end">
+        <div className="flex justify-end space-x-3">
           <Link
             href="/admin"
-            className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-slate-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className={`inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
-            {loading ? 'Saving...' : isEditing ? 'Update Recipe' : 'Create Recipe'}
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </>
+            ) : (
+              'Save Recipe'
+            )}
           </button>
         </div>
       </div>

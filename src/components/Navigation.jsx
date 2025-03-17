@@ -20,27 +20,27 @@ export default function Navigation() {
   }
 
   return (
-    <nav className="bg-slate-800 border-b border-slate-700 shadow-lg">
+    <nav className="bg-white dark:bg-slate-800 shadow-lg border-b border-gray-200 dark:border-slate-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="text-xl font-bold text-gray-100 hover:text-gray-300">
+              <Link href="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
                 Mom's Recipes
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <Link href="/recipes" className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">
+              <Link href="/recipes" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                 Recipes
               </Link>
-              <Link href="/categories" className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">
+              <Link href="/categories" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                 Categories
               </Link>
-              <Link href="/search" className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">
+              <Link href="/search" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                 Search
               </Link>
               {user && (
-                <Link href="/admin" className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">
+                <Link href="/admin" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                   Admin
                 </Link>
               )}
@@ -51,12 +51,12 @@ export default function Navigation() {
             {user ? (
               <button
                 onClick={handleSignOut}
-                className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
               >
                 Sign Out
               </button>
             ) : (
-              <Link href="/login" className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">
+              <Link href="/login" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                 Sign In
               </Link>
             )}

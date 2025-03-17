@@ -70,9 +70,9 @@ export default async function CategoryPage(props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">{category.name}</h1>
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{category.name}</h1>
       {category.description && (
-        <p className="text-lg text-gray-600 mb-8">{category.description}</p>
+        <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">{category.description}</p>
       )}
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -80,18 +80,18 @@ export default async function CategoryPage(props) {
           <Link
             key={recipe.id}
             href={`/recipes/${recipe.id}`}
-            className="group relative rounded-lg border border-gray-300 bg-white p-6 shadow-sm hover:border-gray-400 transition-colors duration-200"
+            className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200"
           >
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors duration-200">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
                 {recipe.name}
               </h2>
               {recipe.description && (
-                <p className="mt-2 text-sm text-gray-500 line-clamp-2">
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
                   {recipe.description}
                 </p>
               )}
-              <div className="mt-4 flex items-center text-sm text-gray-500 space-x-4">
+              <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
                 {recipe.prep_time && (
                   <span>Prep: {recipe.prep_time} min</span>
                 )}
@@ -109,7 +109,7 @@ export default async function CategoryPage(props) {
 
       {category.recipes.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No recipes found in this category yet.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-lg">No recipes found in this category yet.</p>
         </div>
       )}
     </div>

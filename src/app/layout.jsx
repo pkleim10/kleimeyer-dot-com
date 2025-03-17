@@ -12,11 +12,11 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className="h-full">
+      <body className={`${inter.className} h-full`}>
         <AuthProvider>
           <Navigation />
-          <main className="min-h-screen bg-gray-50">
+          <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
             {children}
           </main>
         </AuthProvider>

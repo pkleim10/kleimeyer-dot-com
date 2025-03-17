@@ -92,9 +92,9 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search recipes..."
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+              className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm 
                 focus:ring-indigo-500 focus:border-indigo-500 
-                bg-white dark:bg-gray-800 
+                bg-white dark:bg-slate-800 
                 text-gray-900 dark:text-gray-100
                 placeholder-gray-500 dark:placeholder-gray-400"
             />
@@ -104,9 +104,9 @@ export default function SearchPage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+              className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm 
                 focus:ring-indigo-500 focus:border-indigo-500
-                bg-white dark:bg-gray-800 
+                bg-white dark:bg-slate-800 
                 text-gray-900 dark:text-gray-100"
             >
               <option value="">All Categories</option>
@@ -123,7 +123,7 @@ export default function SearchPage() {
             className="px-6 py-2 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-md 
               hover:bg-indigo-700 dark:hover:bg-indigo-600 
               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
-              dark:focus:ring-offset-gray-900"
+              dark:focus:ring-offset-slate-900"
           >
             Search
           </button>
@@ -140,9 +140,9 @@ export default function SearchPage() {
             <Link
               key={recipe.id}
               href={`/recipes/${recipe.id}`}
-              className="group relative rounded-lg border border-gray-300 dark:border-gray-600 
-                bg-white dark:bg-gray-800 p-6 
-                shadow-sm hover:border-gray-400 dark:hover:border-gray-500 
+              className="group relative rounded-lg border border-gray-300 dark:border-slate-700 
+                bg-white dark:bg-slate-800 p-6 
+                shadow-sm hover:border-gray-400 dark:hover:border-slate-600 
                 transition-colors duration-200"
             >
               <div>
