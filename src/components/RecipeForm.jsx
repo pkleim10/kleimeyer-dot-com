@@ -12,6 +12,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const [formData, setFormData] = useState({
     name: recipe.name || '',
     description: recipe.description || '',
+    source: recipe.source || '',
+    notes: recipe.notes || '',
+    image: recipe.image || '',
     ingredients: [],
     instructions: recipe.instructions || [''],
     prep_time: recipe.prep_time || '',
@@ -129,6 +132,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       const recipeData = {
         name: formData.name,
         description: formData.description,
+        source: formData.source,
+        notes: formData.notes,
+        image: formData.image,
         ingredients: cleanedIngredients,
         instructions: cleanedInstructions,
         prep_time: parseInt(formData.prep_time) || 0,
@@ -224,6 +230,56 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                 />
               </div>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Brief description of the recipe.</p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Source
+              </label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  name="source"
+                  id="source"
+                  value={formData.source}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Notes
+              </label>
+              <div className="mt-1">
+                <textarea
+                  id="notes"
+                  name="notes"
+                  rows={3}
+                  value={formData.notes}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                />
+              </div>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Additional notes, tips, or caveats</p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Image Filename
+              </label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  name="image"
+                  id="image"
+                  value={formData.image}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                />
+              </div>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Enter the filename of the image in the public/assets folder</p>
             </div>
 
             <div className="sm:col-span-2">

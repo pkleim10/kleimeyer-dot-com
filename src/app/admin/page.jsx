@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import Image from 'next/image'
 
 export default async function AdminPage() {
   const cookieStore = cookies()
@@ -11,9 +12,16 @@ export default async function AdminPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: () => {},
-        remove: () => {},
+        get: async (name) => {
+          const cookie = await cookieStore.get(name)
+          return cookie?.value
+        },
+        set: async (name, value, options) => {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove: async (name, options) => {
+          cookieStore.set({ name, value: '', ...options })
+        },
       },
     }
   )
@@ -26,12 +34,14 @@ export default async function AdminPage() {
     redirect('/login?redirectTo=/admin')
   }
 
-  const { data: recipes } = await supabase
+  const { data: recipes, error } = await supabase
     .from('recipes')
     .select(`
       id,
       name,
       description,
+      source,
+      image,
       created_at,
       updated_at,
       categories (
@@ -40,6 +50,24 @@ export default async function AdminPage() {
       )
     `)
     .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching recipes:', error)
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error</h3>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-400">
+                <p>Failed to load recipes. Please try again later.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -69,13 +97,27 @@ export default async function AdminPage() {
             <li key={recipe.id}>
               <div className="px-4 py-4 sm:px-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <p className="text-lg font-medium text-indigo-600 dark:text-indigo-400 truncate">{recipe.name}</p>
-                    {recipe.categories && (
-                      <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                        {recipe.categories.name}
-                      </span>
+                  <div className="flex items-center space-x-4">
+                    {recipe.image && (
+                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+                        <img
+                          src={`/assets/${recipe.image}`}
+                          alt={recipe.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
                     )}
+                    <div>
+                      <p className="text-lg font-medium text-indigo-600 dark:text-indigo-400 truncate">{recipe.name}</p>
+                      {recipe.source && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Source: {recipe.source}</p>
+                      )}
+                      {recipe.categories && (
+                        <span className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                          {recipe.categories.name}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex space-x-2">
                     <Link

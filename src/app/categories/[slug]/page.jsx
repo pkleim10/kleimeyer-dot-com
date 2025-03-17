@@ -32,6 +32,8 @@ async function getCategoryWithRecipes(urlSlug) {
       id,
       name,
       description,
+      source,
+      image,
       prep_time,
       cook_time,
       servings
@@ -82,25 +84,41 @@ export default async function CategoryPage(props) {
             href={`/recipes/${recipe.id}`}
             className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200"
           >
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
-                {recipe.name}
-              </h2>
-              {recipe.description && (
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                  {recipe.description}
-                </p>
+            <div className="flex items-start space-x-4">
+              {recipe.image && (
+                <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+                  <img
+                    src={`/assets/${recipe.image}`}
+                    alt={recipe.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               )}
-              <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
-                {recipe.prep_time && (
-                  <span>Prep: {recipe.prep_time} min</span>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
+                  {recipe.name}
+                </h2>
+                {recipe.description && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                    {recipe.description}
+                  </p>
                 )}
-                {recipe.cook_time && (
-                  <span>Cook: {recipe.cook_time} min</span>
+                {recipe.source && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    Source: {recipe.source}
+                  </p>
                 )}
-                {recipe.servings && (
-                  <span>Serves: {recipe.servings}</span>
-                )}
+                <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
+                  {recipe.prep_time && (
+                    <span>Prep: {recipe.prep_time} min</span>
+                  )}
+                  {recipe.cook_time && (
+                    <span>Cook: {recipe.cook_time} min</span>
+                  )}
+                  {recipe.servings && (
+                    <span>Serves: {recipe.servings}</span>
+                  )}
+                </div>
               </div>
             </div>
           </Link>
@@ -109,7 +127,7 @@ export default async function CategoryPage(props) {
 
       {category.recipes.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400 text-lg">No recipes found in this category yet.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-lg">No recipes found in this category.</p>
         </div>
       )}
     </div>

@@ -40,10 +40,12 @@ export default function SearchPage() {
           id,
           name,
           description,
+          source,
+          image,
           prep_time,
           cook_time,
           servings,
-          category:category_id (
+          categories (
             id,
             name
           )
@@ -145,39 +147,55 @@ export default function SearchPage() {
                 shadow-sm hover:border-gray-400 dark:hover:border-slate-600 
                 transition-colors duration-200"
             >
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 
-                  group-hover:text-indigo-600 dark:group-hover:text-indigo-400 
-                  transition-colors duration-200"
-                >
-                  {recipe.name}
-                </h2>
-                {recipe.description && (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                    {recipe.description}
-                  </p>
-                )}
-                <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
-                  {recipe.prep_time && (
-                    <span>Prep: {recipe.prep_time} min</span>
-                  )}
-                  {recipe.cook_time && (
-                    <span>Cook: {recipe.cook_time} min</span>
-                  )}
-                  {recipe.servings && (
-                    <span>Serves: {recipe.servings}</span>
-                  )}
-                </div>
-                {recipe.category && (
-                  <div className="mt-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                      bg-indigo-100 dark:bg-indigo-900 
-                      text-indigo-800 dark:text-indigo-200"
-                    >
-                      {recipe.category.name}
-                    </span>
+              <div className="flex items-start space-x-4">
+                {recipe.image && (
+                  <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+                    <img
+                      src={`/assets/${recipe.image}`}
+                      alt={recipe.name}
+                      className="h-full w-full object-cover"
+                    />
                   </div>
                 )}
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 
+                    group-hover:text-indigo-600 dark:group-hover:text-indigo-400 
+                    transition-colors duration-200"
+                  >
+                    {recipe.name}
+                  </h2>
+                  {recipe.description && (
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                      {recipe.description}
+                    </p>
+                  )}
+                  {recipe.source && (
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                      Source: {recipe.source}
+                    </p>
+                  )}
+                  <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
+                    {recipe.prep_time && (
+                      <span>Prep: {recipe.prep_time} min</span>
+                    )}
+                    {recipe.cook_time && (
+                      <span>Cook: {recipe.cook_time} min</span>
+                    )}
+                    {recipe.servings && (
+                      <span>Serves: {recipe.servings}</span>
+                    )}
+                  </div>
+                  {recipe.categories && (
+                    <div className="mt-4">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                        bg-indigo-100 dark:bg-indigo-900 
+                        text-indigo-800 dark:text-indigo-200"
+                      >
+                        {recipe.categories.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </Link>
           ))}
