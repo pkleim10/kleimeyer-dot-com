@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState('recipes')
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [recipes, setRecipes] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const activeTab = searchParams.get('tab') || 'recipes'
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,6 +56,10 @@ export default function AdminPage() {
     fetchData()
   }, [])
 
+  const handleTabChange = (tab) => {
+    router.push(`/admin?tab=${tab}`)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-12">
@@ -75,7 +82,7 @@ export default function AdminPage() {
         <div className="border-b border-gray-200 dark:border-slate-700 mb-8">
           <nav className="-mb-px flex space-x-8">
             <button
-              onClick={() => setActiveTab('recipes')}
+              onClick={() => handleTabChange('recipes')}
               className={`${
                 activeTab === 'recipes'
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
@@ -85,7 +92,7 @@ export default function AdminPage() {
               Recipes
             </button>
             <button
-              onClick={() => setActiveTab('categories')}
+              onClick={() => handleTabChange('categories')}
               className={`${
                 activeTab === 'categories'
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
@@ -123,7 +130,7 @@ export default function AdminPage() {
                               <div className="flex-shrink-0 h-16 w-16 mr-4">
                                 <img
                                   className="h-16 w-16 rounded-lg object-cover"
-                                  src={`/assets/${recipe.image}`}
+                                  src={recipe.image}
                                   alt={recipe.name}
                                 />
                               </div>
@@ -196,9 +203,9 @@ export default function AdminPage() {
                     {category.image && (
                       <div className="relative h-48">
                         <img
-                          src={`/assets/${category.image}`}
+                          src={category.image}
                           alt={category.name}
-                          className="w-full h-full object-cover opacity-50"
+                          className="h-full w-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-200"
                         />
                       </div>
                     )}

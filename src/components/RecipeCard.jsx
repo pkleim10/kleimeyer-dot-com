@@ -7,7 +7,7 @@ export default function RecipeCard({ recipe }) {
         {recipe.image && (
           <div className="relative h-48 w-full overflow-hidden">
             <img
-              src={`/assets/${recipe.image}`}
+              src={recipe.image}
               alt={recipe.name}
               className="h-full w-full object-cover"
             />

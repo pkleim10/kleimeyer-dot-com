@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import { uploadImage } from '@/utils/supabase'
 
 export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const router = useRouter()
@@ -24,6 +25,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
 
   // Process ingredients when component mounts
   useEffect(() => {
@@ -109,6 +111,22 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
     }
   }
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setImageFile(file)
+      // Show a preview of the selected image
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          image: reader.result
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -128,13 +146,19 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       const cleanedIngredients = formData.ingredients.filter(i => i.trim())
       const cleanedInstructions = formData.instructions.filter(i => i.trim())
 
+      // Upload image if a new one was selected
+      let imageUrl = formData.image
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile, 'recipes')
+      }
+
       // Prepare data for submission
       const recipeData = {
         name: formData.name,
         description: formData.description,
         source: formData.source,
         notes: formData.notes,
-        image: formData.image,
+        image: imageUrl,
         ingredients: cleanedIngredients,
         instructions: cleanedInstructions,
         prep_time: parseInt(formData.prep_time) || 0,
@@ -161,7 +185,8 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       }
 
       if (result.error) {
-        throw result.error
+        console.error('Supabase error details:', result.error)
+        throw new Error(`Database error: ${result.error.message}`)
       }
 
       // Redirect to admin page on success
@@ -267,19 +292,27 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
 
             <div className="sm:col-span-2">
               <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Image Filename
+                Recipe Image
               </label>
               <div className="mt-1">
                 <input
-                  type="text"
+                  type="file"
                   name="image"
                   id="image"
-                  value={formData.image}
-                  onChange={handleChange}
+                  accept="image/*"
+                  onChange={handleImageChange}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Enter the filename of the image in the public/assets folder</p>
+              {formData.image && (
+                <div className="mt-2">
+                  <img
+                    src={formData.image}
+                    alt="Preview"
+                    className="h-32 w-32 object-cover rounded-md"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="sm:col-span-2">

@@ -66,7 +66,7 @@ export default async function CategoriesPage() {
               {category.image && (
                 <div className="relative h-32 w-full">
                   <img
-                    src={`/assets/${category.image}`}
+                    src={category.image}
                     alt={category.name}
                     className="h-full w-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-200"
                   />

@@ -151,7 +151,7 @@ export default function SearchPage() {
                 {recipe.image && (
                   <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
                     <img
-                      src={`/assets/${recipe.image}`}
+                      src={recipe.image}
                       alt={recipe.name}
                       className="h-full w-full object-cover"
                     />

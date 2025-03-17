@@ -2,6 +2,8 @@ import { supabase } from '@/utils/supabase'
 import { notFound } from 'next/navigation'
 
 export default async function RecipePage({ params }) {
+  const id = await params.id
+  
   const { data: recipe, error } = await supabase
     .from('recipes')
     .select(`
@@ -11,7 +13,7 @@ export default async function RecipePage({ params }) {
         name
       )
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !recipe) {
@@ -24,7 +26,7 @@ export default async function RecipePage({ params }) {
         {recipe.image && (
           <div className="relative h-96 w-full overflow-hidden">
             <img
-              src={`/assets/${recipe.image}`}
+              src={recipe.image}
               alt={recipe.name}
               className="h-full w-full object-cover"
             />
