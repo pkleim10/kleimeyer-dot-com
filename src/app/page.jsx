@@ -1,5 +1,10 @@
 import Link from 'next/link'
-import { supabase } from '@/utils/supabase'
+import { supabase } from '@/lib/supabase'
+
+export const metadata = {
+  title: "Mom's Family Favorites",
+  description: 'A collection of cherished family recipes',
+}
 
 // Helper function to generate slug from name
 function generateSlug(name) {
@@ -13,66 +18,74 @@ export default async function HomePage() {
     .order('name')
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-5xl md:text-6xl">
-          Welcome to Mom's Recipe Collection
-        </h1>
-        <p className="mt-3 max-w-md mx-auto text-base text-gray-500 dark:text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-          Discover a treasure trove of cherished family recipes, carefully curated and passed down through generations.
-        </p>
-        <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-          <Link 
-            href="/search"
-            className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 md:py-4 md:text-lg md:px-10"
-          >
-            Search Recipes
-          </Link>
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      {/* Hero Section with Side-by-Side Layout */}
+      <div className="relative bg-gray-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            {/* Image Side */}
+            <div className="relative h-[500px] lg:h-[600px]">
+              <img
+                src="/assets/mom.jpeg"
+                alt="Mom's Kitchen"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gray-900/40 dark:bg-gray-900/50" />
+            </div>
+            
+            {/* Content Side */}
+            <div className="relative flex items-center px-4 sm:px-6 lg:px-8 py-12 lg:py-24">
+              <div className="max-w-xl mx-auto">
+                <h1 className="text-4xl font-bold text-white mb-4 sm:text-5xl md:text-6xl">
+                  Mom's Family Favorites
+                </h1>
+                <p className="text-lg text-gray-100 mb-8">
+                  Discover our collection of cherished family recipes, lovingly passed down through generations
+                </p>
+                <Link
+                  href="/search"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-indigo-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                >
+                  Search Recipes
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-16">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Recipe Categories</h2>
-
+      {/* Categories Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Categories</h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {categories?.map((category) => (
-            <div
+            <Link
               key={category.id}
+              href={`/categories/${generateSlug(category.name)}`}
               className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200"
             >
-              <Link
-                href={`/categories/${generateSlug(category.name)}`}
-                className="block"
-              >
-                {category.image && (
-                  <div className="relative h-32 w-full">
-                    <img
-                      src={`/assets/${category.image}`}
-                      alt={category.name}
-                      className="h-full w-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-200"
-                    />
-                  </div>
-                )}
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
-                    {category.name}
-                  </h2>
-                  {category.description && (
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                      {category.description}
-                    </p>
-                  )}
+              {category.image && (
+                <div className="relative h-32 w-full">
+                  <img
+                    src={`/assets/${category.image}`}
+                    alt={category.name}
+                    className="h-full w-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-200"
+                  />
                 </div>
-              </Link>
-            </div>
+              )}
+              <div className="p-6">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                  {category.name}
+                </h3>
+                {category.description && (
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {category.description}
+                  </p>
+                )}
+              </div>
+            </Link>
           ))}
         </div>
-
-        {categories?.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">No categories found.</p>
-          </div>
-        )}
       </div>
     </div>
   )
