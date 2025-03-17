@@ -66,7 +66,7 @@ export default function Navigation() {
           <div className="sm:hidden flex items-center">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
             >
               <span className="sr-only">Open main menu</span>
               {/* Icon for menu */}
@@ -97,15 +97,30 @@ export default function Navigation() {
       {/* Mobile menu */}
       <div className={`${isOpen ? 'block' : 'hidden'} sm:hidden`}>
         <div className="px-2 pt-2 pb-3 space-y-1">
-          <Link href="/categories" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50">
+          <Link href="/recipes" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
+            Recipes
+          </Link>
+          <Link href="/categories" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
             Categories
           </Link>
-          <Link href="/search" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50">
+          <Link href="/search" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
             Search
           </Link>
           {user && (
-            <Link href="/admin" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50">
+            <Link href="/admin" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
               Admin
+            </Link>
+          )}
+          {user ? (
+            <button
+              onClick={handleSignOut}
+              className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <Link href="/login" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
+              Sign In
             </Link>
           )}
         </div>

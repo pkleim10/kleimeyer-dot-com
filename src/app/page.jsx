@@ -6,12 +6,11 @@ function generateSlug(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-async function getFeaturedCategories() {
+async function getAllCategories() {
   const { data: categories, error } = await supabase
     .from('categories')
     .select('*')
     .order('name')
-    .limit(6)
   
   if (error) {
     console.error('Error fetching categories:', error)
@@ -22,7 +21,7 @@ async function getFeaturedCategories() {
 }
 
 export default async function Home() {
-  const categories = await getFeaturedCategories()
+  const categories = await getAllCategories()
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -34,27 +33,17 @@ export default async function Home() {
           Discover a treasure trove of cherished family recipes, carefully curated and passed down through generations.
         </p>
         <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-          <div className="rounded-md shadow">
-            <Link
-              href="/categories"
-              className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 md:py-4 md:text-lg md:px-10"
-            >
-              Browse Categories
-            </Link>
-          </div>
-          <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
-            <Link
-              href="/search"
-              className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 md:py-4 md:text-lg md:px-10"
-            >
-              Search Recipes
-            </Link>
-          </div>
+          <Link
+            href="/search"
+            className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 md:py-4 md:text-lg md:px-10"
+          >
+            Search Recipes
+          </Link>
         </div>
       </div>
 
       <div className="mt-16">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Featured Categories</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Recipe Categories</h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((category) => (
             <Link
@@ -65,7 +54,9 @@ export default async function Home() {
               <div className="flex-1 min-w-0">
                 <span className="absolute inset-0" aria-hidden="true" />
                 <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{category.name}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Explore recipes</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {category.description || 'Explore recipes in this category'}
+                </p>
               </div>
             </Link>
           ))}
