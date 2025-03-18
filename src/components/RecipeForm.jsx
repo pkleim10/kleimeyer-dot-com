@@ -26,6 +26,8 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [imageFile, setImageFile] = useState(null)
+  const [isEditingInstructions, setIsEditingInstructions] = useState(false)
+  const [isEditingIngredients, setIsEditingIngredients] = useState(false)
 
   // Process ingredients when component mounts
   useEffect(() => {
@@ -111,6 +113,32 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
     }
   }
 
+  const moveInstruction = (index, direction) => {
+    if (
+      (direction === 'up' && index > 0) ||
+      (direction === 'down' && index < formData.instructions.length - 1)
+    ) {
+      const newInstructions = [...formData.instructions]
+      const newIndex = direction === 'up' ? index - 1 : index + 1
+      const temp = newInstructions[index]
+      newInstructions[index] = newInstructions[newIndex]
+      newInstructions[newIndex] = temp
+      setFormData(prev => ({
+        ...prev,
+        instructions: newInstructions
+      }))
+    }
+  }
+
+  const insertInstruction = (index) => {
+    const newInstructions = [...formData.instructions]
+    newInstructions.splice(index + 1, 0, '')
+    setFormData(prev => ({
+      ...prev,
+      instructions: newInstructions
+    }))
+  }
+
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
@@ -125,6 +153,32 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       }
       reader.readAsDataURL(file)
     }
+  }
+
+  const moveIngredient = (index, direction) => {
+    if (
+      (direction === 'up' && index > 0) ||
+      (direction === 'down' && index < formData.ingredients.length - 1)
+    ) {
+      const newIngredients = [...formData.ingredients]
+      const newIndex = direction === 'up' ? index - 1 : index + 1
+      const temp = newIngredients[index]
+      newIngredients[index] = newIngredients[newIndex]
+      newIngredients[newIndex] = temp
+      setFormData(prev => ({
+        ...prev,
+        ingredients: newIngredients
+      }))
+    }
+  }
+
+  const insertIngredient = (index) => {
+    const newIngredients = [...formData.ingredients]
+    newIngredients.splice(index + 1, 0, '')
+    setFormData(prev => ({
+      ...prev,
+      ingredients: newIngredients
+    }))
   }
 
   const handleSubmit = async (e) => {
@@ -394,12 +448,31 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
 
         <div className="pt-8">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Ingredients</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Ingredients</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingIngredients(!isEditingIngredients)}
+                className={`p-1.5 border rounded-md transition-colors duration-200 ${
+                  isEditingIngredients 
+                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700' 
+                    : 'text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 border-gray-200 dark:border-slate-600'
+                }`}
+                title={isEditingIngredients ? "Done reordering" : "Reorder ingredients"}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">List all ingredients needed for the recipe.</p>
           </div>
           <div className="mt-6 space-y-4">
             {formData.ingredients.map((ingredient, index) => (
               <div key={index} className="flex items-center space-x-2">
+                <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 font-medium">
+                  {index + 1}
+                </span>
                 <div className="flex-grow">
                   <input
                     type="text"
@@ -410,73 +483,157 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                     required
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeIngredient(index)}
-                  disabled={formData.ingredients.length <= 1}
-                  className={`inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                    formData.ingredients.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                <div className="flex items-center space-x-1">
+                  {isEditingIngredients && (
+                    <div className="flex items-center space-x-1">
+                      <div className="flex flex-col space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => moveIngredient(index, 'up')}
+                          disabled={index === 0}
+                          className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveIngredient(index, 'down')}
+                          disabled={index === formData.ingredients.length - 1}
+                          className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => insertIngredient(index)}
+                      className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                      title="Insert ingredient"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeIngredient(index)}
+                      disabled={formData.ingredients.length === 1}
+                      className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Remove ingredient"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addIngredient}
-              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900"
-            >
-              Add Ingredient
-            </button>
           </div>
         </div>
 
         <div className="pt-8">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Instructions</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Instructions</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingInstructions(!isEditingInstructions)}
+                className={`p-1.5 border rounded-md transition-colors duration-200 ${
+                  isEditingInstructions 
+                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700' 
+                    : 'text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 border-gray-200 dark:border-slate-600'
+                }`}
+                title={isEditingInstructions ? "Done reordering" : "Reorder instructions"}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Step-by-step instructions for preparing the recipe.</p>
           </div>
-          <div className="mt-6 space-y-4">
-            {formData.instructions.map((instruction, index) => (
-              <div key={index} className="flex items-start space-x-2">
-                <div className="mt-1 flex-shrink-0">
-                  <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-500 dark:bg-indigo-600 text-white text-sm font-medium">
+          <div className="mt-8">
+            <ol className="mt-4 space-y-4">
+              {formData.instructions.map((instruction, index) => (
+                <li key={index} className="flex items-center space-x-2">
+                  <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 font-medium">
                     {index + 1}
                   </span>
-                </div>
-                <div className="flex-grow">
-                  <textarea
-                    value={instruction}
-                    onChange={(e) => handleInstructionChange(index, e.target.value)}
-                    rows={2}
-                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
-                    required
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeInstruction(index)}
-                  disabled={formData.instructions.length <= 1}
-                  className={`inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                    formData.instructions.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addInstruction}
-              className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900"
-            >
-              Add Step
-            </button>
+                  <div className="flex-grow">
+                    <textarea
+                      value={instruction}
+                      onChange={(e) => handleInstructionChange(index, e.target.value)}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                      rows={2}
+                      placeholder={`Step ${index + 1}`}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {isEditingInstructions && (
+                      <div className="flex items-center space-x-1">
+                        <div className="flex flex-col space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => moveInstruction(index, 'up')}
+                            disabled={index === 0}
+                            className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Move up"
+                          >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveInstruction(index, 'down')}
+                            disabled={index === formData.instructions.length - 1}
+                            className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Move down"
+                          >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-1">
+                      <button
+                        type="button"
+                        onClick={() => insertInstruction(index)}
+                        className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                        title="Insert step"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeInstruction(index)}
+                        disabled={formData.instructions.length === 1}
+                        className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Remove step"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </div>
