@@ -36,7 +36,11 @@ async function getCategoryWithRecipes(urlSlug) {
       image,
       prep_time,
       cook_time,
-      servings
+      servings,
+      ingredients,
+      instructions,
+      notes,
+      category_id
     `)
     .eq('category_id', category.id)
     .order('name')
@@ -62,9 +66,9 @@ export async function generateStaticParams() {
 
 export const dynamic = 'force-dynamic'
 
-export default async function CategoryPage(props) {
-  const params = await props.params
-  const category = await getCategoryWithRecipes(params.slug)
+export default async function CategoryPage({ params }) {
+  const { slug } = params
+  const category = await getCategoryWithRecipes(slug)
 
   if (!category) {
     notFound()
