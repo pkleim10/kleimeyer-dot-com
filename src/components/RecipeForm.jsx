@@ -30,6 +30,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const [isEditingIngredients, setIsEditingIngredients] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
 
   // Process ingredients when component mounts
   useEffect(() => {
@@ -264,6 +265,60 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       }
     }
   }, [imageFile])
+
+  const startSpeechRecognition = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome for this feature.');
+      return;
+    }
+
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.results.length - 1][0].transcript;
+      
+      // Handle punctuation commands and capitalization
+      const processedText = transcript
+        .replace(/ period/gi, '.')
+        .replace(/ comma/gi, ',')
+        .replace(/ exclamation( point)?/gi, '!')
+        .replace(/ question( mark)?/gi, '?')
+        .replace(/ new line/gi, '\n')
+        .replace(/ new paragraph/gi, '\n\n')
+        .replace(/ semicolon/gi, ';')
+        .replace(/ colon/gi, ':')
+        .replace(/ dash/gi, '-')
+        .replace(/ hyphen/gi, '-')
+        .trim()
+        // Capitalize first letter of the text if it doesn't start with a space
+        .replace(/^([a-z])/, (match) => match.toUpperCase())
+        // Capitalize letters following periods, handling multiple spaces
+        .replace(/\.\s+([a-z])/g, (match, letter) => `. ${letter.toUpperCase()}`);
+
+      setFormData(prev => ({
+        ...prev,
+        notes: prev.notes ? `${prev.notes} ${processedText}` : processedText
+      }));
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+    };
+
+    recognition.start();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -580,20 +635,43 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
             <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Notes
             </label>
-            <div className="mt-1">
+            <div className="mt-1 relative">
               <textarea
                 id="notes"
                 name="notes"
                 rows={4}
                 value={formData.notes}
                 onChange={handleChange}
-                onKeyDown={(e) => handleKeyDown(e, 8, 'notes')}
-                onFocus={() => handleFocus(8)}
-                onBlur={handleBlur}
                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 placeholder="Any additional notes or tips about the recipe..."
               />
+              <button
+                type="button"
+                onClick={startSpeechRecognition}
+                className={`absolute right-2 top-2 p-1.5 rounded-full ${
+                  isRecording 
+                    ? 'text-red-500 bg-red-100 dark:bg-red-900/30 animate-pulse' 
+                    : 'text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-300'
+                }`}
+                title={isRecording ? 'Recording... Click to stop' : 'Click to start voice input'}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" 
+                  />
+                </svg>
+              </button>
             </div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              {isRecording ? 'Recording... Click the microphone to stop.' : (
+                <>
+                  Click the microphone icon to use voice input. Say "period", "comma", "new line", or "new paragraph" for punctuation.
+                </>
+              )}
+            </p>
           </div>
         </div>
 
