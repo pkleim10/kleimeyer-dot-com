@@ -28,6 +28,7 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   const [imageFile, setImageFile] = useState(null)
   const [isEditingInstructions, setIsEditingInstructions] = useState(false)
   const [isEditingIngredients, setIsEditingIngredients] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState(null)
 
   // Process ingredients when component mounts
   useEffect(() => {
@@ -137,6 +138,12 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       ...prev,
       instructions: newInstructions
     }))
+    // Set focus to the new textarea after it's rendered
+    setTimeout(() => {
+      const textareas = document.querySelectorAll('.instruction-textarea')
+      textareas[index + 1]?.focus()
+      setFocusedIndex(index + 1)
+    }, 0)
   }
 
   const handleImageChange = (e) => {
@@ -179,6 +186,34 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
       ...prev,
       ingredients: newIngredients
     }))
+    // Set focus to the new input after it's rendered
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.ingredient-input')
+      inputs[index + 1]?.focus()
+      setFocusedIndex(index + 1)
+    }, 0)
+  }
+
+  const handleKeyDown = (e, index, type) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (focusedIndex === index) {
+        // If the current input is focused, blur it
+        e.target.blur()
+        setFocusedIndex(null)
+      } else {
+        // If no input is focused, submit the form
+        handleSubmit(e)
+      }
+    }
+  }
+
+  const handleFocus = (index) => {
+    setFocusedIndex(index)
+  }
+
+  const handleBlur = () => {
+    setFocusedIndex(null)
   }
 
   const handleSubmit = async (e) => {
@@ -255,7 +290,10 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800 p-6 rounded-lg shadow">
+    <form 
+      onSubmit={handleSubmit} 
+      className="space-y-8 divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800 p-6 rounded-lg shadow"
+    >
       {error && (
         <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4 mb-6">
           <div className="flex">
@@ -288,6 +326,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   id="name"
                   value={formData.name}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 0, 'name')}
+                  onFocus={() => handleFocus(0)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                   required
                 />
@@ -305,6 +346,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   id="source"
                   value={formData.source}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 1, 'source')}
+                  onFocus={() => handleFocus(1)}
+                  onBlur={handleBlur}
                   placeholder="e.g., Grandma's Cookbook, Food Network, etc."
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
@@ -322,6 +366,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   rows={3}
                   value={formData.description}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 2, 'description')}
+                  onFocus={() => handleFocus(2)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
@@ -339,6 +386,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   id="servings"
                   value={formData.servings}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 3, 'servings')}
+                  onFocus={() => handleFocus(3)}
+                  onBlur={handleBlur}
                   min="1"
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
@@ -357,6 +407,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   min="0"
                   value={formData.prep_time}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 4, 'prep_time')}
+                  onFocus={() => handleFocus(4)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
@@ -374,6 +427,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   min="0"
                   value={formData.cook_time}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 5, 'cook_time')}
+                  onFocus={() => handleFocus(5)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
@@ -389,6 +445,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   name="category_id"
                   value={formData.category_id}
                   onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 6, 'category_id')}
+                  onFocus={() => handleFocus(6)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                   required
                 >
@@ -413,6 +472,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                   id="image"
                   accept="image/*"
                   onChange={handleImageChange}
+                  onKeyDown={(e) => handleKeyDown(e, 7, 'image')}
+                  onFocus={() => handleFocus(7)}
+                  onBlur={handleBlur}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
@@ -439,6 +501,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                 rows={4}
                 value={formData.notes}
                 onChange={handleChange}
+                onKeyDown={(e) => handleKeyDown(e, 8, 'notes')}
+                onFocus={() => handleFocus(8)}
+                onBlur={handleBlur}
                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 placeholder="Any additional notes or tips about the recipe..."
               />
@@ -453,6 +518,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
               <button
                 type="button"
                 onClick={() => setIsEditingIngredients(!isEditingIngredients)}
+                onKeyDown={(e) => handleKeyDown(e, 9, 'ingredients')}
+                onFocus={() => handleFocus(9)}
+                onBlur={handleBlur}
                 className={`p-1.5 border rounded-md transition-colors duration-200 ${
                   isEditingIngredients 
                     ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700' 
@@ -478,8 +546,11 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                     type="text"
                     value={ingredient}
                     onChange={(e) => handleIngredientChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, index, 'ingredient')}
+                    onFocus={() => handleFocus(index)}
+                    onBlur={handleBlur}
                     placeholder="e.g. 2 cups flour"
-                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md ingredient-input"
                     required
                   />
                 </div>
@@ -548,6 +619,9 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
               <button
                 type="button"
                 onClick={() => setIsEditingInstructions(!isEditingInstructions)}
+                onKeyDown={(e) => handleKeyDown(e, 10, 'instructions')}
+                onFocus={() => handleFocus(10)}
+                onBlur={handleBlur}
                 className={`p-1.5 border rounded-md transition-colors duration-200 ${
                   isEditingInstructions 
                     ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700' 
@@ -573,7 +647,10 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
                     <textarea
                       value={instruction}
                       onChange={(e) => handleInstructionChange(index, e.target.value)}
-                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                      onKeyDown={(e) => handleKeyDown(e, index, 'instruction')}
+                      onFocus={() => handleFocus(index)}
+                      onBlur={handleBlur}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md instruction-textarea"
                       rows={2}
                       placeholder={`Step ${index + 1}`}
                     />
