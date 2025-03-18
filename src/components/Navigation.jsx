@@ -14,9 +14,14 @@ export default function Navigation() {
   const handleSignOut = async () => {
     try {
       await signOut()
-      router.push('/')
+      // Force a page refresh to ensure all auth state is cleared
+      window.location.href = '/'
     } catch (error) {
       console.error('Error signing out:', error)
+      // If there was an error but user state was cleared, still redirect
+      if (!user) {
+        window.location.href = '/'
+      }
     }
   }
 
@@ -55,16 +60,18 @@ export default function Navigation() {
               >
                 Search
               </Link>
-              <Link
-                href="/admin"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/admin')
-                    ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Admin
-              </Link>
+              {user && (
+                <Link
+                  href="/admin"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin')
+                      ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  Admin
+                </Link>
+              )}
             </div>
           </div>
           
@@ -138,16 +145,18 @@ export default function Navigation() {
           >
             Search
           </Link>
-          <Link
-            href="/admin"
-            className={`block px-3 py-2 rounded-md text-base font-medium ${
-              isActive('/admin')
-                ? 'text-indigo-500'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Admin
-          </Link>
+          {user && (
+            <Link
+              href="/admin"
+              className={`block px-3 py-2 rounded-md text-base font-medium ${
+                isActive('/admin')
+                  ? 'text-indigo-500'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Admin
+            </Link>
+          )}
           {user ? (
             <button
               onClick={handleSignOut}

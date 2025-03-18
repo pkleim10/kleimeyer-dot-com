@@ -33,10 +33,35 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  const signOut = async () => {
+    try {
+      // First check if we have a session
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      // If no session, just clear the user state
+      if (!session) {
+        setUser(null)
+        return
+      }
+
+      // If we have a session, try to sign out
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        throw error
+      }
+      setUser(null)
+    } catch (error) {
+      console.error('Error signing out:', error.message)
+      // Even if there's an error, clear the user state
+      setUser(null)
+      throw error
+    }
+  }
+
   const value = {
     signUp: (data) => supabase.auth.signUp(data),
     signIn: (data) => supabase.auth.signInWithPassword(data),
-    signOut: () => supabase.auth.signOut(),
+    signOut,
     user,
     loading
   }
