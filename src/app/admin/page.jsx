@@ -11,13 +11,15 @@ export default function AdminPage() {
   const [recipes, setRecipes] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [category, setCategory] = useState(searchParams.get('category') || '')
   const activeTab = searchParams.get('tab') || 'recipes'
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch recipes
-        const { data: recipesData, error: recipesError } = await supabase
+        let recipesQuery = supabase
           .from('recipes')
           .select(`
             id,
@@ -33,6 +35,18 @@ export default function AdminPage() {
             )
           `)
           .order('created_at', { ascending: false })
+
+        // Apply category filter if selected
+        if (category) {
+          recipesQuery = recipesQuery.eq('category_id', category)
+        }
+
+        // Apply search query if present
+        if (query) {
+          recipesQuery = recipesQuery.ilike('name', `%${query}%`)
+        }
+
+        const { data: recipesData, error: recipesError } = await recipesQuery
 
         if (recipesError) throw recipesError
 
@@ -54,10 +68,20 @@ export default function AdminPage() {
     }
 
     fetchData()
-  }, [])
+  }, [query, category])
 
   const handleTabChange = (tab) => {
-    router.push(`/admin?tab=${tab}`)
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    router.push(`/admin?${params.toString()}`)
+  }
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    const params = new URLSearchParams(searchParams)
+    if (query) params.set('q', query)
+    if (category) params.set('category', category)
+    router.push(`/admin?${params.toString()}`)
   }
 
   if (loading) {
@@ -117,6 +141,43 @@ export default function AdminPage() {
                 >
                   Add New Recipe
                 </Link>
+              </div>
+
+              {/* Search Controls */}
+              <div className="mb-6">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search recipes..."
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm 
+                        focus:ring-indigo-500 focus:border-indigo-500 
+                        bg-white dark:bg-slate-800 
+                        text-gray-900 dark:text-gray-100
+                        placeholder-gray-500 dark:placeholder-gray-400"
+                    />
+                  </div>
+                  
+                  <div className="w-full md:w-48">
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm 
+                        focus:ring-indigo-500 focus:border-indigo-500
+                        bg-white dark:bg-slate-800 
+                        text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="">All Categories</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="bg-white dark:bg-slate-800 shadow overflow-hidden sm:rounded-md">
