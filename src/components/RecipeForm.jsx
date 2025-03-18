@@ -240,6 +240,23 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
               </div>
             </div>
 
+            <div className="sm:col-span-4">
+              <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Source
+              </label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  name="source"
+                  id="source"
+                  value={formData.source}
+                  onChange={handleChange}
+                  placeholder="e.g., Grandma's Cookbook, Food Network, etc."
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                />
+              </div>
+            </div>
+
             <div className="sm:col-span-6">
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Description
@@ -258,83 +275,19 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Source
+              <label htmlFor="servings" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Servings
               </label>
               <div className="mt-1">
                 <input
-                  type="text"
-                  name="source"
-                  id="source"
-                  value={formData.source}
+                  type="number"
+                  name="servings"
+                  id="servings"
+                  value={formData.servings}
                   onChange={handleChange}
+                  min="1"
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Notes
-              </label>
-              <div className="mt-1">
-                <textarea
-                  id="notes"
-                  name="notes"
-                  rows={3}
-                  value={formData.notes}
-                  onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
-                />
-              </div>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Additional notes, tips, or caveats</p>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Recipe Image
-              </label>
-              <div className="mt-1">
-                <input
-                  type="file"
-                  name="image"
-                  id="image"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
-                />
-              </div>
-              {formData.image && (
-                <div className="mt-2">
-                  <img
-                    src={formData.image}
-                    alt="Preview"
-                    className="h-32 w-32 object-cover rounded-md"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Category *
-              </label>
-              <div className="mt-1">
-                <select
-                  id="category_id"
-                  name="category_id"
-                  value={formData.category_id}
-                  onChange={handleChange}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories?.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
@@ -373,20 +326,68 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="servings" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Servings
+              <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Category *
+              </label>
+              <div className="mt-1">
+                <select
+                  id="category_id"
+                  name="category_id"
+                  value={formData.category_id}
+                  onChange={handleChange}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {categories?.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Recipe Image
               </label>
               <div className="mt-1">
                 <input
-                  type="number"
-                  name="servings"
-                  id="servings"
-                  min="1"
-                  value={formData.servings}
-                  onChange={handleChange}
+                  type="file"
+                  name="image"
+                  id="image"
+                  accept="image/*"
+                  onChange={handleImageChange}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
                 />
               </div>
+              {formData.image && (
+                <div className="mt-2">
+                  <img
+                    src={formData.image}
+                    alt="Preview"
+                    className="h-32 w-32 object-cover rounded-md"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Notes
+            </label>
+            <div className="mt-1">
+              <textarea
+                id="notes"
+                name="notes"
+                rows={4}
+                value={formData.notes}
+                onChange={handleChange}
+                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md"
+                placeholder="Any additional notes or tips about the recipe..."
+              />
             </div>
           </div>
         </div>
