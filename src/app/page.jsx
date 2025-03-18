@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+export const revalidate = 0 // Add revalidation
+
 export const metadata = {
   title: "Mom's Family Favorites",
   description: 'A collection of cherished family recipes',
