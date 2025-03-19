@@ -70,7 +70,7 @@ export default async function HomePage() {
                   <img
                     src={category.image}
                     alt={category.name}
-                    className="h-full w-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-200"
+                    className="h-full w-full object-cover"
                   />
                 </div>
               )}

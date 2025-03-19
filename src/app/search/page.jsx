@@ -30,11 +30,21 @@ export default function SearchPage() {
     fetchCategories()
   }, [])
 
+  // Update URL when search parameters change
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (query) params.set('q', query)
+    if (category) params.set('category', category)
+    
+    // Use replace instead of push to avoid adding to browser history for every keystroke
+    router.replace(`/search?${params.toString()}`)
+  }, [query, category, router])
+
   // Search recipes when query or category changes
   useEffect(() => {
     async function searchRecipes() {
       setLoading(true)
-      let query = supabase
+      let searchQuery = supabase
         .from('recipes')
         .select(`
           id,
@@ -54,15 +64,15 @@ export default function SearchPage() {
 
       // Apply category filter if selected
       if (category) {
-        query = query.eq('category_id', category)
+        searchQuery = searchQuery.eq('category_id', category)
       }
 
       // Apply search query if present
-      if (searchParams.get('q')) {
-        query = query.ilike('name', `%${searchParams.get('q')}%`)
+      if (query) {
+        searchQuery = searchQuery.ilike('name', `%${query}%`)
       }
 
-      const { data, error } = await query
+      const { data, error } = await searchQuery
 
       if (!error) {
         setRecipes(data)
@@ -71,22 +81,13 @@ export default function SearchPage() {
     }
 
     searchRecipes()
-  }, [searchParams, category])
-
-  // Handle search form submission
-  const handleSearch = (e) => {
-    e.preventDefault()
-    const params = new URLSearchParams()
-    if (query) params.set('q', query)
-    if (category) params.set('category', category)
-    router.push(`/search?${params.toString()}`)
-  }
+  }, [query, category])
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Search Recipes</h1>
       
-      <form onSubmit={handleSearch} className="mb-8">
+      <div className="mb-8">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <input
@@ -119,18 +120,8 @@ export default function SearchPage() {
               ))}
             </select>
           </div>
-          
-          <button
-            type="submit"
-            className="px-6 py-2 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-md 
-              hover:bg-indigo-700 dark:hover:bg-indigo-600 
-              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
-              dark:focus:ring-offset-slate-900"
-          >
-            Search
-          </button>
         </div>
-      </form>
+      </div>
 
       {loading ? (
         <div className="text-center py-12">
