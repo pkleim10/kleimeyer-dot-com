@@ -237,6 +237,11 @@ export default function RecipeForm({ recipe, categories, isEditing = false }) {
 
   const handleKeyDown = (e, index, type) => {
     if (e.key === 'Enter') {
+      // Allow line breaks when Shift+Enter is pressed in textareas
+      if (e.shiftKey && e.target.tagName.toLowerCase() === 'textarea') {
+        return; // Let the default behavior happen (inserting a line break)
+      }
+      
       e.preventDefault()
       if (focusedIndex === index) {
         // If the current input is focused, blur it
