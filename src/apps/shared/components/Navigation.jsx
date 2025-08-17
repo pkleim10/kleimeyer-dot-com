@@ -13,6 +13,11 @@ export default function Navigation() {
   const router = useRouter()
   const pathname = usePathname()
 
+  // Only show navigation on recipe routes, not on the root launcher page
+  if (pathname === '/') {
+    return null
+  }
+
   const handleSignOut = async () => {
     try {
       await signOut()
