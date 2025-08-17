@@ -9,8 +9,8 @@ function generateSlug(name) {
 }
 
 export default async function RecipePage({ params }) {
-  const { id } = params
-  const headersList = headers()
+  const { id } = await params
+  const headersList = await headers()
   const referer = headersList.get('referer') || ''
   const isFromSearch = referer.includes('/search')
   

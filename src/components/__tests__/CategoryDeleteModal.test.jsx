@@ -4,11 +4,29 @@ import CategoryDeleteModal from '../CategoryDeleteModal'
 // Mock the supabase utilities
 jest.mock('@/utils/supabase', () => ({
   supabase: {
-    from: jest.fn(() => ({
-      delete: jest.fn(() => ({
-        eq: jest.fn(() => Promise.resolve({ error: null }))
-      }))
-    }))
+    from: jest.fn((table) => {
+      if (table === 'recipes') {
+        return {
+          update: jest.fn(() => ({
+            eq: jest.fn(() => Promise.resolve({ error: null }))
+          }))
+        }
+      } else if (table === 'categories') {
+        return {
+          delete: jest.fn(() => ({
+            eq: jest.fn(() => Promise.resolve({ error: null }))
+          }))
+        }
+      }
+      return {
+        update: jest.fn(() => ({
+          eq: jest.fn(() => Promise.resolve({ error: null }))
+        })),
+        delete: jest.fn(() => ({
+          eq: jest.fn(() => Promise.resolve({ error: null }))
+        }))
+      }
+    })
   }
 }))
 

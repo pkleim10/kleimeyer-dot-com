@@ -9,7 +9,7 @@ export async function uploadImage(file, path) {
   try {
     const fileExt = file.name.split('.').pop()
     const fileName = `${Math.random()}.${fileExt}`
-    const cleanPath = path.replace(/^\/+|\/+$/g, '')
+    const cleanPath = path ? path.replace(/^\/+|\/+$/g, '') : ''
     const cleanFileName = fileName.replace(/^\/+|\/+$/g, '')
     const filePath = cleanPath ? `${cleanPath}/${cleanFileName}` : cleanFileName
 

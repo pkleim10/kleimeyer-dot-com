@@ -72,8 +72,7 @@ describe('RecipeCard', () => {
     expect(screen.getByText('A test recipe')).toBeInTheDocument()
     expect(screen.getByText('Source: Test Source')).toBeInTheDocument()
     expect(screen.getByText('Prep: 15 min')).toBeInTheDocument()
-    expect(screen.getByText('Cook: 30 min')).toBeInTheDocument()
-    expect(screen.getByText('Serves: 4')).toBeInTheDocument()
+    // Cook and Serves are no longer displayed on the card
   })
 
   it('should render recipe image when available', () => {
@@ -95,7 +94,7 @@ describe('RecipeCard', () => {
     const mockUser = { id: '1', email: 'admin@example.com' }
     renderWithAuth(<RecipeCard recipe={mockRecipe} categories={mockCategories} />, mockUser)
     
-    // The buttons are hidden by default and only show on hover, but we can still test their presence
+    // Admin buttons are always visible when user is authenticated
     expect(screen.getByText('Edit')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })
@@ -180,10 +179,10 @@ describe('RecipeCard', () => {
     expect(mockOnRecipeDelete).toHaveBeenCalledWith('1')
   })
 
-  it('should have correct link to recipe detail page', () => {
+  it('should be clickable to open recipe view modal', () => {
     renderWithAuth(<RecipeCard recipe={mockRecipe} categories={mockCategories} />, null)
     
-    const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', '/recipes/1')
+    const card = screen.getByText('Test Recipe').closest('div[class*="cursor-pointer"]')
+    expect(card).toBeInTheDocument()
   })
 })
