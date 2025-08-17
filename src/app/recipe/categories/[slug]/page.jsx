@@ -1,6 +1,6 @@
 import { supabase } from '@/utils/supabase'
 import { notFound } from 'next/navigation'
-import RecipesGrid from '@/components/RecipesGrid'
+import { RecipesGrid } from '@/apps/recipes/components'
 
 // Helper function to generate slug from name
 function generateSlug(name) {
@@ -86,4 +86,4 @@ export default async function CategoryPage({ params }) {
       <RecipesGrid recipes={recipes} categories={allCategories} currentCategoryId={category.id} />
     </div>
   )
-} 
+}

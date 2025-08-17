@@ -28,7 +28,7 @@ export default async function RecipesPage() {
         {recipes?.map((recipe) => (
           <Link
             key={recipe.id}
-            href={`/recipes/${recipe.id}`}
+            href={`/recipe/recipes/${recipe.id}`}
             className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200"
           >
             <div className="flex items-start space-x-4">
@@ -86,4 +86,4 @@ export default async function RecipesPage() {
       )}
     </div>
   )
-} 
+}

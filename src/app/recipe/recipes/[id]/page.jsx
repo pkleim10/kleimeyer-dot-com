@@ -12,7 +12,7 @@ export default async function RecipePage({ params }) {
   const { id } = await params
   const headersList = await headers()
   const referer = headersList.get('referer') || ''
-  const isFromSearch = referer.includes('/search')
+  const isFromSearch = referer.includes('/recipe/search')
   
   const { data: recipe, error } = await supabase
     .from('recipes')
@@ -35,10 +35,10 @@ export default async function RecipePage({ params }) {
 
   // Determine back link text and URL
   const backLink = isFromSearch 
-    ? { text: 'Search', url: '/search' }
+    ? { text: 'Search', url: '/recipe/search' }
     : recipe.categories 
-      ? { text: recipe.categories.name, url: `/categories/${categorySlug}` }
-      : { text: 'Search', url: '/search' }
+      ? { text: recipe.categories.name, url: `/recipe/categories/${categorySlug}` }
+      : { text: 'Search', url: '/recipe/search' }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -122,4 +122,4 @@ export default async function RecipePage({ params }) {
       </div>
     </div>
   )
-} 
+}

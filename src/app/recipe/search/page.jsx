@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
-import RecipeCard from '@/components/RecipeCard'
+import { RecipeCard } from '@/apps/recipes/components'
 
 export default function SearchPage() {
   const router = useRouter()
@@ -37,7 +37,7 @@ export default function SearchPage() {
     if (category) params.set('category', category)
     
     // Use replace instead of push to avoid adding to browser history for every keystroke
-    router.replace(`/search?${params.toString()}`)
+    router.replace(`/recipe/search?${params.toString()}`)
   }, [query, category, router])
 
   // Search recipes when query or category changes
@@ -193,4 +193,4 @@ export default function SearchPage() {
       )}
     </div>
   )
-} 
+}

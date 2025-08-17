@@ -19,7 +19,7 @@ export default function CategoryCard({ category, onCategoryUpdate, onCategoryDel
   return (
     <div className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200">
       <Link
-        href={`/categories/${generateSlug(category.name)}`}
+        href={`/recipe/categories/${generateSlug(category.name)}`}
         className="block"
       >
         {category.image && (

@@ -17,12 +17,12 @@ export default function Navigation() {
     try {
       await signOut()
       // Force a page refresh to ensure all auth state is cleared
-      window.location.href = '/'
+      window.location.href = '/recipe'
     } catch (error) {
       console.error('Error signing out:', error)
       // If there was an error but user state was cleared, still redirect
       if (!user) {
-        window.location.href = '/'
+        window.location.href = '/recipe'
       }
     }
   }
@@ -37,15 +37,15 @@ export default function Navigation() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+              <Link href="/recipe" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
                 Mom's Recipes
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               <Link
-                href="/"
+                href="/recipe"
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/')
+                  isActive('/recipe')
                     ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
@@ -53,9 +53,9 @@ export default function Navigation() {
                 Home
               </Link>
               <Link
-                href="/search"
+                href="/recipe/search"
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/search')
+                  isActive('/recipe/search')
                     ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
@@ -120,9 +120,9 @@ export default function Navigation() {
       <div className={`${isOpen ? 'block' : 'hidden'} sm:hidden`}>
         <div className="px-2 pt-2 pb-3 space-y-1">
           <Link
-            href="/"
+            href="/recipe"
             className={`block px-3 py-2 rounded-md text-base font-medium ${
-              isActive('/')
+              isActive('/recipe')
                 ? 'text-indigo-500'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
@@ -130,9 +130,9 @@ export default function Navigation() {
             Home
           </Link>
           <Link
-            href="/search"
+            href="/recipe/search"
             className={`block px-3 py-2 rounded-md text-base font-medium ${
-              isActive('/search')
+              isActive('/recipe/search')
                 ? 'text-indigo-500'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
