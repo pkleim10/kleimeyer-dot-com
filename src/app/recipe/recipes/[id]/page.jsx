@@ -121,6 +121,7 @@ export default async function RecipePage({ params }) {
           </div>
         </div>
       </div>
-    </main>
+    </div>
+  </main>
   )
 }
