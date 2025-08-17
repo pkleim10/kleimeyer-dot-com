@@ -28,6 +28,14 @@ export default function Navigation() {
   }
 
   const isActive = (path) => {
+    if (path === '/recipe') {
+      // For the Home link, only show active when on the main recipe page
+      return pathname === '/recipe'
+    }
+    if (path === '/recipe/search') {
+      // For the Search link, show active when on search page
+      return pathname === '/recipe/search'
+    }
     return pathname === path
   }
 
