@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import CategoriesGrid from '@/components/CategoriesGrid'
 
 export const revalidate = 0 // Add revalidation
 
@@ -8,15 +9,17 @@ export const metadata = {
   description: 'A collection of cherished family recipes',
 }
 
-// Helper function to generate slug from name
-function generateSlug(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
 export default async function HomePage() {
   const { data: categories } = await supabase
     .from('categories')
     .select('*')
+    .order('name')
+
+  // Fetch uncategorized recipes for admin display
+  const { data: uncategorizedRecipes } = await supabase
+    .from('recipes')
+    .select('*')
+    .is('category_id', null)
     .order('name')
 
   return (
@@ -58,35 +61,7 @@ export default async function HomePage() {
 
       {/* Categories Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {categories?.map((category) => (
-            <Link
-              key={category.id}
-              href={`/categories/${generateSlug(category.name)}`}
-              className="group relative rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:border-gray-400 dark:hover:border-slate-600 transition-colors duration-200"
-            >
-              {category.image && (
-                <div className="relative h-32 w-full">
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
-              <div className="p-6">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                  {category.name}
-                </h3>
-                {category.description && (
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {category.description}
-                  </p>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+        <CategoriesGrid categories={categories} uncategorizedRecipes={uncategorizedRecipes} />
       </div>
     </div>
   )

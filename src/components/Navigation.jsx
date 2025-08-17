@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, usePathname } from 'next/navigation'
+import LoginModal from './LoginModal'
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const { user, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
@@ -60,18 +62,7 @@ export default function Navigation() {
               >
                 Search
               </Link>
-              {user && (
-                <Link
-                  href="/admin"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    isActive('/admin')
-                      ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Admin
-                </Link>
-              )}
+
             </div>
           </div>
           
@@ -84,9 +75,12 @@ export default function Navigation() {
                 Sign Out
               </button>
             ) : (
-              <Link href="/login" className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              <button
+                onClick={() => setIsLoginModalOpen(true)}
+                className="text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+              >
                 Sign In
-              </Link>
+              </button>
             )}
           </div>
 
@@ -145,18 +139,7 @@ export default function Navigation() {
           >
             Search
           </Link>
-          {user && (
-            <Link
-              href="/admin"
-              className={`block px-3 py-2 rounded-md text-base font-medium ${
-                isActive('/admin')
-                  ? 'text-indigo-500'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              Admin
-            </Link>
-          )}
+
           {user ? (
             <button
               onClick={handleSignOut}
@@ -165,12 +148,20 @@ export default function Navigation() {
               Sign Out
             </button>
           ) : (
-            <Link href="/login" className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700">
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700"
+            >
               Sign In
-            </Link>
+            </button>
           )}
         </div>
       </div>
+      
+      <LoginModal 
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
     </nav>
   )
 } 
