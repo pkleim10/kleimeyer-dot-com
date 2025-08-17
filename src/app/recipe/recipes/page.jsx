@@ -21,8 +21,9 @@ export default async function RecipesPage() {
     .order('name')
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">All Recipes</h1>
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">All Recipes</h1>
       
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {recipes?.map((recipe) => (
@@ -84,6 +85,7 @@ export default async function RecipesPage() {
           <p className="text-gray-500 dark:text-gray-400 text-lg">No recipes found.</p>
         </div>
       )}
-    </div>
+      </div>
+    </main>
   )
 }

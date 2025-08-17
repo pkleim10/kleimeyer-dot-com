@@ -77,13 +77,15 @@ export default async function CategoryPage({ params }) {
   const { recipes, allCategories, ...category } = categoryData
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{category.name}</h1>
-      {category.description && (
-        <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">{category.description}</p>
-      )}
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{category.name}</h1>
+        {category.description && (
+          <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">{category.description}</p>
+        )}
 
-      <RecipesGrid recipes={recipes} categories={allCategories} currentCategoryId={category.id} />
-    </div>
+        <RecipesGrid recipes={recipes} categories={allCategories} currentCategoryId={category.id} />
+      </div>
+    </main>
   )
 }

@@ -23,7 +23,7 @@ export default async function RecipeHomePage() {
     .order('name')
 
   return (
-    <div>
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Hero Section with Side-by-Side Layout */}
       <div className="relative bg-gray-900">
         <div className="max-w-7xl mx-auto">
@@ -63,6 +63,6 @@ export default async function RecipeHomePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <CategoriesGrid categories={categories} uncategorizedRecipes={uncategorizedRecipes} />
       </div>
-    </div>
+    </main>
   )
 }

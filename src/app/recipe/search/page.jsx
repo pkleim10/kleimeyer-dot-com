@@ -103,7 +103,8 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Search Recipes</h1>
       
       <div className="mb-8">
@@ -191,6 +192,7 @@ export default function SearchPage() {
           <p className="text-gray-500 dark:text-gray-400 text-lg">No recipes found</p>
         </div>
       )}
-    </div>
+      </div>
+    </main>
   )
 }

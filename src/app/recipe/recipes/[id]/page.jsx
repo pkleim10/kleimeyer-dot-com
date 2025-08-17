@@ -41,8 +41,9 @@ export default async function RecipePage({ params }) {
       : { text: 'Search', url: '/recipe/search' }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-6">
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-6">
         <Link
           href={backLink.url}
           className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -120,6 +121,6 @@ export default async function RecipePage({ params }) {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
