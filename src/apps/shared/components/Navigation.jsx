@@ -33,7 +33,7 @@ const generateBreadcrumbs = (pathname) => {
       if (context.section === 'search') {
         breadcrumbs.push({ name: 'Search', href: '/recipe/search', current: true })
       } else if (context.section === 'categories') {
-        breadcrumbs.push({ name: 'Categories', href: '/recipe', current: false })
+        breadcrumbs.push({ name: 'Categories', href: '/recipe/categories', current: false })
         // Category name would be extracted from the URL
         breadcrumbs.push({ name: 'Category', href: pathname, current: true })
       } else if (context.section === 'recipes') {
@@ -297,7 +297,7 @@ export default function Navigation() {
               <nav className="flex" aria-label="Breadcrumb">
                 <ol className="flex items-center space-x-2">
                   {breadcrumbs.map((breadcrumb, index) => (
-                    <li key={breadcrumb.href} className="flex items-center">
+                    <li key={`${breadcrumb.href}-${index}`} className="flex items-center">
                       {index > 0 && (
                         <svg className="flex-shrink-0 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
