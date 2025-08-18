@@ -2,12 +2,33 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
-import Link from 'next/link'
 
 export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
   const [recipe, setRecipe] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showShareMessage, setShowShareMessage] = useState(false)
+
+  // Helper function to generate slug from name
+  const generateSlug = (name) => {
+    return name.toLowerCase().replace(/\s+/g, '-');
+  }
+
+  // Helper function to share recipe
+  const handleShareRecipe = async () => {
+    if (!recipe) return
+    
+    const slug = generateSlug(recipe.name)
+    const shareUrl = `https://kleimeyer.com/recipe/recipes/${slug}`
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShowShareMessage(true)
+      setTimeout(() => setShowShareMessage(false), 3000)
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err)
+    }
+  }
 
   useEffect(() => {
     if (isOpen && recipeId) {
@@ -50,6 +71,12 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Share message popup */}
+      {showShareMessage && (
+        <div className="fixed top-4 right-4 z-60 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg">
+          The url of this recipe has been copied to the clipboard
+        </div>
+      )}
       <div 
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" 
         onClick={handleClose}
@@ -63,13 +90,13 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
               Recipe Details
             </h3>
             <div className="flex items-center space-x-3">
-              {recipe && recipe.slug && (
-                <Link
-                  href={`/recipe/recipes/${recipe.slug}`}
+              {recipe && (
+                <button
+                  onClick={handleShareRecipe}
                   className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:text-indigo-300 dark:bg-indigo-900 dark:hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                 >
-                  View Full Page
-                </Link>
+                  Share this Recipe
+                </button>
               )}
               <button
                 onClick={handleClose}

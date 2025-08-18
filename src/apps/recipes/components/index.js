@@ -14,3 +14,4 @@ export { default as CategoriesGrid } from './CategoriesGrid.jsx'
 // Action Components
 export { default as AddRecipeButton } from './AddRecipeButton.jsx'
 export { default as AddCategoryButton } from './AddCategoryButton.jsx'
+export { default as ShareRecipeButton } from './ShareRecipeButton.jsx'

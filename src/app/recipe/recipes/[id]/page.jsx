@@ -2,10 +2,11 @@ import { supabase } from '@/utils/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import ShareRecipeButton from '@/apps/recipes/components/ShareRecipeButton'
 
 // Helper function to generate slug from name
 function generateSlug(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return name.toLowerCase().replace(/\s+/g, '-');
 }
 
 export default async function RecipePage({ params }) {
@@ -27,9 +28,9 @@ export default async function RecipePage({ params }) {
     .eq('id', id)
     .single()
 
-  // If not found by ID, try to find by slug
+  // If not found by ID, try to find by slug (generated from name)
   if (error || !recipe) {
-    const { data: recipeBySlug, error: slugError } = await supabase
+    const { data: recipes, error: recipesError } = await supabase
       .from('recipes')
       .select(`
         *,
@@ -38,14 +39,17 @@ export default async function RecipePage({ params }) {
           name
         )
       `)
-      .eq('slug', id)
-      .single()
     
-    if (slugError || !recipeBySlug) {
+    if (recipesError) {
       notFound()
     }
     
-    recipe = recipeBySlug
+    // Find recipe by matching the slug parameter with generated slug from name
+    recipe = recipes.find(r => generateSlug(r.name) === id)
+    
+    if (!recipe) {
+      notFound()
+    }
   }
 
   // Generate the category slug if we have a category
@@ -61,17 +65,18 @@ export default async function RecipePage({ params }) {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-6">
-        <Link
-          href={backLink.url}
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to {backLink.text}
-        </Link>
-      </div>
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href={backLink.url}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to {backLink.text}
+          </Link>
+          <ShareRecipeButton recipeName={recipe.name} />
+        </div>
       <div className="bg-white dark:bg-slate-800 shadow overflow-hidden sm:rounded-lg border border-gray-200 dark:border-slate-700">
         {recipe.image && (
           <div className="relative h-96 w-full overflow-hidden">
