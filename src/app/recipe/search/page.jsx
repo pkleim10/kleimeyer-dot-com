@@ -57,6 +57,10 @@ export default function SearchPage() {
             prep_time,
             cook_time,
             servings,
+            ingredients,
+            instructions,
+            notes,
+            category_id,
             categories (
               id,
               name
