@@ -15,7 +15,7 @@ export default function ShareRecipeButton({ recipeName }) {
     if (!recipeName) return
     
     const slug = generateSlug(recipeName)
-    const shareUrl = `https://kleimeyer.com/recipe/recipes/${slug}`
+    const shareUrl = `${window.location.origin}/recipe/recipes/${slug}`
     
     try {
       await navigator.clipboard.writeText(shareUrl)

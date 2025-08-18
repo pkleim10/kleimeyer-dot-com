@@ -19,7 +19,7 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
     if (!recipe) return
     
     const slug = generateSlug(recipe.name)
-    const shareUrl = `https://kleimeyer.com/recipe/recipes/${slug}`
+    const shareUrl = `${window.location.origin}/recipe/recipes/${slug}`
     
     try {
       await navigator.clipboard.writeText(shareUrl)
