@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "pkill -f 'next dev' || true && sleep 1 && next dev",
     "dev:turbo": "next dev --turbopack",
-    "dev:clean": "rm -rf .next && next dev",
+    "dev:clean:build": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
