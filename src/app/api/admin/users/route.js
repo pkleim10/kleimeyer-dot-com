@@ -16,12 +16,9 @@ const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseSer
 
 export async function GET(request) {
   try {
-    console.log('Admin users API called')
-    
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('Missing or invalid authorization header')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -54,9 +51,6 @@ export async function GET(request) {
     }
 
     // Get user roles - this should work with the updated RLS policies
-    console.log('Fetching user roles...')
-    console.log('Current user ID:', user.id)
-    
     const { data: userRoles, error: rolesError } = await supabaseWithAuth
       .from('user_roles')
       .select('*')
@@ -64,20 +58,17 @@ export async function GET(request) {
 
     if (rolesError) {
       console.error('Error fetching user roles:', rolesError)
-      console.error('Roles error details:', rolesError)
       return NextResponse.json({ 
         error: 'Failed to fetch user roles',
         details: rolesError
       }, { status: 500 })
     }
 
-    console.log(`Found ${userRoles?.length || 0} user roles`)
-
     // If we have the service role key, get complete user information
     let usersWithDetails = []
     
     if (supabaseAdmin) {
-      console.log('Using admin client to get complete user information')
+      // Use admin client to get all users and roles
       
       // Get all users from auth.users
       const { data: allUsers, error: usersError } = await supabaseAdmin.auth.admin.listUsers()
@@ -115,8 +106,6 @@ export async function GET(request) {
         // Auto-assign 'member' role to users who don't have a role
         const usersWithoutRoles = usersWithDetails.filter(user => user.role === 'no-role')
         if (usersWithoutRoles.length > 0) {
-          console.log(`Found ${usersWithoutRoles.length} users without roles, assigning member role...`)
-          
           for (const userWithoutRole of usersWithoutRoles) {
             try {
               const { error: insertError } = await supabaseAdmin
@@ -129,7 +118,6 @@ export async function GET(request) {
               if (insertError) {
                 console.error(`Failed to assign role to user ${userWithoutRole.user_id}:`, insertError)
               } else {
-                console.log(`Successfully assigned member role to user ${userWithoutRole.user_id}`)
                 // Update the user's role in the response
                 userWithoutRole.role = 'member'
               }
@@ -143,7 +131,6 @@ export async function GET(request) {
     
     // If we don't have admin client or it failed, use basic user roles
     if (usersWithDetails.length === 0) {
-      console.log('Using basic user roles data')
       usersWithDetails = userRoles.map(userRole => {
         return {
           id: userRole.id,

@@ -150,7 +150,7 @@ export default function SignupPage() {
                 Next Steps:
               </h3>
               <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1 text-left">
-                <li>• Check your email for a confirmation link (from "Supabase Auth")</li>
+                <li>• Check your email for a confirmation link (from &quot;Supabase Auth&quot;)</li>
                 <li>• Click the link to verify your account</li>
                 <li>• Return here to sign in</li>
               </ul>
