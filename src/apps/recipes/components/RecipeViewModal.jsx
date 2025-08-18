@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 
 export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
@@ -38,9 +38,9 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
     if (isOpen && recipeId) {
       fetchRecipe()
     }
-  }, [isOpen, recipeId])
+  }, [isOpen, recipeId, fetchRecipe])
 
-  const fetchRecipe = async () => {
+  const fetchRecipe = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -63,7 +63,7 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [recipeId])
 
   const handleClose = () => {
     if (!loading) {

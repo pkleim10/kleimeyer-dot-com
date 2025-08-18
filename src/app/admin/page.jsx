@@ -235,8 +235,8 @@ export default function AdminPage() {
           <div className="bg-white dark:bg-slate-800 shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200 dark:divide-slate-700">
               {users.map((userRole) => {
-                const user = userRole.user
-                const displayName = `${user?.first_name || 'Unknown'} ${user?.last_name || 'User'}`
+                const listUser = userRole.user
+                const displayName = `${listUser?.first_name || 'Unknown'} ${listUser?.last_name || 'User'}`
                 
                 return (
                   <li key={userRole.id} className="px-6 py-4">
@@ -248,7 +248,7 @@ export default function AdminPage() {
                               {displayName}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {user?.email}
+                              {listUser?.email}
                             </p>
                           </div>
                         </div>
@@ -259,13 +259,16 @@ export default function AdminPage() {
                           <select
                             value={userRole.role}
                             onChange={(e) => updateUserRole(userRole.user_id, e.target.value)}
-                            disabled={updating}
+                            disabled={updating || user?.id === listUser?.id}
                             className="text-sm border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                           >
                             <option value="member">Member</option>
                             <option value="contributor">Contributor</option>
                             <option value="admin">Admin</option>
                           </select>
+                          {user?.id === listUser?.id && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">(You)</span>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           Joined: {new Date(userRole.created_at).toLocaleDateString()}
