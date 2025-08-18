@@ -29,13 +29,21 @@ export default async function RecipeHomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2">
             {/* Image Side */}
-            <div className="relative h-[350px] lg:h-[400px]">
-              <img
-                src="https://bqhwibhrukfryafwwwat.supabase.co/storage/v1/object/public/recipe-images/mom.jpeg"
-                alt="Mom's Kitchen"
-                className="w-full h-full object-contain bg-gray-900"
-              />
-              <div className="absolute inset-0 bg-gray-900/40 dark:bg-gray-900/50" />
+            <div className="relative h-[350px] lg:h-[400px] flex items-center justify-center">
+              <div className="relative w-80 h-80 lg:w-96 lg:h-96">
+                {/* Gradient oval frame */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 via-purple-500 to-pink-500 p-1 shadow-2xl">
+                  <div className="w-full h-full rounded-full overflow-hidden">
+                    <img
+                      src="https://bqhwibhrukfryafwwwat.supabase.co/storage/v1/object/public/recipe-images/mom.jpeg"
+                      alt="Mom's Kitchen"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+                {/* Additional glow effect */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400/20 via-purple-500/20 to-pink-500/20 blur-xl scale-110" />
+              </div>
             </div>
             
             {/* Content Side */}
