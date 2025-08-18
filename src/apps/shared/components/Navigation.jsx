@@ -22,6 +22,19 @@ const getNavigationContext = (pathname) => {
   return { app: 'unknown', section: null, page: 'unknown' }
 }
 
+// Helper function to extract category name from URL
+const extractCategoryName = (pathname) => {
+  if (pathname.startsWith('/recipe/categories/')) {
+    const slug = pathname.replace('/recipe/categories/', '')
+    // Convert slug back to readable name (e.g., "holiday-favorites" -> "Holiday Favorites")
+    return slug
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+  return null
+}
+
 // Breadcrumb generation
 const generateBreadcrumbs = (pathname) => {
   const context = getNavigationContext(pathname)
@@ -34,8 +47,9 @@ const generateBreadcrumbs = (pathname) => {
         breadcrumbs.push({ name: 'Search', href: '/recipe/search', current: true })
       } else if (context.section === 'categories') {
         breadcrumbs.push({ name: 'Categories', href: '/recipe/categories', current: false })
-        // Category name would be extracted from the URL
-        breadcrumbs.push({ name: 'Category', href: pathname, current: true })
+        // Extract actual category name from URL
+        const categoryName = extractCategoryName(pathname)
+        breadcrumbs.push({ name: categoryName || 'Category', href: pathname, current: true })
       } else if (context.section === 'recipes') {
         breadcrumbs.push({ name: 'Search', href: '/recipe/search', current: false })
         breadcrumbs.push({ name: 'Recipe', href: pathname, current: true })
