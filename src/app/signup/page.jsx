@@ -139,7 +139,7 @@ export default function SignupPage() {
               </ul>
             </div>
             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-              Didn't receive the email? Check your spam folder or contact support.
+              Didn&apos;t receive the email? Check your spam folder or contact support.
             </p>
             <div className="mt-6">
               <Link

@@ -11,21 +11,15 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
     const overlayRef = useRef(null);
     const optionsListRef = useRef(null);
 
-    // Early return for non-editable case
-    if (!isEditable) {
-        return {
-            currentValue: String(value || ''),
-            setCurrentValue: () => {},
-        };
-    }
-
     const handleClick = useCallback(() => {
+        if (!isEditable) return;
         setCurrentValue(String(value || ''));
         setFilteredOptions(options);
         setIsEditing(true);
-    }, [value, options]);
+    }, [value, options, isEditable]);
 
     const handleSave = useCallback(() => {
+        if (!isEditable) return;
         setIsEditing(false);
         if (String(currentValue) !== String(value)) {
             const selectedOption = options.find(
@@ -38,10 +32,11 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
             });
         }
         setTimeout(() => valueRef.current?.focus(), 0);
-    }, [currentValue, value, onValueChange, options]);
+    }, [currentValue, value, onValueChange, options, isEditable]);
 
     const handleChange = useCallback(
         (e) => {
+            if (!isEditable) return;
             const inputText = e.target.value;
             const filtered = options.filter((option) =>
                 option.label.toLowerCase().includes(inputText.toLowerCase())
@@ -81,11 +76,12 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
                 setFilteredOptions(filtered);
             }
         },
-        [options, onAddOption]
+        [options, onAddOption, isEditable]
     );
 
     const handleSelectOption = useCallback(
         (optionValue) => {
+            if (!isEditable) return;
             const newValue = String(optionValue);
             setCurrentValue(newValue);
             setIsEditing(false);
@@ -101,11 +97,12 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
             }
             setTimeout(() => valueRef.current?.focus(), 0);
         },
-        [value, onValueChange, options]
+        [value, onValueChange, options, isEditable]
     );
 
     const handleAddOption = useCallback(
         (newLabel) => {
+            if (!isEditable) return;
             if (onAddOption) {
                 onAddOption(newLabel);
                 setIsEditing(false);
@@ -113,11 +110,12 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
                 setTimeout(() => valueRef.current?.focus(), 0);
             }
         },
-        [onAddOption]
+        [onAddOption, isEditable]
     );
 
     const handleKeyDown = useCallback(
         (e) => {
+            if (!isEditable) return;
             if (!isEditing && e.key === 'Enter') {
                 e.preventDefault();
                 setCurrentValue(String(value || ''));
@@ -158,29 +156,41 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
             onAddOption,
             handleSelectOption,
             handleAddOption,
+            isEditable,
         ]
     );
 
     useClickOutside(overlayRef, () => {
+        if (!isEditable) return;
         setIsEditing(false);
         setCurrentValue(String(value || ''));
         setFilteredOptions(options);
         setTimeout(() => valueRef.current?.focus(), 0);
-    }, isEditing);
+    }, isEditing && isEditable);
 
     useEffect(() => {
+        if (!isEditable) return;
         if (isEditing && inputRef.current) {
             inputRef.current.focus();
             inputRef.current.select?.();
         }
-    }, [isEditing]);
+    }, [isEditing, isEditable]);
 
     useEffect(() => {
+        if (!isEditable) return;
         if (!isEditing) {
             setCurrentValue(String(value || ''));
             setFilteredOptions(options);
         }
-    }, [value, options, isEditing]);
+    }, [value, options, isEditing, isEditable]);
+
+    // Return early for non-editable case
+    if (!isEditable) {
+        return {
+            currentValue: String(value || ''),
+            setCurrentValue: () => {},
+        };
+    }
 
     return {
         isEditing,

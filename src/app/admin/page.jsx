@@ -166,7 +166,7 @@ export default function AdminPage() {
             Access Denied
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            You don't have permission to access the admin panel.
+            You don&apos;t have permission to access the admin panel.
           </p>
           <Link
             href="/"

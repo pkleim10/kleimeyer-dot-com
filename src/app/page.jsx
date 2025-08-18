@@ -24,20 +24,20 @@ export default function HomePage() {
       {/* Apps Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* Mom's Recipes App */}
+          {/* Mom&apos;s Recipes App */}
           <Link href="/recipe" className="group">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
               <div className="relative h-48 bg-gradient-to-br from-indigo-500 to-purple-600">
                 <img
                   src="https://bqhwibhrukfryafwwwat.supabase.co/storage/v1/object/public/recipe-images/mom.jpeg"
-                  alt="Mom's Kitchen"
+                  alt="Mom&apos;s Kitchen"
                   className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
                 />
                 <div className="absolute inset-0 bg-black/20" />
               </div>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-300">
-                  Mom's Recipes
+                  Mom&apos;s Recipes
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
                   Discover our collection of cherished family recipes, lovingly passed down through generations

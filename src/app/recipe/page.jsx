@@ -5,7 +5,7 @@ import { CategoriesGrid } from '@/apps/recipes/components'
 export const revalidate = 0 // Add revalidation
 
 export const metadata = {
-  title: "Mom's Family Favorites",
+  title: "Mom&apos;s Family Favorites",
   description: 'A collection of cherished family recipes',
 }
 
@@ -36,7 +36,7 @@ export default async function RecipeHomePage() {
                   <div className="w-full h-full rounded-full overflow-hidden">
                     <img
                       src="https://bqhwibhrukfryafwwwat.supabase.co/storage/v1/object/public/recipe-images/mom.jpeg"
-                      alt="Mom's Kitchen"
+                      alt="Mom&apos;s Kitchen"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -50,7 +50,7 @@ export default async function RecipeHomePage() {
             <div className="relative flex items-center px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
               <div className="max-w-xl mx-auto">
                 <h1 className="text-4xl font-bold text-white mb-4 sm:text-5xl md:text-6xl">
-                  Mom's Family Favorites
+                  Mom&apos;s Family Favorites
                 </h1>
                 <p className="text-lg text-gray-100 mb-8">
                   Discover our collection of cherished family recipes, lovingly passed down through generations

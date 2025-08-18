@@ -84,7 +84,7 @@ export default function RecipeDeleteModal({ recipe, isOpen, onClose, onDelete })
                 Are you sure you want to delete the recipe
               </p>
               <p className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-6">
-                "{recipe?.name}"?
+                &quot;{recipe?.name}&quot;?
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 This action cannot be undone.

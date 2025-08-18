@@ -98,7 +98,7 @@ export default function CategoryDeleteModal({ category, isOpen, onClose, onDelet
             </div>
             
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Are you sure you want to delete the category "<strong>{category.name}</strong>"? This action cannot be undone.
+              Are you sure you want to delete the category &quot;<strong>{category.name}</strong>&quot;? This action cannot be undone.
             </p>
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-4 mb-4">
               <div className="flex">
@@ -109,7 +109,7 @@ export default function CategoryDeleteModal({ category, isOpen, onClose, onDelet
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                    <strong>Note:</strong> All recipes in this category will be moved to the "Uncategorized" section. You can reassign them to other categories later.
+                    <strong>Note:</strong> All recipes in this category will be moved to the &quot;Uncategorized&quot; section. You can reassign them to other categories later.
                   </p>
                 </div>
               </div>
