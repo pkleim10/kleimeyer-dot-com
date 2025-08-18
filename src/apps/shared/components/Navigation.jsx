@@ -234,36 +234,6 @@ export default function Navigation() {
             </div>
           </div>
 
-          {/* Breadcrumbs - Bottom section with distinct styling */}
-          {breadcrumbs.length > 1 && (
-            <div id="breadcrumb" className="bg-gray-50 dark:bg-slate-700 border-t border-gray-200 dark:border-slate-600">
-              <div className="py-2">
-                <nav className="flex" aria-label="Breadcrumb">
-                  <ol className="flex items-center space-x-2">
-                    {breadcrumbs.map((breadcrumb, index) => (
-                      <li key={breadcrumb.href} className="flex items-center">
-                        {index > 0 && (
-                          <svg className="flex-shrink-0 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        <Link
-                          href={breadcrumb.href}
-                          className={`text-sm font-medium ${
-                            breadcrumb.current
-                              ? 'text-indigo-600 dark:text-indigo-400'
-                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                          }`}
-                        >
-                          {breadcrumb.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ol>
-                </nav>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Mobile menu */}
@@ -318,6 +288,39 @@ export default function Navigation() {
           </div>
         </div>
       </nav>
+
+      {/* Breadcrumbs - Bottom section with distinct styling */}
+      {breadcrumbs.length > 1 && (
+        <div id="breadcrumb" className="bg-gray-50 dark:bg-slate-700 border-t border-gray-200 dark:border-slate-600">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="py-2">
+              <nav className="flex" aria-label="Breadcrumb">
+                <ol className="flex items-center space-x-2">
+                  {breadcrumbs.map((breadcrumb, index) => (
+                    <li key={breadcrumb.href} className="flex items-center">
+                      {index > 0 && (
+                        <svg className="flex-shrink-0 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      <Link
+                        href={breadcrumb.href}
+                        className={`text-sm font-medium ${
+                          breadcrumb.current
+                            ? 'text-indigo-600 dark:text-indigo-400'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                      >
+                        {breadcrumb.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Click outside to close user menu */}
       {isUserMenuOpen && (
