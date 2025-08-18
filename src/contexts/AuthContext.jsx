@@ -40,28 +40,40 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Check active sessions and sets the user
     const getSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (error) {
-        console.error('Error fetching session:', error.message)
-      }
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        console.log('User ID from AuthContext:', session.user.id); // Temporary log to help user retrieve ID
-        await fetchUserRole(session.user.id)
-      } else {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Error fetching session:', error.message)
+        }
+        
+        if (session?.user) {
+          console.log('User ID from AuthContext:', session.user.id)
+          setUser(session.user)
+          await fetchUserRole(session.user.id)
+        } else {
+          setUser(null)
+          setUserRole(null)
+        }
+      } catch (error) {
+        console.error('Error in getSession:', error)
+        setUser(null)
         setUserRole(null)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     getSession()
 
     // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id)
+      
       if (session?.user) {
+        setUser(session.user)
         await fetchUserRole(session.user.id)
       } else {
+        setUser(null)
         setUserRole(null)
       }
       setLoading(false)
