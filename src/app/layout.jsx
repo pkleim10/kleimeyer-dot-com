@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
       <body className={`${inter.className} h-full`}>
         <AuthProvider>
           <Navigation />
-          <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+          <main className="bg-gray-50 dark:bg-slate-900">
             {children}
           </main>
         </AuthProvider>

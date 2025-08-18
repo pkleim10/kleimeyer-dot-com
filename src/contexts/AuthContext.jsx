@@ -78,6 +78,7 @@ export function AuthProvider({ children }) {
       // If no session, just clear the user state
       if (!session) {
         setUser(null)
+        setUserRole(null)
         return
       }
 
@@ -87,10 +88,12 @@ export function AuthProvider({ children }) {
         throw error
       }
       setUser(null)
+      setUserRole(null)
     } catch (error) {
       console.error('Error signing out:', error.message)
       // Even if there's an error, clear the user state
       setUser(null)
+      setUserRole(null)
       throw error
     }
   }
