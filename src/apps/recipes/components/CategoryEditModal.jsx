@@ -222,7 +222,7 @@ export default function CategoryEditModal({ category, isOpen, onClose, onSave, m
                 id="image"
                 accept="image/*"
                 onChange={handleImageChange}
-                className="mt-1 block w-full border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 You can also paste an image from your clipboard (Ctrl+V / Cmd+V)
