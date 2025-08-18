@@ -33,10 +33,6 @@ export default function Navigation() {
   }
 
   const isActive = (path) => {
-    if (path === '/recipe') {
-      // For the Home link, only show active when on the main recipe page
-      return pathname === '/recipe'
-    }
     if (path === '/recipe/search') {
       // For the Search link, show active when on search page
       return pathname === '/recipe/search'
@@ -55,16 +51,6 @@ export default function Navigation() {
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <Link
-                href="/recipe"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/recipe')
-                    ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Home
-              </Link>
               <Link
                 href="/recipe/search"
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
@@ -132,16 +118,6 @@ export default function Navigation() {
       {/* Mobile menu */}
       <div className={`${isOpen ? 'block' : 'hidden'} sm:hidden`}>
         <div className="px-2 pt-2 pb-3 space-y-1">
-          <Link
-            href="/recipe"
-            className={`block px-3 py-2 rounded-md text-base font-medium ${
-              isActive('/recipe')
-                ? 'text-indigo-500'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Home
-          </Link>
           <Link
             href="/recipe/search"
             className={`block px-3 py-2 rounded-md text-base font-medium ${
