@@ -1,11 +1,10 @@
-import Link from 'next/link'
+'use client'
 
-export const metadata = {
-  title: "Kleimeyer.com - Home",
-  description: 'Welcome to Kleimeyer.com - Your digital hub for family favorites and more',
-}
+import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function HomePage() {
+  const { user, isAdmin } = useAuth()
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Hero Section */}

@@ -4,12 +4,14 @@ import { useState } from 'react'
 import CategoryCard from './CategoryCard'
 import AddCategoryButton from './AddCategoryButton'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import RecipesGrid from './RecipesGrid'
 import RecipeCard from './RecipeCard'
 import { supabase } from '@/utils/supabase'
 
 export default function CategoriesGrid({ categories: initialCategories, uncategorizedRecipes }) {
   const { user } = useAuth()
+  const { isAdmin } = usePermissions()
   const [categories, setCategories] = useState(initialCategories)
   const [recipes, setRecipes] = useState(uncategorizedRecipes || [])
 
@@ -86,7 +88,7 @@ export default function CategoriesGrid({ categories: initialCategories, uncatego
   return (
     <div>
       {/* Uncategorized Recipes Section - Only visible to admin users */}
-      {user && recipes && recipes.length > 0 && (
+      {isAdmin && recipes && recipes.length > 0 && (
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
             Uncategorized Recipes
@@ -110,7 +112,7 @@ export default function CategoriesGrid({ categories: initialCategories, uncatego
       )}
 
       {/* Add New Category Button - Only visible to admin users */}
-      {user && (
+      {isAdmin && (
         <div className="mb-12">
                           <AddCategoryButton onCategoryCreate={handleCategoryCreate} />
         </div>

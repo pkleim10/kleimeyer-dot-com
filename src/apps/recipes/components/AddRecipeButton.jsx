@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import RecipeEditModal from './RecipeEditModal'
 
 export default function AddRecipeButton({ categories, onRecipeCreate, currentCategoryId }) {
   const { user } = useAuth()
+  const { isContributor } = usePermissions()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Only show the button if user is authenticated
-  if (!user) {
+  // Only show the button if user is a contributor
+  if (!isContributor) {
     return null
   }
 

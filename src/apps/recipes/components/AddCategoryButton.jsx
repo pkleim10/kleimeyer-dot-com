@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import CategoryEditModal from './CategoryEditModal'
 
 export default function AddCategoryButton({ onCategoryCreate }) {
   const { user } = useAuth()
+  const { isAdmin } = usePermissions()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Only show the button if user is authenticated
-  if (!user) {
+  // Only show the button if user is admin
+  if (!isAdmin) {
     return null
   }
 

@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import RecipeEditModal from './RecipeEditModal'
 import RecipeDeleteModal from './RecipeDeleteModal'
 import RecipeViewModal from './RecipeViewModal'
 
 export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecipeDelete, currentCategoryId }) {
   const { user } = useAuth()
+  const { isContributor, isAdmin } = usePermissions()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
@@ -82,8 +84,8 @@ export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecip
           </div>
         </div>
 
-        {/* Admin buttons - only visible to authenticated users */}
-        {user && (
+        {/* Admin buttons - only visible to contributors and admins */}
+        {isContributor && (
           <div className="absolute bottom-4 right-4 flex space-x-4">
             <button
               onClick={handleEditClick}
@@ -91,12 +93,14 @@ export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecip
             >
               Edit
             </button>
-            <button
-              onClick={handleDeleteClick}
-              className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-sm font-medium"
-            >
-              Delete
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleDeleteClick}
+                className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-sm font-medium"
+              >
+                Delete
+              </button>
+            )}
           </div>
         )}
       </div>

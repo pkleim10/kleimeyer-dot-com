@@ -9,7 +9,33 @@ export const useAuth = () => useContext(AuthContext)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [userRole, setUserRole] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Function to fetch user role
+  const fetchUserRole = async (userId) => {
+    if (!userId) {
+      setUserRole(null)
+      return
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single()
+      
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error fetching user role:', error.message)
+      }
+      
+      setUserRole(data?.role || null)
+    } catch (error) {
+      console.error('Error fetching user role:', error.message)
+      setUserRole(null)
+    }
+  }
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -19,14 +45,25 @@ export function AuthProvider({ children }) {
         console.error('Error fetching session:', error.message)
       }
       setUser(session?.user ?? null)
+      if (session?.user) {
+        console.log('User ID from AuthContext:', session.user.id); // Temporary log to help user retrieve ID
+        await fetchUserRole(session.user.id)
+      } else {
+        setUserRole(null)
+      }
       setLoading(false)
     }
 
     getSession()
 
     // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) {
+        await fetchUserRole(session.user.id)
+      } else {
+        setUserRole(null)
+      }
       setLoading(false)
     })
 
@@ -63,7 +100,10 @@ export function AuthProvider({ children }) {
     signIn: (data) => supabase.auth.signInWithPassword(data),
     signOut,
     user,
-    loading
+    userRole,
+    loading,
+    isAdmin: userRole === 'admin',
+    isContributor: userRole === 'contributor' || userRole === 'admin'
   }
 
   return (

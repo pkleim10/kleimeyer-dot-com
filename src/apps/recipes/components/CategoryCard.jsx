@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import CategoryEditModal from './CategoryEditModal'
 import CategoryDeleteModal from './CategoryDeleteModal'
 
@@ -13,6 +14,7 @@ function generateSlug(name) {
 
 export default function CategoryCard({ category, onCategoryUpdate, onCategoryDelete }) {
   const { user } = useAuth()
+  const { isAdmin } = usePermissions()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
@@ -43,8 +45,8 @@ export default function CategoryCard({ category, onCategoryUpdate, onCategoryDel
         </div>
       </Link>
       
-      {/* Admin buttons - only visible when user is authenticated */}
-      {user && (
+              {/* Admin buttons - only visible to admins */}
+        {isAdmin && (
         <div className="absolute bottom-4 right-4 flex space-x-4">
           <button
             onClick={() => setIsEditModalOpen(true)}

@@ -1,13 +1,15 @@
 'use client'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
-export default function LoginModal({ isOpen, onClose }) {
+export default function LoginModal({ isOpen, onClose, redirectUrl }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
+  const router = useRouter()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -22,6 +24,13 @@ export default function LoginModal({ isOpen, onClose }) {
         onClose()
         setEmail('')
         setPassword('')
+        
+        // Redirect to the specified URL or default to home
+        if (redirectUrl && redirectUrl !== '/signup') {
+          router.push(redirectUrl)
+        } else {
+          router.push('/')
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')

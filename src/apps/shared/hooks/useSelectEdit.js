@@ -3,13 +3,6 @@ import useClickOutside from './useClickOutside';
 
 // Handles select input editing with option filtering
 const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable }) => {
-    if (!isEditable) {
-        return {
-            currentValue: String(value || ''),
-            setCurrentValue: () => {},
-        };
-    }
-
     const [currentValue, setCurrentValue] = useState(String(value || ''));
     const [isEditing, setIsEditing] = useState(false);
     const [filteredOptions, setFilteredOptions] = useState(options);
@@ -17,6 +10,14 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
     const valueRef = useRef(null);
     const overlayRef = useRef(null);
     const optionsListRef = useRef(null);
+
+    // Early return for non-editable case
+    if (!isEditable) {
+        return {
+            currentValue: String(value || ''),
+            setCurrentValue: () => {},
+        };
+    }
 
     const handleClick = useCallback(() => {
         setCurrentValue(String(value || ''));
@@ -197,8 +198,6 @@ const useSelectEdit = ({ value, onValueChange, options, onAddOption, isEditable 
         handleSave,
         handleChange,
         handleKeyDown,
-        setIsEditing,
-        initialValue: String(value || ''),
     };
 };
 
