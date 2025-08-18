@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [assigningRole, setAssigningRole] = useState(false)
   const [error, setError] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
 

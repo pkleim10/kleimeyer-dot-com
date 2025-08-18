@@ -105,13 +105,17 @@ export default function Navigation() {
 
   const handleSignOut = async () => {
     try {
+      console.log('Navigation: Starting sign out...')
       await signOut()
+      console.log('Navigation: Sign out completed, redirecting...')
+      
       // Smart redirect: stay on public pages, go home from private pages
       const isPrivatePage = ['/admin', '/profile', '/signup', '/login'].includes(pathname)
       const redirectPath = isPrivatePage ? '/' : pathname
+      console.log('Navigation: Redirecting to:', redirectPath)
       router.push(redirectPath)
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('Navigation: Error signing out:', error)
       router.push('/')
     }
   }

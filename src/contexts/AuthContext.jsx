@@ -20,17 +20,21 @@ export function AuthProvider({ children }) {
     }
     
     try {
+      console.log('Fetching user role for:', userId)
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .single()
       
+      console.log('User role fetch result:', { data, error })
+      
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
         console.error('Error fetching user role:', error.message)
       }
       
       setUserRole(data?.role || null)
+      console.log('Set user role to:', data?.role || null)
     } catch (error) {
       console.error('Error fetching user role:', error.message)
       setUserRole(null)
@@ -84,26 +88,35 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
+      console.log('Starting sign out process...')
+      
       // First check if we have a session
       const { data: { session } } = await supabase.auth.getSession()
+      console.log('Current session:', session ? 'exists' : 'none')
       
       // If no session, just clear the user state
       if (!session) {
+        console.log('No session found, clearing user state')
         setUser(null)
         setUserRole(null)
         return
       }
 
       // If we have a session, try to sign out
+      console.log('Signing out from Supabase...')
       const { error } = await supabase.auth.signOut()
       if (error) {
+        console.error('Supabase sign out error:', error)
         throw error
       }
+      
+      console.log('Sign out successful, clearing user state')
       setUser(null)
       setUserRole(null)
     } catch (error) {
       console.error('Error signing out:', error.message)
       // Even if there's an error, clear the user state
+      console.log('Clearing user state despite error')
       setUser(null)
       setUserRole(null)
       throw error

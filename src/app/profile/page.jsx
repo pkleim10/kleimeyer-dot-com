@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
+  const [assigningAdmin, setAssigningAdmin] = useState(false)
 
   useEffect(() => {
     // Wait for auth to be ready
@@ -227,6 +228,62 @@ export default function ProfilePage() {
             </button>
           </div>
         </form>
+
+        {/* Temporary Admin Role Assignment */}
+        <div className="mt-8 p-4 border border-yellow-300 dark:border-yellow-600 rounded-md bg-yellow-50 dark:bg-yellow-900/30">
+          <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">
+            Admin Role Assignment (Temporary)
+          </h3>
+          <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-4">
+            If you need admin access, click the button below to assign yourself the admin role.
+          </p>
+          <button
+            onClick={async () => {
+              setAssigningAdmin(true)
+              setError('')
+              setSuccess('')
+
+              try {
+                const { data: { session } } = await supabase.auth.getSession()
+                if (!session) {
+                  setError('Not authenticated')
+                  return
+                }
+
+                const response = await fetch('/api/admin/assign-role', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                  },
+                  body: JSON.stringify({
+                    userId: user.id,
+                    role: 'admin'
+                  })
+                })
+
+                const result = await response.json()
+
+                if (!response.ok) {
+                  setError(result.error || 'Failed to assign admin role')
+                } else {
+                  setSuccess('Admin role assigned successfully! Please refresh the page.')
+                  // Force a session refresh
+                  await supabase.auth.refreshSession()
+                }
+              } catch (err) {
+                console.error('Error assigning admin role:', err)
+                setError('Failed to assign admin role')
+              } finally {
+                setAssigningAdmin(false)
+              }
+            }}
+            disabled={assigningAdmin}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50"
+          >
+            {assigningAdmin ? 'Assigning...' : 'Assign Admin Role'}
+          </button>
+        </div>
       </div>
     </div>
   )
