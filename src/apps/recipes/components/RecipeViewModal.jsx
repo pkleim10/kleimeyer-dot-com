@@ -34,12 +34,6 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
     }
   }
 
-  useEffect(() => {
-    if (isOpen && recipeId) {
-      fetchRecipe()
-    }
-  }, [isOpen, recipeId, fetchRecipe])
-
   const fetchRecipe = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -64,6 +58,12 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
       setLoading(false)
     }
   }, [recipeId])
+
+  useEffect(() => {
+    if (isOpen && recipeId) {
+      fetchRecipe()
+    }
+  }, [isOpen, recipeId, fetchRecipe])
 
   const handleClose = () => {
     if (!loading) {
