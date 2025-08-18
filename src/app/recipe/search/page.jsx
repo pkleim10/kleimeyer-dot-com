@@ -37,47 +37,57 @@ export default function SearchPage() {
     if (category) params.set('category', category)
     
     // Use replace instead of push to avoid adding to browser history for every keystroke
-    router.replace(`/recipe/search?${params.toString()}`)
+    const newUrl = `/recipe/search?${params.toString()}`
+    router.replace(newUrl)
   }, [query, category, router])
 
   // Search recipes when query or category changes
   useEffect(() => {
     async function searchRecipes() {
       setLoading(true)
-      let searchQuery = supabase
-        .from('recipes')
-        .select(`
-          id,
-          name,
-          description,
-          source,
-          image,
-          prep_time,
-          cook_time,
-          servings,
-          categories (
+      try {
+        let searchQuery = supabase
+          .from('recipes')
+          .select(`
             id,
-            name
-          )
-        `)
-        .order('name')
+            name,
+            description,
+            source,
+            image,
+            prep_time,
+            cook_time,
+            servings,
+            categories (
+              id,
+              name
+            )
+          `)
+          .order('name')
 
-      // Apply category filter if selected
-      if (category) {
-        searchQuery = searchQuery.eq('category_id', category)
+        // Apply category filter if selected
+        if (category && category.trim() !== '') {
+          searchQuery = searchQuery.eq('category_id', category)
+        }
+
+        // Apply search query if present
+        if (query && query.trim() !== '') {
+          searchQuery = searchQuery.ilike('name', `%${query.trim()}%`)
+        }
+
+        const { data, error } = await searchQuery
+
+        if (error) {
+          console.error('Search error:', error)
+          setRecipes([])
+        } else {
+          setRecipes(data || [])
+        }
+      } catch (err) {
+        console.error('Search error:', err)
+        setRecipes([])
+      } finally {
+        setLoading(false)
       }
-
-      // Apply search query if present
-      if (query) {
-        searchQuery = searchQuery.ilike('name', `%${query}%`)
-      }
-
-      const { data, error } = await searchQuery
-
-      if (!error) {
-        setRecipes(data)
-      }
-      setLoading(false)
     }
 
     searchRecipes()
