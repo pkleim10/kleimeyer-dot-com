@@ -61,7 +61,7 @@ export default function RecipeEditModal({ recipe, categories, isOpen, onClose, o
       })
     } else if (recipe) {
       // Process ingredients for edit mode
-      let processedIngredients = ['']
+      let processedIngredients = []
       if (recipe.ingredients && recipe.ingredients.length > 0) {
         processedIngredients = recipe.ingredients.map(ingredient => {
           if (typeof ingredient === 'string') {
@@ -70,7 +70,23 @@ export default function RecipeEditModal({ recipe, categories, isOpen, onClose, o
             return `${ingredient.amount} ${ingredient.unit} ${ingredient.item}`
           }
           return ''
-        })
+        }).filter(ingredient => ingredient.trim() !== '')
+      }
+      
+      // Ensure we always have at least one empty ingredient field
+      if (processedIngredients.length === 0) {
+        processedIngredients = ['']
+      }
+
+      // Process instructions for edit mode
+      let processedInstructions = []
+      if (recipe.instructions && recipe.instructions.length > 0) {
+        processedInstructions = recipe.instructions.filter(instruction => instruction.trim() !== '')
+      }
+      
+      // Ensure we always have at least one empty instruction field
+      if (processedInstructions.length === 0) {
+        processedInstructions = ['']
       }
 
       setFormData({
@@ -80,7 +96,7 @@ export default function RecipeEditModal({ recipe, categories, isOpen, onClose, o
         notes: recipe.notes || '',
         image: recipe.image || '',
         ingredients: processedIngredients,
-        instructions: recipe.instructions || [''],
+        instructions: processedInstructions,
         prep_time: recipe.prep_time || '',
         cook_time: recipe.cook_time || '',
         servings: recipe.servings || '',
@@ -609,7 +625,7 @@ export default function RecipeEditModal({ recipe, categories, isOpen, onClose, o
                   id="image"
                   accept="image/*"
                   onChange={handleImageChange}
-                  className="mt-1 block w-full border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   You can also paste an image from your clipboard (Ctrl+V / Cmd+V)
