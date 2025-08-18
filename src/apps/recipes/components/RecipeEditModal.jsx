@@ -371,9 +371,15 @@ export default function RecipeEditModal({ recipe, categories, isOpen, onClose, o
         imageUrl = await uploadImage(imageFile, 'recipes')
       }
 
+      // Generate slug from recipe name
+      const generateSlug = (name) => {
+        return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      }
+
       // Prepare data for submission
       const recipeData = {
         name: formData.name,
+        slug: generateSlug(formData.name),
         description: formData.description,
         source: formData.source,
         notes: formData.notes,

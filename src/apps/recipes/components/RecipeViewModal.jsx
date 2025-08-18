@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
+import Link from 'next/link'
 
 export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
   const [recipe, setRecipe] = useState(null)
@@ -61,15 +62,25 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               Recipe Details
             </h3>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-              aria-label="Close"
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center space-x-3">
+              {recipe && recipe.slug && (
+                <Link
+                  href={`/recipe/recipes/${recipe.slug}`}
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:text-indigo-300 dark:bg-indigo-900 dark:hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                >
+                  View Full Page
+                </Link>
+              )}
+              <button
+                onClick={handleClose}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Content */}

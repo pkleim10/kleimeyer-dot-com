@@ -14,7 +14,8 @@ export default async function RecipePage({ params }) {
   const referer = headersList.get('referer') || ''
   const isFromSearch = referer.includes('/recipe/search')
   
-  const { data: recipe, error } = await supabase
+  // First try to find recipe by ID (for backward compatibility)
+  let { data: recipe, error } = await supabase
     .from('recipes')
     .select(`
       *,
@@ -26,8 +27,25 @@ export default async function RecipePage({ params }) {
     .eq('id', id)
     .single()
 
+  // If not found by ID, try to find by slug
   if (error || !recipe) {
-    notFound()
+    const { data: recipeBySlug, error: slugError } = await supabase
+      .from('recipes')
+      .select(`
+        *,
+        categories (
+          id,
+          name
+        )
+      `)
+      .eq('slug', id)
+      .single()
+    
+    if (slugError || !recipeBySlug) {
+      notFound()
+    }
+    
+    recipe = recipeBySlug
   }
 
   // Generate the category slug if we have a category
