@@ -5,17 +5,32 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import Link from 'next/link'
+import { usePermissions } from '@/hooks/usePermissions'
+import ContactDeleteModal from '@/apps/family/components/ContactDeleteModal'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
+  const { isContributor } = usePermissions()
   const router = useRouter()
+  
+  console.log('Family page permissions:', { isContributor, user: !!user })
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingContact, setEditingContact] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    description: '',
+    notes: ''
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, contact: null })
 
   useEffect(() => {
-    console.log('Family page auth state:', { user: !!user, authLoading, pageLoading })
+    console.log('Family page auth state:', { user: !!user, authLoading, pageLoading, isContributor })
     
     // Wait for auth to be ready
     if (!authLoading) {
@@ -28,7 +43,7 @@ export default function FamilyMattersPage() {
       setPageLoading(false)
       fetchContacts()
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, isContributor])
 
   const fetchContacts = async () => {
     try {
@@ -50,6 +65,87 @@ export default function FamilyMattersPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFormChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      phone: '',
+      description: '',
+      notes: ''
+    })
+    setEditingContact(null)
+    setShowAddForm(false)
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError('')
+
+    try {
+      if (editingContact) {
+        // Update existing contact
+        const { error } = await supabase
+          .from('family_contacts')
+          .update(formData)
+          .eq('id', editingContact.id)
+
+        if (error) throw error
+      } else {
+        // Add new contact
+        const { error } = await supabase
+          .from('family_contacts')
+          .insert(formData)
+
+        if (error) throw error
+      }
+
+      // Refresh contacts and reset form
+      await fetchContacts()
+      resetForm()
+    } catch (err) {
+      console.error('Error saving contact:', err)
+      setError('Failed to save contact')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEdit = (contact) => {
+    console.log('Edit button clicked for contact:', contact)
+    setEditingContact(contact)
+    setFormData({
+      name: contact.name,
+      phone: contact.phone || '',
+      description: contact.description || '',
+      notes: contact.notes || ''
+    })
+    setShowAddForm(true)
+  }
+
+  const handleDelete = async (contactId) => {
+    try {
+      await fetchContacts()
+    } catch (err) {
+      console.error('Error refreshing contacts after delete:', err)
+      setError('Failed to refresh contacts')
+    }
+  }
+
+  const openDeleteModal = (contact) => {
+    setDeleteModal({ isOpen: true, contact })
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ isOpen: false, contact: null })
   }
 
   // Show loading while auth is being determined
@@ -124,13 +220,29 @@ export default function FamilyMattersPage() {
 
         {/* Contacts Section */}
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              Important Contacts
-            </h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Contact information for Dad&apos;s care team and family support
-            </p>
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                Important Contacts
+              </h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Contact information for Dad&apos;s care team and family support
+              </p>
+            </div>
+            {isContributor && (
+              <button
+                onClick={() => {
+                  console.log('Add Contact button clicked')
+                  setShowAddForm(true)
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Contact
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -145,20 +257,44 @@ export default function FamilyMattersPage() {
                 <div key={contact.id} className="bg-gray-50 dark:bg-slate-700 rounded-lg p-6 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center">
-                        <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                          {contact.name}
-                        </h4>
-                        {contact.phone && (
-                          <a
-                            href={`tel:${contact.phone}`}
-                            className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
-                          >
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                            </svg>
-                            Call
-                          </a>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                            {contact.name}
+                          </h4>
+                          {contact.phone && (
+                            <a
+                              href={`tel:${contact.phone}`}
+                              className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                              </svg>
+                              Call
+                            </a>
+                          )}
+                        </div>
+                        {isContributor && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEdit(contact)}
+                              className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(contact)}
+                              className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </div>
                       
@@ -232,6 +368,107 @@ export default function FamilyMattersPage() {
           </div>
         </div>
       </div>
+
+      {/* Add/Edit Contact Form Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-slate-800">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                {editingContact ? 'Edit Contact' : 'Add New Contact'}
+              </h3>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleFormChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                    placeholder="Contact name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleFormChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleFormChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                    placeholder="Role or relationship"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Notes
+                  </label>
+                  <textarea
+                    id="notes"
+                    name="notes"
+                    rows={3}
+                    value={formData.notes}
+                    onChange={handleFormChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                    placeholder="Additional notes or information"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {submitting ? 'Saving...' : (editingContact ? 'Update' : 'Add')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Delete Modal */}
+      <ContactDeleteModal
+        contact={deleteModal.contact}
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onDelete={handleDelete}
+      />
     </div>
   )
 }
