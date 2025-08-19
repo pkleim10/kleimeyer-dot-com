@@ -140,9 +140,9 @@ export default function FamilyMattersPage() {
               </div>
             </div>
           ) : contacts.length > 0 ? (
-            <div className="divide-y divide-gray-200 dark:divide-slate-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
               {contacts.map((contact) => (
-                <div key={contact.id} className="p-6 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                <div key={contact.id} className="bg-gray-50 dark:bg-slate-700 rounded-lg p-6 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center">
