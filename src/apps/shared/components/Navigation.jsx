@@ -134,8 +134,12 @@ export default function Navigation() {
           <div id="nav-top" className="flex justify-between h-16">
             {/* Brand */}
             <div className="flex items-center">
-              <Link href="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                Kleimeyer.com
+              <Link href="/" className="flex items-center">
+                <img
+                  src="/kleimeyer-dot-com.jpeg"
+                  alt="Kleimeyer.com"
+                  className="h-12 w-auto"
+                />
               </Link>
               
               {/* App Navigation Links - Desktop */}
