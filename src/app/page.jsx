@@ -52,25 +52,33 @@ export default function HomePage() {
             </div>
           </Link>
 
-          {/* Placeholder for future apps */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden opacity-60">
-            <div className="h-48 bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700 flex items-center justify-center">
-              <div className="text-center">
-                <svg className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Coming Soon</p>
+          {/* Family Matters App */}
+          <Link href="/family" className="group">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="relative h-48 bg-gradient-to-br from-blue-500 to-indigo-600">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-indigo-700/90" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg className="w-16 h-16 text-white/80" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
+                  Family Matters
+                </h2>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Stay connected and informed with important family contacts and updates
+                </p>
+                <div className="mt-4 flex items-center text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-300">
+                  <span className="text-sm font-medium">View Contacts</span>
+                  <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
               </div>
             </div>
-            <div className="p-6">
-              <h2 className="text-xl font-semibold text-gray-400 dark:text-gray-500 mb-2">
-                New App
-              </h2>
-              <p className="text-gray-400 dark:text-gray-500">
-                More applications coming soon...
-              </p>
-            </div>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

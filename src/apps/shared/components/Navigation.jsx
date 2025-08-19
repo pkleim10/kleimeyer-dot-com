@@ -12,6 +12,7 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/login') return { app: 'auth', section: 'login', page: 'login' }
   if (pathname === '/profile') return { app: 'auth', section: 'profile', page: 'profile' }
   if (pathname === '/admin') return { app: 'admin', section: 'dashboard', page: 'admin' }
+  if (pathname === '/family') return { app: 'family', section: 'home', page: 'family-home' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -55,6 +56,9 @@ const generateBreadcrumbs = (pathname) => {
         breadcrumbs.push({ name: 'Recipe', href: pathname, current: true })
       }
       break
+    case 'family':
+      breadcrumbs.push({ name: 'Family Matters', href: '/family', current: true })
+      break
     case 'admin':
       breadcrumbs.push({ name: 'Admin', href: '/admin', current: true })
       break
@@ -79,6 +83,11 @@ const getAppNavigation = (context, user, isAdmin) => {
       return [
         { name: 'Recipes', href: '/recipe', current: context.section === 'home' },
         { name: 'Search', href: '/recipe/search', current: context.section === 'search' }
+      ]
+    case 'family':
+      return [
+        { name: 'Contacts', href: '/family', current: context.section === 'home' }
+        // Future family sections can be added here
       ]
     case 'admin':
       return [
