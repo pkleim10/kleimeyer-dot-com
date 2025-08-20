@@ -18,6 +18,7 @@ export default function FamilyMattersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
+  const [hasLoadedContacts, setHasLoadedContacts] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingContact, setEditingContact] = useState(null)
   const [formData, setFormData] = useState({
@@ -37,12 +38,12 @@ export default function FamilyMattersPage() {
       return
     }
     
-    // If user is authenticated, load contacts and set page as loaded
-    if (!authLoading && user) {
+    // If user is authenticated and we haven't loaded contacts yet, load them
+    if (!authLoading && user && !hasLoadedContacts) {
       fetchContacts()
       setPageLoading(false)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, hasLoadedContacts])
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -59,6 +60,7 @@ export default function FamilyMattersPage() {
         setError('Failed to load contacts')
       } else {
         setContacts(data || [])
+        setHasLoadedContacts(true)
       }
     } catch (err) {
       console.error('Error:', err)
@@ -70,6 +72,7 @@ export default function FamilyMattersPage() {
 
   const handleRetry = useCallback(async () => {
     setError('')
+    setHasLoadedContacts(false) // Reset the flag to allow re-fetching
     await fetchContacts()
   }, [fetchContacts])
 
@@ -247,20 +250,32 @@ export default function FamilyMattersPage() {
                 Contact information for Dad&apos;s care team and family support
               </p>
             </div>
-            {isContributor && (
+            <div className="flex space-x-2">
               <button
-                onClick={() => {
-                  console.log('Add Contact button clicked')
-                  setShowAddForm(true)
-                }}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                onClick={handleRetry}
+                disabled={loading}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Add Contact
+                Refresh
               </button>
-            )}
+              {isContributor && (
+                <button
+                  onClick={() => {
+                    console.log('Add Contact button clicked')
+                    setShowAddForm(true)
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                  Add Contact
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
