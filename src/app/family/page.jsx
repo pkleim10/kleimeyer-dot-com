@@ -30,6 +30,8 @@ export default function FamilyMattersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, contact: null })
   const [searchTerm, setSearchTerm] = useState('')
+  const [bulletins, setBulletins] = useState([])
+  const [bulletinsLoading, setBulletinsLoading] = useState(true)
 
 
   useEffect(() => {
@@ -99,6 +101,61 @@ export default function FamilyMattersPage() {
   const clearSearch = () => {
     setSearchTerm('')
   }
+
+  // Fetch bulletins for hero display
+  const fetchBulletins = useCallback(async () => {
+    try {
+      setBulletinsLoading(true)
+      
+      // Get the current session to access the token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        return
+      }
+
+      const response = await fetch('/api/family/bulletins?activeOnly=true', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+      
+      if (!response.ok) {
+        console.error('Failed to fetch bulletins')
+        return
+      }
+
+      const { bulletins } = await response.json()
+      setBulletins(bulletins || [])
+    } catch (err) {
+      console.error('Error fetching bulletins:', err)
+    } finally {
+      setBulletinsLoading(false)
+    }
+  }, [])
+
+  // Get 2 most important bulletins for hero display
+  const heroBulletins = useMemo(() => {
+    const activeBulletins = bulletins.filter(b => b.is_active)
+    
+    // Get most urgent (high priority)
+    const urgent = activeBulletins
+      .filter(b => b.priority === 'high')
+      .sort((a, b) => new Date(a.expires_at || '9999-12-31') - new Date(b.expires_at || '9999-12-31'))[0]
+    
+    // Get soonest upcoming (by expiration date)
+    const upcoming = activeBulletins
+      .filter(b => b.id !== urgent?.id) // Don't duplicate urgent
+      .sort((a, b) => new Date(a.expires_at || '9999-12-31') - new Date(b.expires_at || '9999-12-31'))[0]
+    
+    return [urgent, upcoming].filter(Boolean)
+  }, [bulletins])
+
+  // Fetch bulletins when component mounts
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchBulletins()
+    }
+  }, [fetchBulletins, authLoading, user])
 
   const handleFormChange = (e) => {
     setFormData({
@@ -215,14 +272,57 @@ export default function FamilyMattersPage() {
             <p className="mt-6 max-w-3xl mx-auto text-xl text-blue-100">
               Staying connected and informed during Dad&apos;s recovery
             </p>
-            <div className="mt-10">
-              <div className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 transition-colors">
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                </svg>
-                Important Contacts
+
+            {/* Hero Bulletins */}
+            {heroBulletins.length > 0 && (
+              <div className="mt-8 space-y-3">
+                {heroBulletins.map((bulletin) => (
+                  <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-4 max-w-2xl mx-auto">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            bulletin.priority === 'high' ? 'text-red-200 bg-red-900/30 border border-red-800/30' :
+                            bulletin.priority === 'medium' ? 'text-yellow-200 bg-yellow-900/30 border border-yellow-800/30' :
+                            'text-green-200 bg-green-900/30 border border-green-800/30'
+                          }`}>
+                            {bulletin.priority === 'high' ? '🚨' : bulletin.priority === 'medium' ? '⚠️' : 'ℹ️'} {bulletin.priority}
+                          </span>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            bulletin.category === 'appointment' ? 'text-blue-200 bg-blue-900/30 border border-blue-800/30' :
+                            bulletin.category === 'payment' ? 'text-purple-200 bg-purple-900/30 border border-purple-800/30' :
+                            bulletin.category === 'website' ? 'text-indigo-200 bg-indigo-900/30 border border-indigo-800/30' :
+                            'text-gray-200 bg-gray-900/30 border border-gray-800/30'
+                          }`}>
+                            {bulletin.category}
+                          </span>
+                        </div>
+                        <h3 className="font-semibold text-white mb-1">{bulletin.title}</h3>
+                        <p className="text-sm text-blue-100 mb-2">{bulletin.content}</p>
+                        {bulletin.expires_at && (
+                          <p className="text-xs text-blue-200">
+                            Expires: {new Date(bulletin.expires_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="text-center">
+                  <Link
+                    href="/family/announcements"
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white/90 hover:bg-white transition-colors rounded-md"
+                  >
+                    View All Announcements
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -232,7 +332,7 @@ export default function FamilyMattersPage() {
         {/* Welcome Message */}
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            Welcome to Family Matters
+            Important Contacts
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
             This page contains important contact information and updates regarding Dad&apos;s recovery. 
@@ -443,37 +543,11 @@ export default function FamilyMattersPage() {
           )}
         </div>
 
-        {/* Family Support Section */}
-        <div className="mt-12 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-6">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Family Support
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              We&apos;re all in this together. Please reach out to each other for support and keep the family updated.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <div className="inline-flex items-center px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-md">
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                Stay Positive
-              </div>
-              <div className="inline-flex items-center px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-md">
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                </svg>
-                Keep in Touch
-              </div>
-              <div className="inline-flex items-center px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-md">
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                </svg>
-                Be Strong
-              </div>
-            </div>
-          </div>
+        {/* Copyright Section */}
+        <div className="mt-12 text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            © 2024 kleimeyer-dot-com. All rights reserved.
+          </p>
         </div>
       </div>
 
