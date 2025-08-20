@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, usePathname } from 'next/navigation'
+import { getRandomNavImage } from '@/utils/navImages'
 
 // Navigation context detection
 const getNavigationContext = (pathname) => {
@@ -103,9 +104,16 @@ const getAppNavigation = (context, user, isAdmin) => {
 
 export default function Navigation() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [navImage, setNavImage] = useState('')
   const { user, signOut, isAdmin } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+
+  // Set random navigation image on component mount
+  useEffect(() => {
+    const randomImage = getRandomNavImage()
+    setNavImage(randomImage)
+  }, [])
 
   const context = getNavigationContext(pathname)
   const breadcrumbs = generateBreadcrumbs(pathname)
@@ -127,17 +135,24 @@ export default function Navigation() {
 
   return (
     <>
-      <nav id="nav" className="bg-white dark:bg-slate-800 shadow-lg border-b border-gray-200 dark:border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <nav id="nav" className="bg-white dark:bg-slate-800 shadow-lg border-b border-gray-200 dark:border-slate-700 overflow-visible">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-visible">
           {/* Top Bar - Brand, Navigation Links, and User Actions */}
-          <div id="nav-top" className="flex justify-between h-16">
+          <div id="nav-top" className="flex justify-between h-16 overflow-visible">
             {/* Brand */}
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center">
+            <div className="flex items-center relative overflow-visible">
+              <Link href="/" className="flex items-center relative">
+                {/* Invisible spacer to reserve space for the logo */}
+                <div className="w-24 h-12" />
                 <img
-                  src="/kleimeyer-dot-com.jpeg"
+                  src={navImage || "/kleimeyer-dot-com.jpeg"}
                   alt="Kleimeyer.com"
-                  className="h-12 w-auto"
+                  className="absolute top-0 left-0 object-cover object-center"
+                  style={{ 
+                    top: '-8px',
+                    height: '64px',
+                    width: '80px'
+                  }}
                 />
               </Link>
               

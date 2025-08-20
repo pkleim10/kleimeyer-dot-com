@@ -13,7 +13,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "clean": "rm -rf .next node_modules/.cache"
+    "clean": "rm -rf .next node_modules/.cache",
+    "generate-nav-images": "node scripts/generate-nav-images.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
