@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
@@ -29,6 +29,7 @@ export default function AnnouncementsPage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, bulletin: null })
+  const [hasLoadedBulletins, setHasLoadedBulletins] = useState(false)
   const [filters, setFilters] = useState({
     category: 'all',
     priority: 'all',
@@ -42,12 +43,12 @@ export default function AnnouncementsPage() {
       return
     }
     
-    // If user is authenticated, load bulletins
-    if (!authLoading && user) {
+    // If user is authenticated and we haven't loaded bulletins yet, load them
+    if (!authLoading && user && !hasLoadedBulletins) {
       fetchBulletins()
       setPageLoading(false)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, hasLoadedBulletins])
 
   const fetchBulletins = useCallback(async () => {
     try {
@@ -61,19 +62,7 @@ export default function AnnouncementsPage() {
         return
       }
 
-      // Build query parameters
-      const params = new URLSearchParams()
-      if (filters.activeOnly) {
-        params.append('activeOnly', 'true')
-      }
-      if (filters.category !== 'all') {
-        params.append('category', filters.category)
-      }
-      if (filters.priority !== 'all') {
-        params.append('priority', filters.priority)
-      }
-
-      const response = await fetch(`/api/family/bulletins?${params.toString()}`, {
+      const response = await fetch('/api/family/bulletins', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -88,20 +77,38 @@ export default function AnnouncementsPage() {
 
       const { bulletins } = await response.json()
       setBulletins(bulletins || [])
+      setHasLoadedBulletins(true)
     } catch (err) {
       console.error('Error fetching bulletins:', err)
       setError('Failed to load bulletins')
     } finally {
       setLoading(false)
     }
-  }, [filters])
+  }, [])
 
-  // Refetch when filters change
-  useEffect(() => {
-    if (!pageLoading && user) {
-      fetchBulletins()
-    }
-  }, [filters, fetchBulletins, pageLoading, user])
+  // Filter bulletins based on current filters
+  const filteredBulletins = useMemo(() => {
+    return bulletins.filter(bulletin => {
+      // Filter by active status
+      if (filters.activeOnly && !bulletin.is_active) {
+        return false
+      }
+      
+      // Filter by category
+      if (filters.category !== 'all' && bulletin.category !== filters.category) {
+        return false
+      }
+      
+      // Filter by priority
+      if (filters.priority !== 'all' && bulletin.priority !== filters.priority) {
+        return false
+      }
+      
+      return true
+    })
+  }, [bulletins, filters])
+
+
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -137,6 +144,9 @@ export default function AnnouncementsPage() {
         return
       }
 
+      // Assume input is UTC, store as UTC
+      const dataToSend = { ...formData }
+
       const url = editingBulletin 
         ? `/api/family/bulletins/${editingBulletin.id}`
         : '/api/family/bulletins'
@@ -149,7 +159,7 @@ export default function AnnouncementsPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(dataToSend)
       })
 
       if (!response.ok) {
@@ -159,6 +169,7 @@ export default function AnnouncementsPage() {
       }
 
       // Refresh bulletins and reset form
+      setHasLoadedBulletins(false)
       await fetchBulletins()
       resetForm()
     } catch (err) {
@@ -171,12 +182,19 @@ export default function AnnouncementsPage() {
 
   const handleEdit = (bulletin) => {
     setEditingBulletin(bulletin)
+    
+    // Assume UTC, no conversion needed
+    let utcDateTime = ''
+    if (bulletin.expires_at) {
+      utcDateTime = new Date(bulletin.expires_at).toISOString().slice(0, 16)
+    }
+    
     setFormData({
       title: bulletin.title,
       content: bulletin.content,
       category: bulletin.category,
       priority: bulletin.priority,
-      expires_at: bulletin.expires_at ? new Date(bulletin.expires_at).toISOString().slice(0, 16) : '',
+      expires_at: utcDateTime,
       is_active: bulletin.is_active
     })
     setShowAddForm(true)
@@ -192,6 +210,7 @@ export default function AnnouncementsPage() {
 
   const onDeleteSuccess = async (bulletinId) => {
     // Refresh bulletins
+    setHasLoadedBulletins(false)
     await fetchBulletins()
   }
 
@@ -216,18 +235,25 @@ export default function AnnouncementsPage() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'No expiration'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const date = new Date(dateString)
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = months[date.getUTCMonth()]
+    const day = date.getUTCDate()
+    const year = date.getUTCFullYear()
+    let hour = date.getUTCHours()
+    const minute = String(date.getUTCMinutes()).padStart(2, '0')
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    hour = hour % 12
+    hour = hour ? hour : 12 // the hour '0' should be '12'
+    return `${month} ${day}, ${hour}:${minute} ${ampm}`
   }
 
   const isExpired = (dateString) => {
     if (!dateString) return false
-    return new Date(dateString) < new Date()
+    const expirationDate = new Date(dateString)
+    const currentDate = new Date()
+    // Compare UTC timestamps to avoid timezone issues
+    return expirationDate.getTime() < currentDate.getTime()
   }
 
   // Show loading while auth is being determined
@@ -253,9 +279,19 @@ export default function AnnouncementsPage() {
               <nav className="flex" aria-label="Breadcrumb">
                 <ol className="flex items-center space-x-4">
                   <li>
-                    <Link href="/family" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                      Family
+                    <Link href="/" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                      Home
                     </Link>
+                  </li>
+                  <li>
+                    <div className="flex items-center">
+                      <svg className="flex-shrink-0 h-5 w-5 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <Link href="/family" className="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                        Family
+                      </Link>
+                    </div>
                   </li>
                   <li>
                     <div className="flex items-center">
@@ -373,9 +409,9 @@ export default function AnnouncementsPage() {
                 Loading announcements...
               </div>
             </div>
-          ) : bulletins.length > 0 ? (
+          ) : filteredBulletins.length > 0 ? (
             <div className="divide-y divide-gray-200 dark:divide-slate-700">
-              {bulletins.map((bulletin) => (
+              {filteredBulletins.map((bulletin) => (
                 <div key={bulletin.id} className={`p-6 ${!bulletin.is_active ? 'opacity-60' : ''}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
