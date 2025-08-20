@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
@@ -29,25 +29,26 @@ export default function FamilyMattersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, contact: null })
 
-  useEffect(() => {
-    console.log('Family page auth state:', { user: !!user, authLoading, pageLoading, isContributor })
-    
-    // Wait for auth to be ready
-    if (!authLoading) {
-      if (!user) {
-        console.log('No user found, redirecting to login')
-        router.push('/login?redirect=/family')
-        return
-      }
-      console.log('User authenticated, loading contacts')
-      setPageLoading(false)
-      fetchContacts()
-    }
-  }, [user, authLoading, router, isContributor])
 
-  const fetchContacts = async () => {
+  useEffect(() => {
+    // Simple auth check - redirect if no user
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/family')
+      return
+    }
+    
+    // If user is authenticated, load contacts and set page as loaded
+    if (!authLoading && user) {
+      fetchContacts()
+      setPageLoading(false)
+    }
+  }, [user, authLoading, router])
+
+  const fetchContacts = useCallback(async () => {
     try {
       setLoading(true)
+      setError('')
+      
       const { data, error } = await supabase
         .from('family_contacts')
         .select('*')
@@ -65,7 +66,12 @@ export default function FamilyMattersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const handleRetry = useCallback(async () => {
+    setError('')
+    await fetchContacts()
+  }, [fetchContacts])
 
   const handleFormChange = (e) => {
     setFormData({
@@ -206,12 +212,24 @@ export default function FamilyMattersPage() {
         {error && (
           <div className="mb-6 rounded-md bg-red-50 dark:bg-red-900/30 p-4">
             <div className="flex">
-              <div className="ml-3">
+              <div className="ml-3 flex-1">
                 <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
                   Error
                 </h3>
                 <div className="mt-2 text-sm text-red-700 dark:text-red-400">
                   <p>{error}</p>
+                </div>
+                <div className="mt-3">
+                  <button
+                    onClick={handleRetry}
+                    disabled={loading}
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/50 dark:hover:bg-red-900/70 transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Retry
+                  </button>
                 </div>
               </div>
             </div>
