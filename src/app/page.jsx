@@ -56,12 +56,12 @@ export default function HomePage() {
           <Link href="/family" className="group">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
               <div className="relative h-48 bg-gradient-to-br from-blue-500 to-indigo-600">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-indigo-700/90" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg className="w-16 h-16 text-white/80" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
-                  </svg>
-                </div>
+                <img
+                  src="/family-card.jpeg"
+                  alt="Family Matters"
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/50 to-indigo-700/50" />
               </div>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
