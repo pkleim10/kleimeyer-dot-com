@@ -50,8 +50,7 @@ export function AuthProvider({ children }) {
       // Check if we got a timeout
       if (result.timeout) {
         if (DEBUG_AUTH) console.log('Role fetch timed out after 3 seconds')
-        setUserRole(null)
-        setLastFetchedUserId(null)
+        // Don't clear role on timeout - keep existing role if available
         return
       }
       
@@ -94,8 +93,7 @@ export function AuthProvider({ children }) {
         // Check if we got a timeout
         if (result.timeout) {
           if (DEBUG_AUTH) console.log('Session check timed out after 3 seconds - this indicates a network or Supabase issue')
-          setUser(null)
-          setUserRole(null)
+          // Don't clear user state on timeout - let the auth state change handle it
           setLoading(false)
           return
         }
@@ -116,6 +114,17 @@ export function AuthProvider({ children }) {
           // Check if session is expired
           const expiresAt = session.expires_at * 1000
           const now = Date.now()
+          
+          if (DEBUG_AUTH) {
+            console.log('Session expiration check:', {
+              expiresAt,
+              now,
+              expiresAtDate: new Date(expiresAt).toISOString(),
+              nowDate: new Date(now).toISOString(),
+              isExpired: expiresAt < now,
+              timeUntilExpiry: expiresAt - now
+            })
+          }
           
           if (expiresAt < now) {
             console.log('Session expired, clearing user state')
