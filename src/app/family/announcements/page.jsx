@@ -274,8 +274,8 @@ export default function AnnouncementsPage() {
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1">
               <nav className="flex" aria-label="Breadcrumb">
                 <ol className="flex items-center space-x-4">
                   <li>
@@ -311,15 +311,17 @@ export default function AnnouncementsPage() {
               </p>
             </div>
             {isContributor && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Add Announcement
-              </button>
+              <div className="mt-4 sm:mt-0 sm:ml-4">
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Announcement
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -413,56 +415,58 @@ export default function AnnouncementsPage() {
             <div className="divide-y divide-gray-200 dark:divide-slate-700">
               {filteredBulletins.map((bulletin) => (
                 <div key={bulletin.id} className={`p-6 ${!bulletin.is_active ? 'opacity-60' : ''}`}>
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-0">
                           {bulletin.title}
                         </h3>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(bulletin.priority)}`}>
-                          {bulletin.priority}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(bulletin.category)}`}>
-                          {bulletin.category}
-                        </span>
-                        {!bulletin.is_active && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 dark:text-gray-300 dark:bg-gray-600">
-                            Inactive
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(bulletin.priority)}`}>
+                            {bulletin.priority}
                           </span>
-                        )}
-                        {isExpired(bulletin.expires_at) && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900/30">
-                            Expired
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(bulletin.category)}`}>
+                            {bulletin.category}
                           </span>
-                        )}
+                          {!bulletin.is_active && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 dark:text-gray-300 dark:bg-gray-600">
+                              Inactive
+                            </span>
+                          )}
+                          {isExpired(bulletin.expires_at) && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900/30">
+                              Expired
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
                       <p className="text-gray-600 dark:text-gray-400 mb-3">
                         {bulletin.content}
                       </p>
                       
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-500 space-x-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 dark:text-gray-500 space-y-1 sm:space-y-0 sm:space-x-4">
                         <span>Expires: {formatDate(bulletin.expires_at)}</span>
                         <span>Created: {new Date(bulletin.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
                     
                     {isContributor && (
-                      <div className="flex space-x-2 ml-4">
+                      <div className="flex space-x-2 mt-4 lg:mt-0 lg:ml-4">
                         <button
                           onClick={() => handleEdit(bulletin)}
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
                         >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(bulletin)}
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
                         >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                           Delete
