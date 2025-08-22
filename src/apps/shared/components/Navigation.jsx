@@ -14,6 +14,8 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/profile') return { app: 'auth', section: 'profile', page: 'profile' }
   if (pathname === '/admin') return { app: 'admin', section: 'dashboard', page: 'admin' }
   if (pathname === '/family') return { app: 'family', section: 'home', page: 'family-home' }
+  if (pathname === '/family/announcements') return { app: 'family', section: 'announcements', page: 'announcements' }
+  if (pathname === '/family/documents') return { app: 'family', section: 'documents', page: 'documents' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -58,7 +60,12 @@ const generateBreadcrumbs = (pathname) => {
       }
       break
     case 'family':
-      breadcrumbs.push({ name: 'Family Matters', href: '/family', current: true })
+      breadcrumbs.push({ name: 'Family Matters', href: '/family', current: context.section === 'home' })
+      if (context.section === 'announcements') {
+        breadcrumbs.push({ name: 'Announcements', href: '/family/announcements', current: true })
+      } else if (context.section === 'documents') {
+        breadcrumbs.push({ name: 'Documents', href: '/family/documents', current: true })
+      }
       break
     case 'admin':
       breadcrumbs.push({ name: 'Admin', href: '/admin', current: true })
@@ -87,8 +94,9 @@ const getAppNavigation = (context, user, isAdmin) => {
       ]
     case 'family':
       return [
-        { name: 'Contacts', href: '/family', current: context.section === 'home' }
-        // Future family sections can be added here
+        { name: 'Contacts', href: '/family', current: context.section === 'home' },
+        { name: 'Announcements', href: '/family/announcements', current: context.section === 'announcements' },
+        { name: 'Documents', href: '/family/documents', current: context.section === 'documents' }
       ]
     case 'admin':
       return [

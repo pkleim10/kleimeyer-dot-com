@@ -3,6 +3,9 @@ import { useAuth } from '@/contexts/AuthContext'
 export const usePermissions = () => {
   const { user, userRole, isAdmin, isContributor } = useAuth()
 
+  // Role hierarchy: Admin > Family > Contributor
+  const isFamily = userRole === 'family' || isAdmin
+
   return {
     // Basic authentication
     isAuthenticated: !!user,
@@ -10,6 +13,7 @@ export const usePermissions = () => {
     // Role-based permissions
     isAdmin,
     isContributor,
+    isFamily,
     userRole,
     
     // Recipe permissions
@@ -21,6 +25,13 @@ export const usePermissions = () => {
     canCreateCategory: isAdmin,
     canEditCategory: isAdmin,
     canDeleteCategory: isAdmin,
+    
+    // Document repository permissions
+    canAccessDocuments: isFamily,
+    canUploadDocuments: isFamily,
+    canEditDocuments: isFamily,
+    canDeleteDocuments: isFamily,
+    canManageCategories: isAdmin,
     
     // User management permissions
     canManageUsers: isAdmin,
@@ -34,6 +45,11 @@ export const usePermissions = () => {
         'create:category': isAdmin,
         'edit:category': isAdmin,
         'delete:category': isAdmin,
+        'access:documents': isFamily,
+        'upload:documents': isFamily,
+        'edit:documents': isFamily,
+        'delete:documents': isFamily,
+        'manage:categories': isAdmin,
         'manage:users': isAdmin,
       }
       return permissions[permission] || false

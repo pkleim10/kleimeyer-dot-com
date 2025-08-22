@@ -10,7 +10,7 @@ import ContactDeleteModal from '@/apps/family/components/ContactDeleteModal'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
-  const { isContributor } = usePermissions()
+  const { isContributor, isFamily } = usePermissions()
   const router = useRouter()
   
   console.log('Family page permissions:', { isContributor, user: !!user })
@@ -323,6 +323,8 @@ export default function FamilyMattersPage() {
                 </div>
               </div>
             )}
+
+
           </div>
         </div>
       </div>

@@ -265,6 +265,7 @@ export default function AdminPage() {
                           >
                             <option value="member">Member</option>
                             <option value="contributor">Contributor</option>
+                            <option value="family">Family</option>
                             <option value="admin">Admin</option>
                           </select>
                           {user?.id === listUser?.id && (

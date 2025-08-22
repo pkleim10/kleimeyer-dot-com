@@ -14,11 +14,17 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "clean": "rm -rf .next node_modules/.cache",
-    "generate-nav-images": "node scripts/generate-nav-images.js"
+    "generate-nav-images": "node scripts/generate-nav-images.js",
+    "assign-family-role": "node scripts/assign-family-role.js",
+    "test-documents-api": "node scripts/test-documents-api.js",
+    "restore-admin": "node scripts/restore-admin.js",
+    "test-api-auth": "node scripts/test-api-with-auth.js",
+    "check-sample-data": "node scripts/check-sample-data.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^17.2.1",
     "next": "15.2.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
