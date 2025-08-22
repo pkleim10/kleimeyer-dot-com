@@ -276,34 +276,7 @@ export default function AnnouncementsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div className="flex-1">
-              <nav className="flex" aria-label="Breadcrumb">
-                <ol className="flex items-center space-x-4">
-                  <li>
-                    <Link href="/" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                      Home
-                    </Link>
-                  </li>
-                  <li>
-                    <div className="flex items-center">
-                      <svg className="flex-shrink-0 h-5 w-5 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                      <Link href="/family" className="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                        Family
-                      </Link>
-                    </div>
-                  </li>
-                  <li>
-                    <div className="flex items-center">
-                      <svg className="flex-shrink-0 h-5 w-5 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                      <span className="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400">Announcements</span>
-                    </div>
-                  </li>
-                </ol>
-              </nav>
-              <h1 className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-100">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                 Family Announcements
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
