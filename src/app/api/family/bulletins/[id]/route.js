@@ -38,15 +38,15 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is contributor or admin
+    // Check if user is contributor, admin, or family
     const { data: userRole, error: roleError } = await supabaseWithAuth
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single()
 
-    if (roleError || !['contributor', 'admin'].includes(userRole?.role)) {
-      return NextResponse.json({ error: 'Forbidden - Contributor access required' }, { status: 403 })
+    if (roleError || !['contributor', 'admin', 'family'].includes(userRole?.role)) {
+      return NextResponse.json({ error: 'Forbidden - Family access required' }, { status: 403 })
     }
 
     // Get request body
@@ -129,15 +129,15 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is contributor or admin
+    // Check if user is contributor, admin, or family
     const { data: userRole, error: roleError } = await supabaseWithAuth
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single()
 
-    if (roleError || !['contributor', 'admin'].includes(userRole?.role)) {
-      return NextResponse.json({ error: 'Forbidden - Contributor access required' }, { status: 403 })
+    if (roleError || !['contributor', 'admin', 'family'].includes(userRole?.role)) {
+      return NextResponse.json({ error: 'Forbidden - Family access required' }, { status: 403 })
     }
 
     // Delete bulletin

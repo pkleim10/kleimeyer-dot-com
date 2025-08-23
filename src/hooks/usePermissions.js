@@ -17,8 +17,8 @@ export const usePermissions = () => {
     userRole,
     
     // Recipe permissions
-    canCreateRecipe: isContributor,
-    canEditRecipe: isContributor,
+    canCreateRecipe: isFamily,
+    canEditRecipe: isFamily,
     canDeleteRecipe: isAdmin,
     
     // Category permissions
@@ -33,14 +33,24 @@ export const usePermissions = () => {
     canDeleteDocuments: isFamily,
     canManageCategories: isAdmin,
     
+    // Announcement permissions
+    canCreateAnnouncement: isFamily,
+    canEditAnnouncement: isFamily,
+    canDeleteAnnouncement: isFamily,
+    
+    // Contact permissions
+    canCreateContact: isFamily,
+    canEditContact: isFamily,
+    canDeleteContact: isFamily,
+    
     // User management permissions
     canManageUsers: isAdmin,
     
     // Helper functions
     hasPermission: (permission) => {
       const permissions = {
-        'create:recipe': isContributor,
-        'edit:recipe': isContributor,
+        'create:recipe': isFamily,
+        'edit:recipe': isFamily,
         'delete:recipe': isAdmin,
         'create:category': isAdmin,
         'edit:category': isAdmin,
@@ -50,6 +60,12 @@ export const usePermissions = () => {
         'edit:documents': isFamily,
         'delete:documents': isFamily,
         'manage:categories': isAdmin,
+        'create:announcement': isFamily,
+        'edit:announcement': isFamily,
+        'delete:announcement': isFamily,
+        'create:contact': isFamily,
+        'edit:contact': isFamily,
+        'delete:contact': isFamily,
         'manage:users': isAdmin,
       }
       return permissions[permission] || false

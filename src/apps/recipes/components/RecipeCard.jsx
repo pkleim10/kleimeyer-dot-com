@@ -9,7 +9,7 @@ import RecipeViewModal from './RecipeViewModal'
 
 export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecipeDelete, currentCategoryId }) {
   const { user } = useAuth()
-  const { isContributor, isAdmin } = usePermissions()
+  const { canEditRecipe, canDeleteRecipe } = usePermissions()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
@@ -84,16 +84,18 @@ export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecip
           </div>
         </div>
 
-        {/* Admin buttons - only visible to contributors and admins */}
-        {isContributor && (
+        {/* Action buttons - only visible to users with appropriate permissions */}
+        {(canEditRecipe || canDeleteRecipe) && (
           <div className="absolute bottom-4 right-4 flex space-x-4">
-            <button
-              onClick={handleEditClick}
-              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-sm font-medium"
-            >
-              Edit
-            </button>
-            {isAdmin && (
+            {canEditRecipe && (
+              <button
+                onClick={handleEditClick}
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-sm font-medium"
+              >
+                Edit
+              </button>
+            )}
+            {canDeleteRecipe && (
               <button
                 onClick={handleDeleteClick}
                 className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-sm font-medium"

@@ -7,11 +7,11 @@ import RecipeEditModal from './RecipeEditModal'
 
 export default function AddRecipeButton({ categories, onRecipeCreate, currentCategoryId }) {
   const { user } = useAuth()
-  const { isContributor } = usePermissions()
+  const { canCreateRecipe } = usePermissions()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Only show the button if user is a contributor
-  if (!isContributor) {
+  // Only show the button if user can create recipes
+  if (!canCreateRecipe) {
     return null
   }
 

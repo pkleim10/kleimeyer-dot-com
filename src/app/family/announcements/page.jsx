@@ -10,7 +10,7 @@ import AnnouncementDeleteModal from '@/apps/family/components/AnnouncementDelete
 
 export default function AnnouncementsPage() {
   const { user, loading: authLoading } = useAuth()
-  const { isContributor } = usePermissions()
+  const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement } = usePermissions()
   const router = useRouter()
   
   const [bulletins, setBulletins] = useState([])
@@ -283,7 +283,7 @@ export default function AnnouncementsPage() {
                 Manage important family updates and reminders
               </p>
             </div>
-            {isContributor && (
+            {canCreateAnnouncement && (
               <div className="mt-4 sm:mt-0 sm:ml-4">
                 <button
                   onClick={() => setShowAddForm(true)}
@@ -424,26 +424,30 @@ export default function AnnouncementsPage() {
                       </div>
                     </div>
                     
-                    {isContributor && (
+                    {(canEditAnnouncement || canDeleteAnnouncement) && (
                       <div className="flex space-x-2 mt-4 lg:mt-0 lg:ml-4">
-                        <button
-                          onClick={() => handleEdit(bulletin)}
-                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(bulletin)}
-                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </button>
+                        {canEditAnnouncement && (
+                          <button
+                            onClick={() => handleEdit(bulletin)}
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </button>
+                        )}
+                        {canDeleteAnnouncement && (
+                          <button
+                            onClick={() => handleDelete(bulletin)}
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -462,7 +466,7 @@ export default function AnnouncementsPage() {
                   : 'Get started by creating a new announcement.'
                 }
               </p>
-              {isContributor && (
+              {canCreateAnnouncement && (
                 <div className="mt-6">
                   <button
                     onClick={() => setShowAddForm(true)}

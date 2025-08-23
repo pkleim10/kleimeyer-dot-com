@@ -108,8 +108,8 @@ export async function POST(request) {
       .eq('user_id', user.id)
       .single()
 
-    if (roleError || !['contributor', 'admin'].includes(userRole?.role)) {
-      return NextResponse.json({ error: 'Forbidden - Contributor access required' }, { status: 403 })
+    if (roleError || !['contributor', 'admin', 'family'].includes(userRole?.role)) {
+      return NextResponse.json({ error: 'Forbidden - Family access required' }, { status: 403 })
     }
 
     // Get request body
