@@ -10,7 +10,7 @@ import AnnouncementDeleteModal from '@/apps/family/components/AnnouncementDelete
 
 export default function AnnouncementsPage() {
   const { user, loading: authLoading } = useAuth()
-  const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement } = usePermissions()
+  const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement, isAdmin } = usePermissions()
   const router = useRouter()
   
   const [bulletins, setBulletins] = useState([])
@@ -25,7 +25,19 @@ export default function AnnouncementsPage() {
     category: 'general',
     priority: 'medium',
     expires_at: '',
-    is_active: true
+    is_active: true,
+    // Specialized fields
+    url: '',
+    website_email: '',
+    website_password: '',
+    appointment_datetime: '',
+    appointment_location: '',
+    payment_amount: '',
+    payment_due_date: '',
+    payment_reference: '',
+    payment_recipient: '',
+    action_required: false,
+    medical_provider: ''
   })
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, bulletin: null })
@@ -35,20 +47,8 @@ export default function AnnouncementsPage() {
     priority: 'all',
     activeOnly: true
   })
-
-  useEffect(() => {
-    // Simple auth check - redirect if no user
-    if (!authLoading && !user) {
-      router.push('/login?redirect=/family/announcements')
-      return
-    }
-    
-    // If user is authenticated and we haven't loaded bulletins yet, load them
-    if (!authLoading && user && !hasLoadedBulletins) {
-      fetchBulletins()
-      setPageLoading(false)
-    }
-  }, [user, authLoading, router, hasLoadedBulletins])
+  const [copiedUrl, setCopiedUrl] = useState(null)
+  const [copiedCredentials, setCopiedCredentials] = useState({ type: null, bulletinId: null })
 
   const fetchBulletins = useCallback(async () => {
     try {
@@ -86,11 +86,63 @@ export default function AnnouncementsPage() {
     }
   }, [])
 
+  useEffect(() => {
+    // Simple auth check - redirect if no user
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/family/announcements')
+      return
+    }
+    
+    // If user is authenticated and we haven't loaded bulletins yet, load them
+    if (!authLoading && user && !hasLoadedBulletins) {
+      fetchBulletins()
+      setPageLoading(false)
+    }
+  }, [user, authLoading, router, hasLoadedBulletins, fetchBulletins])
+
+  // Purge expired announcements from database
+  const purgeExpiredAnnouncements = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        return
+      }
+
+      const now = new Date().toISOString()
+      
+      // Delete expired announcements
+      const { error } = await supabase
+        .from('family_bulletins')
+        .delete()
+        .lt('expires_at', now)
+        .not('expires_at', 'is', null)
+
+      if (error) {
+        console.error('Error purging expired announcements:', error)
+        setError('Failed to purge expired announcements')
+      } else {
+        console.log('Expired announcements purged successfully')
+        // Refresh bulletins after successful purge
+        setHasLoadedBulletins(false)
+        await fetchBulletins()
+      }
+    } catch (err) {
+      console.error('Error purging expired announcements:', err)
+      setError('Failed to purge expired announcements')
+    }
+  }, [])
+
   // Filter bulletins based on current filters
   const filteredBulletins = useMemo(() => {
+    const now = new Date()
     return bulletins.filter(bulletin => {
       // Filter by active status
       if (filters.activeOnly && !bulletin.is_active) {
+        return false
+      }
+      
+      // Filter out expired announcements
+      if (bulletin.expires_at && new Date(bulletin.expires_at) <= now) {
         return false
       }
       
@@ -125,7 +177,19 @@ export default function AnnouncementsPage() {
       category: 'general',
       priority: 'medium',
       expires_at: '',
-      is_active: true
+      is_active: true,
+      // Specialized fields
+      url: '',
+      website_email: '',
+      website_password: '',
+      appointment_datetime: '',
+      appointment_location: '',
+      payment_amount: '',
+      payment_due_date: '',
+      payment_reference: '',
+      payment_recipient: '',
+      action_required: false,
+      medical_provider: ''
     })
     setEditingBulletin(null)
     setShowAddForm(false)
@@ -153,6 +217,7 @@ export default function AnnouncementsPage() {
       
       const method = editingBulletin ? 'PUT' : 'POST'
 
+      console.log('Sending data to API:', dataToSend)
       const response = await fetch(url, {
         method,
         headers: {
@@ -189,13 +254,30 @@ export default function AnnouncementsPage() {
       utcDateTime = new Date(bulletin.expires_at).toISOString().slice(0, 16)
     }
     
+    let appointmentDateTime = ''
+    if (bulletin.appointment_datetime) {
+      appointmentDateTime = new Date(bulletin.appointment_datetime).toISOString().slice(0, 16)
+    }
+    
     setFormData({
       title: bulletin.title,
       content: bulletin.content,
       category: bulletin.category,
       priority: bulletin.priority,
       expires_at: utcDateTime,
-      is_active: bulletin.is_active
+      is_active: bulletin.is_active,
+      // Specialized fields
+      url: bulletin.url || '',
+      website_email: bulletin.website_email || '',
+      website_password: bulletin.website_password || '',
+      appointment_datetime: appointmentDateTime,
+      appointment_location: bulletin.appointment_location || '',
+      payment_amount: bulletin.payment_amount || '',
+      payment_due_date: bulletin.payment_due_date || '',
+      payment_reference: bulletin.payment_reference || '',
+      payment_recipient: bulletin.payment_recipient || '',
+      action_required: bulletin.action_required || false,
+      medical_provider: bulletin.medical_provider || ''
     })
     setShowAddForm(true)
   }
@@ -214,6 +296,54 @@ export default function AnnouncementsPage() {
     await fetchBulletins()
   }
 
+  const copyToClipboard = async (text, bulletinId) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedUrl(bulletinId)
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopiedUrl(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopiedUrl(bulletinId)
+        setTimeout(() => setCopiedUrl(null), 2000)
+      } catch (fallbackErr) {
+        console.error('Fallback copy failed:', fallbackErr)
+      }
+      document.body.removeChild(textArea)
+    }
+  }
+
+  const copyCredentials = async (type, value, bulletinId) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedCredentials({ type, bulletinId })
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopiedCredentials({ type: null, bulletinId: null }), 2000)
+    } catch (err) {
+      console.error('Failed to copy credentials:', err)
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = value
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopiedCredentials({ type, bulletinId })
+        setTimeout(() => setCopiedCredentials({ type: null, bulletinId: null }), 2000)
+      } catch (fallbackErr) {
+        console.error('Fallback copy failed:', fallbackErr)
+      }
+      document.body.removeChild(textArea)
+    }
+  }
+
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high': return 'text-red-700 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-900/20 dark:border-red-800/30'
@@ -228,6 +358,7 @@ export default function AnnouncementsPage() {
       case 'appointment': return 'text-blue-700 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/20 dark:border-blue-800/30'
       case 'payment': return 'text-purple-700 bg-purple-50 border border-purple-200 dark:text-purple-300 dark:bg-purple-900/20 dark:border-purple-800/30'
       case 'website': return 'text-indigo-700 bg-indigo-50 border border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/20 dark:border-indigo-800/30'
+      case 'medical': return 'text-red-700 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-900/20 dark:border-red-800/30'
       case 'general': return 'text-gray-700 bg-gray-50 border border-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:border-gray-500'
       default: return 'text-gray-700 bg-gray-50 border border-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:border-gray-500'
     }
@@ -283,8 +414,8 @@ export default function AnnouncementsPage() {
                 Manage important family updates and reminders
               </p>
             </div>
-            {canCreateAnnouncement && (
-              <div className="mt-4 sm:mt-0 sm:ml-4">
+            <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col sm:flex-row gap-2">
+              {canCreateAnnouncement && (
                 <button
                   onClick={() => setShowAddForm(true)}
                   className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -294,8 +425,19 @@ export default function AnnouncementsPage() {
                   </svg>
                   Add Announcement
                 </button>
-              </div>
-            )}
+              )}
+              {isAdmin && (
+                <button
+                  onClick={purgeExpiredAnnouncements}
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Purge Expired
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -318,6 +460,7 @@ export default function AnnouncementsPage() {
                 <option value="appointment">Appointments</option>
                 <option value="payment">Payments</option>
                 <option value="website">Websites</option>
+                <option value="medical">Medical</option>
                 <option value="general">General</option>
               </select>
             </div>
@@ -417,6 +560,170 @@ export default function AnnouncementsPage() {
                       <p className="text-gray-600 dark:text-gray-400 mb-3">
                         {bulletin.content}
                       </p>
+
+                      {/* Specialized Fields Display */}
+                      {bulletin.category === 'website' && (
+                        <div className="mb-3 space-y-2">
+                          {bulletin.url && (
+                            <div className="flex items-center space-x-3">
+                              <a
+                                href={bulletin.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Visit Website
+                              </a>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyToClipboard(bulletin.url, bulletin.id)
+                                }}
+                                className={`inline-flex items-center text-sm transition-colors ${
+                                  copiedUrl === bulletin.id
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                                title="Copy link to clipboard"
+                              >
+                                {copiedUrl === bulletin.id ? (
+                                  <>
+                                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    Copy Link
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                          {bulletin.website_email && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Email/User ID:</span>{' '}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyCredentials('email', bulletin.website_email, bulletin.id)
+                                }}
+                                className={`inline-flex items-center transition-colors ${
+                                  copiedCredentials.type === 'email' && copiedCredentials.bulletinId === bulletin.id
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
+                                }`}
+                                title="Copy email to clipboard"
+                              >
+                                {copiedCredentials.type === 'email' && copiedCredentials.bulletinId === bulletin.id ? (
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                )}
+                              </button>
+                              {bulletin.website_email}
+                            </div>
+                          )}
+                          {bulletin.website_password && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Password:</span>{' '}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyCredentials('password', bulletin.website_password, bulletin.id)
+                                }}
+                                className={`inline-flex items-center transition-colors ${
+                                  copiedCredentials.type === 'password' && copiedCredentials.bulletinId === bulletin.id
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
+                                }`}
+                                title="Copy password to clipboard"
+                              >
+                                {copiedCredentials.type === 'password' && copiedCredentials.bulletinId === bulletin.id ? (
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                )}
+                              </button>
+                              ••••••••
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {bulletin.category === 'appointment' && (bulletin.appointment_datetime || bulletin.appointment_location) && (
+                        <div className="mb-3 space-y-1">
+                          {bulletin.appointment_datetime && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Date & Time:</span> {formatDate(bulletin.appointment_datetime)}
+                            </div>
+                          )}
+                          {bulletin.appointment_location && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Location:</span> {bulletin.appointment_location}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {bulletin.category === 'payment' && (bulletin.payment_amount || bulletin.payment_due_date || bulletin.payment_reference || bulletin.payment_recipient) && (
+                        <div className="mb-3 space-y-1">
+                          {bulletin.payment_amount && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Amount:</span> ${parseFloat(bulletin.payment_amount).toFixed(2)}
+                            </div>
+                          )}
+                          {bulletin.payment_due_date && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Due Date:</span> {new Date(bulletin.payment_due_date).toLocaleDateString()}
+                            </div>
+                          )}
+                          {bulletin.payment_reference && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Reference:</span> {bulletin.payment_reference}
+                            </div>
+                          )}
+                          {bulletin.payment_recipient && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium">Recipient:</span> {bulletin.payment_recipient}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {bulletin.category === 'general' && bulletin.action_required && (
+                        <div className="mb-3">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900/30">
+                            Action Required
+                          </span>
+                        </div>
+                      )}
+
+                      {bulletin.category === 'medical' && bulletin.medical_provider && (
+                        <div className="mb-3">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-medium">Provider:</span> {bulletin.medical_provider}
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 dark:text-gray-500 space-y-1 sm:space-y-0 sm:space-x-4">
                         <span>Expires: {formatDate(bulletin.expires_at)}</span>
@@ -542,6 +849,7 @@ export default function AnnouncementsPage() {
                       <option value="appointment">Appointment</option>
                       <option value="payment">Payment</option>
                       <option value="website">Website</option>
+                      <option value="medical">Medical</option>
                       <option value="general">General</option>
                     </select>
                   </div>
@@ -565,6 +873,194 @@ export default function AnnouncementsPage() {
                   </div>
                 </div>
 
+                {/* Specialized Fields - Right after category/priority */}
+                {formData.category === 'appointment' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="appointment_datetime" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        id="appointment_datetime"
+                        name="appointment_datetime"
+                        value={formData.appointment_datetime}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="appointment_location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Location
+                      </label>
+                      <input
+                        type="text"
+                        id="appointment_location"
+                        name="appointment_location"
+                        value={formData.appointment_location}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="Address, room, etc."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {formData.category === 'payment' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="payment_amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Amount
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        id="payment_amount"
+                        name="payment_amount"
+                        value={formData.payment_amount}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="payment_due_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Due Date
+                      </label>
+                      <input
+                        type="date"
+                        id="payment_due_date"
+                        name="payment_due_date"
+                        value={formData.payment_due_date}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="payment_reference" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Reference/Account
+                      </label>
+                      <input
+                        type="text"
+                        id="payment_reference"
+                        name="payment_reference"
+                        value={formData.payment_reference}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="Account number, reference code"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="payment_recipient" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Recipient
+                      </label>
+                      <input
+                        type="text"
+                        id="payment_recipient"
+                        name="payment_recipient"
+                        value={formData.payment_recipient}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="Who to pay"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {formData.category === 'website' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Website URL
+                      </label>
+                      <input
+                        type="url"
+                        id="url"
+                        name="url"
+                        value={formData.url}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="website_email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Email/User ID
+                      </label>
+                      <input
+                        type="text"
+                        id="website_email"
+                        name="website_email"
+                        value={formData.website_email}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="email@example.com or username"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="website_password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Password
+                      </label>
+                      <input
+                        type="password"
+                        id="website_password"
+                        name="website_password"
+                        value={formData.website_password}
+                        onChange={handleFormChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        placeholder="Password"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {formData.category === 'general' && (
+                  <div className="flex items-center">
+                    <input
+                      id="action_required"
+                      name="action_required"
+                      type="checkbox"
+                      checked={formData.action_required}
+                      onChange={handleFormChange}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="action_required" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                      Action Required
+                    </label>
+                  </div>
+                )}
+
+                {formData.category === 'medical' && (
+                  <div>
+                    <label htmlFor="medical_provider" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Provider
+                    </label>
+                    <input
+                      type="text"
+                      id="medical_provider"
+                      name="medical_provider"
+                      value={formData.medical_provider}
+                      onChange={handleFormChange}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                      placeholder="Doctor, hospital, clinic name"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center">
+                  <input
+                    id="is_active"
+                    name="is_active"
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={handleFormChange}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                    Active
+                  </label>
+                </div>
+
                 <div>
                   <label htmlFor="expires_at" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Expires At
@@ -580,20 +1076,6 @@ export default function AnnouncementsPage() {
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     Leave empty for no expiration
                   </p>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    id="is_active"
-                    name="is_active"
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={handleFormChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                    Active
-                  </label>
                 </div>
 
                 <div className="flex justify-end space-x-3 pt-4">

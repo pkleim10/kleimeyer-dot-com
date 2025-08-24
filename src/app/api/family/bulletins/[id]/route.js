@@ -10,10 +10,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// GET - Test endpoint
+export async function GET(request, { params }) {
+  const resolvedParams = await params
+  console.log('GET request received for bulletin:', resolvedParams?.id)
+  return NextResponse.json({ message: 'API route is working', id: resolvedParams?.id })
+}
+
 // PUT - Update bulletin
 export async function PUT(request, { params }) {
+  const resolvedParams = await params
+  console.log('PUT request received for bulletin:', resolvedParams?.id)
   try {
-    const { id } = params
+    const { id } = resolvedParams
+    console.log('Processing PUT request for ID:', id)
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -51,7 +61,27 @@ export async function PUT(request, { params }) {
 
     // Get request body
     const body = await request.json()
-    const { title, content, category, priority, expires_at, is_active } = body
+    console.log('Update bulletin request body:', body)
+    const { 
+      title, 
+      content, 
+      category, 
+      priority, 
+      expires_at, 
+      is_active,
+      // Specialized fields
+      url,
+      website_email,
+      website_password,
+      appointment_datetime,
+      appointment_location,
+      payment_amount,
+      payment_due_date,
+      payment_reference,
+      payment_recipient,
+      action_required = false,
+      medical_provider
+    } = body
 
     // Validate required fields
     if (!title || !content || !category || !priority) {
@@ -59,7 +89,7 @@ export async function PUT(request, { params }) {
     }
 
     // Validate category and priority values
-    const validCategories = ['appointment', 'payment', 'website', 'general']
+    const validCategories = ['appointment', 'payment', 'website', 'general', 'medical']
     const validPriorities = ['high', 'medium', 'low']
 
     if (!validCategories.includes(category)) {
@@ -70,24 +100,51 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
     }
 
-    // Update bulletin
+    // Helper function to handle empty strings for timestamp fields
+    const cleanTimestamp = (value) => {
+      if (!value || value === '' || value === 'null') return null
+      return value
+    }
+
+    // Helper function to handle empty strings for date fields
+    const cleanDate = (value) => {
+      if (!value || value === '' || value === 'null') return null
+      return value
+    }
+
+    // Update bulletin with specialized fields
+    const updateData = {
+      title,
+      content,
+      category,
+      priority,
+      expires_at: cleanTimestamp(expires_at),
+      is_active,
+      // Specialized fields
+      url: url || null,
+      website_email: website_email || null,
+      website_password: website_password || null,
+      appointment_datetime: cleanTimestamp(appointment_datetime),
+      appointment_location: appointment_location || null,
+      payment_amount: payment_amount || null,
+      payment_due_date: cleanDate(payment_due_date),
+      payment_reference: payment_reference || null,
+      payment_recipient: payment_recipient || null,
+      action_required: action_required || false,
+      medical_provider: medical_provider || null
+    }
+    console.log('Update data:', updateData)
+    
     const { data: bulletin, error } = await supabaseWithAuth
       .from('family_bulletins')
-      .update({
-        title,
-        content,
-        category,
-        priority,
-        expires_at: expires_at || null,
-        is_active
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
 
     if (error) {
       console.error('Error updating bulletin:', error)
-      return NextResponse.json({ error: 'Failed to update bulletin' }, { status: 500 })
+      return NextResponse.json({ error: `Failed to update bulletin: ${error.message}` }, { status: 500 })
     }
 
     if (!bulletin) {
@@ -103,8 +160,9 @@ export async function PUT(request, { params }) {
 
 // DELETE - Delete bulletin
 export async function DELETE(request, { params }) {
+  const resolvedParams = await params
   try {
-    const { id } = params
+    const { id } = resolvedParams
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')

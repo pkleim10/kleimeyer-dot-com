@@ -60,6 +60,10 @@ export async function GET(request) {
     if (priority) {
       query = query.eq('priority', priority)
     }
+    
+    // Filter out expired announcements
+    const now = new Date().toISOString()
+    query = query.or(`expires_at.is.null,expires_at.gt.${now}`)
 
     const { data: bulletins, error } = await query
 
@@ -114,7 +118,26 @@ export async function POST(request) {
 
     // Get request body
     const body = await request.json()
-    const { title, content, category, priority, expires_at, is_active = true } = body
+    const { 
+      title, 
+      content, 
+      category, 
+      priority, 
+      expires_at, 
+      is_active = true,
+      // Specialized fields
+      url,
+      website_email,
+      website_password,
+      appointment_datetime,
+      appointment_location,
+      payment_amount,
+      payment_due_date,
+      payment_reference,
+      payment_recipient,
+      action_required = false,
+      medical_provider
+    } = body
 
     // Validate required fields
     if (!title || !content || !category || !priority) {
@@ -122,7 +145,7 @@ export async function POST(request) {
     }
 
     // Validate category and priority values
-    const validCategories = ['appointment', 'payment', 'website', 'general']
+    const validCategories = ['appointment', 'payment', 'website', 'general', 'medical']
     const validPriorities = ['high', 'medium', 'low']
 
     if (!validCategories.includes(category)) {
@@ -133,7 +156,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
     }
 
-    // Create bulletin
+    // Helper function to handle empty strings for timestamp fields
+    const cleanTimestamp = (value) => {
+      if (!value || value === '' || value === 'null') return null
+      return value
+    }
+
+    // Helper function to handle empty strings for date fields
+    const cleanDate = (value) => {
+      if (!value || value === '' || value === 'null') return null
+      return value
+    }
+
+    // Create bulletin with specialized fields
     const { data: bulletin, error } = await supabaseWithAuth
       .from('family_bulletins')
       .insert({
@@ -141,8 +176,20 @@ export async function POST(request) {
         content,
         category,
         priority,
-        expires_at: expires_at || null,
-        is_active
+        expires_at: cleanTimestamp(expires_at),
+        is_active,
+        // Specialized fields
+        url: url || null,
+        website_email: website_email || null,
+        website_password: website_password || null,
+        appointment_datetime: cleanTimestamp(appointment_datetime),
+        appointment_location: appointment_location || null,
+        payment_amount: payment_amount || null,
+        payment_due_date: cleanDate(payment_due_date),
+        payment_reference: payment_reference || null,
+        payment_recipient: payment_recipient || null,
+        action_required: action_required || false,
+        medical_provider: medical_provider || null
       })
       .select()
       .single()

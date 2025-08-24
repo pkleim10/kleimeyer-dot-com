@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
+import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth()
@@ -17,6 +21,7 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
+  const [userRole, setUserRole] = useState(null)
 
   useEffect(() => {
     // Wait for auth to be ready
@@ -33,6 +38,45 @@ export default function ProfilePage() {
           lastName: user.user_metadata.last_name || ''
         })
       }
+
+      // Load user role
+      const loadUserRole = async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            // Create authenticated client
+            const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+              global: {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`
+                }
+              }
+            })
+
+            // Fetch user's role directly
+            const { data: userRoleData, error } = await supabaseWithAuth
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', user.id)
+              .single()
+
+            if (error) {
+              console.error('Error fetching user role:', error)
+              // Set default role if none exists
+              setUserRole('member')
+            } else {
+              console.log('User role loaded:', userRoleData.role)
+              setUserRole(userRoleData.role)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user role:', error)
+          // Set default role on error
+          setUserRole('member')
+        }
+      }
+
+      loadUserRole()
       setPageLoading(false)
     }
   }, [user, authLoading, router])
@@ -118,6 +162,11 @@ export default function ProfilePage() {
     })
   }
 
+  const formatRole = (role) => {
+    if (!role) return 'Unknown'
+    return role.charAt(0).toUpperCase() + role.slice(1)
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
@@ -179,6 +228,13 @@ export default function ProfilePage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* User Role Display */}
+          <div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-black bg-orange-200 dark:text-black dark:bg-orange-300">
+              {userRole ? formatRole(userRole) : 'Loading...'}
+            </span>
+          </div>
+
           <div>
             <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               First Name

@@ -135,7 +135,11 @@ export default function FamilyMattersPage() {
 
   // Get 2 most important bulletins for hero display
   const heroBulletins = useMemo(() => {
-    const activeBulletins = bulletins.filter(b => b.is_active)
+    const now = new Date()
+    const activeBulletins = bulletins.filter(b => 
+      b.is_active && 
+      (!b.expires_at || new Date(b.expires_at) > now)
+    )
     
     // Get most urgent (high priority)
     const urgent = activeBulletins
