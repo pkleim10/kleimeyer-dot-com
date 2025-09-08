@@ -25,7 +25,6 @@ export default function AnnouncementsPage() {
     category: 'general',
     priority: 'medium',
     expires_at: '',
-    is_active: true,
     // Specialized fields
     url: '',
     website_email: '',
@@ -136,11 +135,6 @@ export default function AnnouncementsPage() {
   const groupedBulletins = useMemo(() => {
     const now = new Date()
     const filtered = bulletins.filter(bulletin => {
-      // Filter by active status
-      if (filters.activeOnly && !bulletin.is_active) {
-        return false
-      }
-      
       // Filter out expired announcements
       if (bulletin.expires_at && new Date(bulletin.expires_at) <= now) {
         return false
@@ -209,7 +203,6 @@ export default function AnnouncementsPage() {
       category: 'general',
       priority: 'medium',
       expires_at: '',
-      is_active: true,
       // Specialized fields
       url: '',
       website_email: '',
@@ -247,8 +240,16 @@ export default function AnnouncementsPage() {
         // Treat the input as Arizona time and convert to UTC
         const arizonaTime = new Date(formData.appointment_datetime + '-07:00') // Arizona is UTC-7
         dataToSend.appointment_datetime = arizonaTime.toISOString()
+        
+        // For appointment announcements, automatically set expiration to 2 hours after appointment
+        if (formData.category === 'appointment') {
+          const expirationTime = new Date(arizonaTime.getTime() + (2 * 60 * 60 * 1000)) // Add 2 hours
+          dataToSend.expires_at = expirationTime.toISOString()
+        }
       }
-      if (formData.expires_at) {
+      
+      // Only set expiration manually for non-appointment announcements
+      if (formData.expires_at && formData.category !== 'appointment') {
         // Treat the input as Arizona time and convert to UTC
         const arizonaExpire = new Date(formData.expires_at + '-07:00')
         dataToSend.expires_at = arizonaExpire.toISOString()
@@ -291,9 +292,9 @@ export default function AnnouncementsPage() {
   const handleEdit = (bulletin) => {
     setEditingBulletin(bulletin)
     
-    // Convert expiration from UTC to Arizona time for editing
+    // Convert expiration from UTC to Arizona time for editing (only for non-appointment announcements)
     let expiresAtLocal = ''
-    if (bulletin.expires_at) {
+    if (bulletin.expires_at && bulletin.category !== 'appointment') {
       const date = new Date(bulletin.expires_at)
       const arizonaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Phoenix' }))
       const year = arizonaDate.getFullYear()
@@ -325,7 +326,6 @@ export default function AnnouncementsPage() {
       category: bulletin.category,
       priority: bulletin.priority,
       expires_at: expiresAtLocal,
-      is_active: bulletin.is_active,
       // Specialized fields
       url: bulletin.url || '',
       website_email: bulletin.website_email || '',
@@ -589,7 +589,7 @@ export default function AnnouncementsPage() {
         )}
 
         {/* Bulletins List */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-transparent rounded-lg shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-6 text-center">
               <div className="inline-flex items-center px-4 py-2 font-semibold leading-6 text-gray-900 dark:text-gray-100">
@@ -674,9 +674,9 @@ export default function AnnouncementsPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="divide-y divide-gray-200 dark:divide-slate-700">
+            <div className="divide-y divide-gray-200 dark:divide-slate-700">
                     {bulletins.map((bulletin) => (
-                <div key={bulletin.id} className={`p-6 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${!bulletin.is_active ? 'opacity-60' : ''}`}>
+                <div key={bulletin.id} className="p-6 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
@@ -690,11 +690,6 @@ export default function AnnouncementsPage() {
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(bulletin.category)}`}>
                             {bulletin.category}
                           </span>
-                          {!bulletin.is_active && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 dark:text-gray-300 dark:bg-gray-600">
-                              Inactive
-                            </span>
-                          )}
                           {isExpired(bulletin.expires_at) && (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900/30">
                               Expired
@@ -905,7 +900,7 @@ export default function AnnouncementsPage() {
                     )}
                   </div>
                 </div>
-                    ))}
+              ))}
                         </div>
                       </div>
                     </div>
@@ -1202,20 +1197,9 @@ export default function AnnouncementsPage() {
                   </div>
                 )}
 
-                <div className="flex items-center">
-                  <input
-                    id="is_active"
-                    name="is_active"
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={handleFormChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                    Active
-                  </label>
-                </div>
 
+                {/* Only show expiration date for non-appointment announcements */}
+                {formData.category !== 'appointment' && (
                 <div>
                   <label htmlFor="expires_at" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Expires At
@@ -1227,12 +1211,22 @@ export default function AnnouncementsPage() {
                     value={formData.expires_at}
                     onChange={handleFormChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
-                    placeholder="Enter time in Arizona timezone"
+                      placeholder="Enter time in Arizona timezone"
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     Leave empty for no expiration
                   </p>
                 </div>
+                )}
+                
+                {/* Show info message for appointment announcements */}
+                {formData.category === 'appointment' && formData.appointment_datetime && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <span className="font-medium">Auto-expiration:</span> This appointment will automatically expire 2 hours after the appointment time.
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex justify-end space-x-3 pt-4">
                   <button

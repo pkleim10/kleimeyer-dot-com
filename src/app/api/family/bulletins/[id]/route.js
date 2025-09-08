@@ -68,7 +68,6 @@ export async function PUT(request, { params }) {
       category, 
       priority, 
       expires_at, 
-      is_active,
       // Specialized fields
       url,
       website_email,
@@ -119,7 +118,6 @@ export async function PUT(request, { params }) {
       category,
       priority,
       expires_at: cleanTimestamp(expires_at),
-      is_active,
       // Specialized fields
       url: url || null,
       website_email: website_email || null,

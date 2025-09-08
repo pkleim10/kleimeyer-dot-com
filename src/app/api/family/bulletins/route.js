@@ -51,9 +51,8 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
 
     // Apply filters
-    if (activeOnly) {
-      query = query.eq('is_active', true)
-    }
+    // Note: activeOnly filter is no longer needed since we removed is_active column
+    // All non-expired announcements are considered "active"
     if (category) {
       query = query.eq('category', category)
     }
@@ -124,7 +123,6 @@ export async function POST(request) {
       category, 
       priority, 
       expires_at, 
-      is_active = true,
       // Specialized fields
       url,
       website_email,
@@ -177,7 +175,6 @@ export async function POST(request) {
         category,
         priority,
         expires_at: cleanTimestamp(expires_at),
-        is_active,
         // Specialized fields
         url: url || null,
         website_email: website_email || null,

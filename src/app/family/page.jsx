@@ -113,7 +113,7 @@ export default function FamilyMattersPage() {
         return
       }
 
-      const response = await fetch('/api/family/bulletins?activeOnly=true', {
+      const response = await fetch('/api/family/bulletins', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -137,7 +137,6 @@ export default function FamilyMattersPage() {
   const heroBulletins = useMemo(() => {
     const now = new Date()
     const activeBulletins = bulletins.filter(b => 
-      b.is_active && 
       (!b.expires_at || new Date(b.expires_at) > now)
     )
     
