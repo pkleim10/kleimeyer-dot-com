@@ -240,12 +240,18 @@ export default function AnnouncementsPage() {
         return
       }
 
-      // Convert appointment time from Arizona time to UTC for storage
+      // Convert appointment/expiration time from Arizona time to UTC for storage
       const dataToSend = { ...formData }
+      
       if (formData.appointment_datetime) {
         // Treat the input as Arizona time and convert to UTC
-        const arizonaTime = new Date(formData.appointment_datetime + ':00.000-07:00') // Arizona is UTC-7
+        const arizonaTime = new Date(formData.appointment_datetime + '-07:00') // Arizona is UTC-7
         dataToSend.appointment_datetime = arizonaTime.toISOString()
+      }
+      if (formData.expires_at) {
+        // Treat the input as Arizona time and convert to UTC
+        const arizonaExpire = new Date(formData.expires_at + '-07:00')
+        dataToSend.expires_at = arizonaExpire.toISOString()
       }
 
       const url = editingBulletin 
@@ -285,10 +291,17 @@ export default function AnnouncementsPage() {
   const handleEdit = (bulletin) => {
     setEditingBulletin(bulletin)
     
-    // Assume UTC, no conversion needed
-    let utcDateTime = ''
+    // Convert expiration from UTC to Arizona time for editing
+    let expiresAtLocal = ''
     if (bulletin.expires_at) {
-      utcDateTime = new Date(bulletin.expires_at).toISOString().slice(0, 16)
+      const date = new Date(bulletin.expires_at)
+      const arizonaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Phoenix' }))
+      const year = arizonaDate.getFullYear()
+      const month = String(arizonaDate.getMonth() + 1).padStart(2, '0')
+      const day = String(arizonaDate.getDate()).padStart(2, '0')
+      const hours = String(arizonaDate.getHours()).padStart(2, '0')
+      const minutes = String(arizonaDate.getMinutes()).padStart(2, '0')
+      expiresAtLocal = `${year}-${month}-${day}T${hours}:${minutes}`
     }
     
     let appointmentDateTime = ''
@@ -311,7 +324,7 @@ export default function AnnouncementsPage() {
       content: bulletin.content,
       category: bulletin.category,
       priority: bulletin.priority,
-      expires_at: utcDateTime,
+      expires_at: expiresAtLocal,
       is_active: bulletin.is_active,
       // Specialized fields
       url: bulletin.url || '',
@@ -414,16 +427,13 @@ export default function AnnouncementsPage() {
   const formatDate = (dateString) => {
     if (!dateString) return 'No expiration'
     const date = new Date(dateString)
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const month = months[date.getUTCMonth()]
-    const day = date.getUTCDate()
-    const year = date.getUTCFullYear()
-    let hour = date.getUTCHours()
-    const minute = String(date.getUTCMinutes()).padStart(2, '0')
-    const ampm = hour >= 12 ? 'PM' : 'AM'
-    hour = hour % 12
-    hour = hour ? hour : 12 // the hour '0' should be '12'
-    return `${month} ${day}, ${hour}:${minute} ${ampm}`
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Phoenix'
+    })
   }
 
   const formatAppointmentDate = (dateString) => {
@@ -1217,6 +1227,7 @@ export default function AnnouncementsPage() {
                     value={formData.expires_at}
                     onChange={handleFormChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                    placeholder="Enter time in Arizona timezone"
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     Leave empty for no expiration
