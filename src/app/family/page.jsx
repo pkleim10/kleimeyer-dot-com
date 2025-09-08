@@ -299,55 +299,52 @@ export default function FamilyMattersPage() {
 
             {/* Hero Bulletins - Shows 4 most important appointments based on Date+Priority */}
             {heroBulletins.length > 0 && (
-              <div className="mt-8 space-y-2 max-w-4xl mx-auto">
-                {heroBulletins.map((bulletin) => (
-                  <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                            bulletin.priority === 'high' ? 'text-red-200 bg-red-900/30 border border-red-800/30' :
-                            bulletin.priority === 'medium' ? 'text-yellow-200 bg-yellow-900/30 border border-yellow-800/30' :
-                            'text-green-200 bg-green-900/30 border border-green-800/30'
-                          }`}>
-                            {bulletin.priority === 'high' ? '🚨' : bulletin.priority === 'medium' ? '⚠️' : 'ℹ️'} {bulletin.priority}
-                          </span>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                            bulletin.category === 'appointment' ? 'text-blue-200 bg-blue-900/30 border border-blue-800/30' :
-                            bulletin.category === 'payment' ? 'text-purple-200 bg-purple-900/30 border border-purple-800/30' :
-                            bulletin.category === 'website' ? 'text-indigo-200 bg-indigo-900/30 border border-indigo-800/30' :
-                            'text-gray-200 bg-gray-900/30 border border-gray-800/30'
-                          }`}>
-                            {bulletin.category}
-                          </span>
+              <div className="mt-8 max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {heroBulletins.map((bulletin) => {
+                  const appointmentDate = bulletin.appointment_datetime ? new Date(bulletin.appointment_datetime) : null
+                  const month = appointmentDate ? appointmentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/Phoenix' }) : ''
+                  const day = appointmentDate ? appointmentDate.getDate() : ''
+                  const time = appointmentDate ? appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''
+                  
+                  return (
+                    <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-2">
+                      <div className="flex items-start space-x-2">
+                        {/* Date Box - Left side */}
+                        {bulletin.category === 'appointment' && appointmentDate ? (
+                          <div className="flex-shrink-0 w-16 bg-white rounded shadow-sm overflow-hidden">
+                            <div className="bg-red-500 text-white text-xs font-medium text-center py-0.5">
+                              {month}
+                            </div>
+                            <div className="text-center py-1">
+                              <div className="text-lg font-bold text-black leading-none">{day}</div>
+                              <div className="text-xs text-gray-600">{time}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex-shrink-0 w-16"></div>
+                        )}
+
+                        {/* Right side content - Title and Priority top-aligned */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <h3 className="font-medium text-white text-sm truncate pr-2">{bulletin.title}</h3>
+                            <span className={`inline-flex items-center px-1 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
+                              bulletin.priority === 'high' ? 'text-red-200 bg-red-900/30 border border-red-800/30' :
+                              bulletin.priority === 'medium' ? 'text-yellow-200 bg-yellow-900/30 border border-yellow-800/30' :
+                              'text-green-200 bg-green-900/30 border border-green-800/30'
+                            }`}>
+                              {bulletin.priority === 'high' ? '🚨' : bulletin.priority === 'medium' ? '⚠️' : 'ℹ️'} {bulletin.priority}
+                            </span>
+                          </div>
+                          <p className="text-xs text-blue-100 line-clamp-2 text-left mt-1">{bulletin.content}</p>
                         </div>
-                        <h3 className="font-medium text-white text-sm mb-1 truncate">{bulletin.title}</h3>
-                        <p className="text-xs text-blue-100 mb-1 line-clamp-2">{bulletin.content}</p>
-                        {bulletin.category === 'appointment' && bulletin.appointment_datetime ? (
-                          <p className="text-xs text-blue-200">
-                            📅 {new Date(bulletin.appointment_datetime).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZone: 'America/Phoenix'
-                            })}
-                          </p>
-                        ) : bulletin.expires_at ? (
-                          <p className="text-xs text-blue-200">
-                            ⏰ {new Date(bulletin.expires_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        ) : null}
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div className="text-center">
+                  )
+                  })}
+                </div>
+                <div className="text-center mt-4">
                   <Link
                     href="/family/announcements"
                     className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white/90 hover:bg-white transition-colors rounded-md"
