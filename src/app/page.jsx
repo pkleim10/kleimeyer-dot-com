@@ -52,26 +52,26 @@ export default function HomePage() {
             </div>
           </Link>
 
-          {/* Family Matters App */}
+          {/* Family Business App */}
           <Link href="/family" className="group">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
               <div className="relative h-48 bg-gradient-to-br from-blue-500 to-indigo-600">
                 <img
-                  src="/family-card.jpeg"
-                  alt="Family Matters"
+                  src="/Family.jpeg"
+                  alt="Family Business"
                   className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
                 />
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/50 to-indigo-700/50" />
               </div>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                  Family Matters
+                  Family Business
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
                   Stay connected and informed with important family contacts and updates
                 </p>
                 <div className="mt-4 flex items-center text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-300">
-                  <span className="text-sm font-medium">View Contacts</span>
+                  <span className="text-sm font-medium">Get Started</span>
                   <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>

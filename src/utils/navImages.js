@@ -1,14 +1,7 @@
 // Navigation images array - auto-generated from public/nav-images/
 // Run 'node scripts/generate-nav-images.js' to update this array
 export const NAV_IMAGES = [
-  '/nav-images/nav1.jpeg',
-  '/nav-images/nav2.jpeg',
-  '/nav-images/nav3.png',
-  '/nav-images/nav4.jpeg',
-  '/nav-images/nav5.jpeg',
-  '/nav-images/nav6.png',
-  '/nav-images/nav7.png',
-  '/nav-images/nav8.png'
+  '/nav-images/nav6.png'
 ]
 
 // Utility function to get a random image from the array

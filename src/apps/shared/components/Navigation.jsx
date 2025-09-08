@@ -60,7 +60,7 @@ const generateBreadcrumbs = (pathname) => {
       }
       break
     case 'family':
-      breadcrumbs.push({ name: 'Family Matters', href: '/family', current: context.section === 'home' })
+      breadcrumbs.push({ name: 'Family Business', href: '/family', current: context.section === 'home' })
       if (context.section === 'announcements') {
         breadcrumbs.push({ name: 'Announcements', href: '/family/announcements', current: true })
       } else if (context.section === 'documents') {

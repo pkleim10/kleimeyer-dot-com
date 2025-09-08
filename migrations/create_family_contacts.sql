@@ -1,4 +1,4 @@
--- Create family_contacts table for Family Matters app
+-- Create family_contacts table for Family Business app
 CREATE TABLE IF NOT EXISTS family_contacts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name VARCHAR(255) NOT NULL,

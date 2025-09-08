@@ -281,7 +281,7 @@ export default function FamilyMattersPage() {
         <div className="absolute inset-0">
           <img
             src="/family-matters.jpeg"
-            alt="Family Matters"
+            alt="Family Business"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/70 to-indigo-700/70"></div>
@@ -290,10 +290,10 @@ export default function FamilyMattersPage() {
         <div className="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
-              Family Matters
+              Family Business
             </h1>
             <p className="mt-6 max-w-3xl mx-auto text-xl text-blue-100">
-              Staying connected and informed during Dad&apos;s recovery
+              Keep on top of the latest family news and events
             </p>
 
             {/* Hero Bulletins - Shows 4 most important appointments based on Date+Priority */}
@@ -367,7 +367,7 @@ export default function FamilyMattersPage() {
             Important Contacts
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-            This page contains important contact information and updates regarding Dad&apos;s recovery. 
+            This page contains important contact information and updates. 
             Please check back regularly for updates and feel free to reach out to any of the contacts listed below.
           </p>
         </div>
