@@ -133,7 +133,7 @@ export default function FamilyMattersPage() {
     }
   }, [])
 
-  // Get 2 most important bulletins for hero display
+  // Get 4 most important appointments for hero display (earliest date first, then by priority)
   const heroBulletins = useMemo(() => {
     const now = new Date()
     const activeBulletins = bulletins.filter(b => 
@@ -141,17 +141,37 @@ export default function FamilyMattersPage() {
       (!b.expires_at || new Date(b.expires_at) > now)
     )
     
-    // Get most urgent (high priority)
-    const urgent = activeBulletins
-      .filter(b => b.priority === 'high')
-      .sort((a, b) => new Date(a.expires_at || '9999-12-31') - new Date(b.expires_at || '9999-12-31'))[0]
+    // Filter to only appointments
+    const appointments = activeBulletins.filter(b => b.category === 'appointment')
     
-    // Get soonest upcoming (by expiration date)
-    const upcoming = activeBulletins
-      .filter(b => b.id !== urgent?.id) // Don't duplicate urgent
-      .sort((a, b) => new Date(a.expires_at || '9999-12-31') - new Date(b.expires_at || '9999-12-31'))[0]
+    // Sort appointments by earliest date first, then by priority (high > medium > low)
+    const sortedAppointments = appointments
+      .filter(apt => apt.appointment_datetime) // Only appointments with valid dates
+      .sort((a, b) => {
+        // Parse dates as UTC to ensure consistent comparison
+        const dateA = new Date(a.appointment_datetime)
+        const dateB = new Date(b.appointment_datetime)
+        
+        // Ensure we're comparing valid dates
+        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+          console.warn('Invalid date found:', { a: a.appointment_datetime, b: b.appointment_datetime })
+          return 0
+        }
+        
+        // Compare dates directly (earliest first)
+        const timeDiff = dateA.getTime() - dateB.getTime()
+        
+        // If dates are very close (within 1 hour), sort by priority
+        if (Math.abs(timeDiff) < 60 * 60 * 1000) { // Within 1 hour
+          const priorityOrder = { high: 3, medium: 2, low: 1 }
+          return priorityOrder[b.priority] - priorityOrder[a.priority]
+        }
+        
+        return timeDiff
+      })
     
-    return [urgent, upcoming].filter(Boolean)
+    // Return the 4 most important appointments
+    return sortedAppointments.slice(0, 4)
   }, [bulletins])
 
   // Fetch bulletins when component mounts
@@ -277,22 +297,22 @@ export default function FamilyMattersPage() {
               Staying connected and informed during Dad&apos;s recovery
             </p>
 
-            {/* Hero Bulletins */}
+            {/* Hero Bulletins - Shows 4 most important appointments based on Date+Priority */}
             {heroBulletins.length > 0 && (
-              <div className="mt-8 space-y-3">
+              <div className="mt-8 space-y-2 max-w-4xl mx-auto">
                 {heroBulletins.map((bulletin) => (
-                  <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-4 max-w-2xl mx-auto">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
                             bulletin.priority === 'high' ? 'text-red-200 bg-red-900/30 border border-red-800/30' :
                             bulletin.priority === 'medium' ? 'text-yellow-200 bg-yellow-900/30 border border-yellow-800/30' :
                             'text-green-200 bg-green-900/30 border border-green-800/30'
                           }`}>
                             {bulletin.priority === 'high' ? '🚨' : bulletin.priority === 'medium' ? '⚠️' : 'ℹ️'} {bulletin.priority}
                           </span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
                             bulletin.category === 'appointment' ? 'text-blue-200 bg-blue-900/30 border border-blue-800/30' :
                             bulletin.category === 'payment' ? 'text-purple-200 bg-purple-900/30 border border-purple-800/30' :
                             bulletin.category === 'website' ? 'text-indigo-200 bg-indigo-900/30 border border-indigo-800/30' :
@@ -301,18 +321,28 @@ export default function FamilyMattersPage() {
                             {bulletin.category}
                           </span>
                         </div>
-                        <h3 className="font-semibold text-white mb-1">{bulletin.title}</h3>
-                        <p className="text-sm text-blue-100 mb-2">{bulletin.content}</p>
-                        {bulletin.expires_at && (
+                        <h3 className="font-medium text-white text-sm mb-1 truncate">{bulletin.title}</h3>
+                        <p className="text-xs text-blue-100 mb-1 line-clamp-2">{bulletin.content}</p>
+                        {bulletin.category === 'appointment' && bulletin.appointment_datetime ? (
                           <p className="text-xs text-blue-200">
-                            Expires: {new Date(bulletin.expires_at).toLocaleDateString('en-US', {
+                            📅 {new Date(bulletin.appointment_datetime).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'America/Phoenix'
+                            })}
+                          </p>
+                        ) : bulletin.expires_at ? (
+                          <p className="text-xs text-blue-200">
+                            ⏰ {new Date(bulletin.expires_at).toLocaleDateString('en-US', {
                               month: 'short',
                               day: 'numeric',
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>

@@ -5,7 +5,10 @@ export const NAV_IMAGES = [
   '/nav-images/nav2.jpeg',
   '/nav-images/nav3.png',
   '/nav-images/nav4.jpeg',
-  '/nav-images/nav5.jpeg'
+  '/nav-images/nav5.jpeg',
+  '/nav-images/nav6.png',
+  '/nav-images/nav7.png',
+  '/nav-images/nav8.png'
 ]
 
 // Utility function to get a random image from the array

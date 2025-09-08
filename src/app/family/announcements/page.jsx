@@ -132,10 +132,10 @@ export default function AnnouncementsPage() {
     }
   }, [])
 
-  // Filter bulletins based on current filters
-  const filteredBulletins = useMemo(() => {
+  // Filter and group bulletins based on current filters
+  const groupedBulletins = useMemo(() => {
     const now = new Date()
-    return bulletins.filter(bulletin => {
+    const filtered = bulletins.filter(bulletin => {
       // Filter by active status
       if (filters.activeOnly && !bulletin.is_active) {
         return false
@@ -158,6 +158,38 @@ export default function AnnouncementsPage() {
       
       return true
     })
+
+    // Group by category
+    const grouped = filtered.reduce((acc, bulletin) => {
+      const category = bulletin.category
+      if (!acc[category]) {
+        acc[category] = []
+      }
+      acc[category].push(bulletin)
+      return acc
+    }, {})
+
+    // Sort each group
+    Object.keys(grouped).forEach(category => {
+      if (category === 'appointment') {
+        // Sort appointments by appointment_datetime (soonest first)
+        grouped[category].sort((a, b) => {
+          const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('9999-12-31')
+          const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('9999-12-31')
+          return dateA - dateB
+        })
+      } else {
+        // Sort other categories by priority (high first) then by creation date (newest first)
+        grouped[category].sort((a, b) => {
+          const priorityOrder = { high: 3, medium: 2, low: 1 }
+          const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
+          if (priorityDiff !== 0) return priorityDiff
+          return new Date(b.created_at) - new Date(a.created_at)
+        })
+      }
+    })
+
+    return grouped
   }, [bulletins, filters])
 
 
@@ -208,8 +240,13 @@ export default function AnnouncementsPage() {
         return
       }
 
-      // Assume input is UTC, store as UTC
+      // Convert appointment time from Arizona time to UTC for storage
       const dataToSend = { ...formData }
+      if (formData.appointment_datetime) {
+        // Treat the input as Arizona time and convert to UTC
+        const arizonaTime = new Date(formData.appointment_datetime + ':00.000-07:00') // Arizona is UTC-7
+        dataToSend.appointment_datetime = arizonaTime.toISOString()
+      }
 
       const url = editingBulletin 
         ? `/api/family/bulletins/${editingBulletin.id}`
@@ -256,7 +293,17 @@ export default function AnnouncementsPage() {
     
     let appointmentDateTime = ''
     if (bulletin.appointment_datetime) {
-      appointmentDateTime = new Date(bulletin.appointment_datetime).toISOString().slice(0, 16)
+      // Convert from UTC to Arizona time for editing
+      const date = new Date(bulletin.appointment_datetime)
+      // Create a new date in Arizona timezone
+      const arizonaDate = new Date(date.toLocaleString("en-US", {timeZone: "America/Phoenix"}))
+      // Get the local datetime-local format for Arizona time
+      const year = arizonaDate.getFullYear()
+      const month = String(arizonaDate.getMonth() + 1).padStart(2, '0')
+      const day = String(arizonaDate.getDate()).padStart(2, '0')
+      const hours = String(arizonaDate.getHours()).padStart(2, '0')
+      const minutes = String(arizonaDate.getMinutes()).padStart(2, '0')
+      appointmentDateTime = `${year}-${month}-${day}T${hours}:${minutes}`
     }
     
     setFormData({
@@ -377,6 +424,18 @@ export default function AnnouncementsPage() {
     hour = hour % 12
     hour = hour ? hour : 12 // the hour '0' should be '12'
     return `${month} ${day}, ${hour}:${minute} ${ampm}`
+  }
+
+  const formatAppointmentDate = (dateString) => {
+    if (!dateString) return 'No appointment time'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Phoenix'
+    })
   }
 
   const isExpired = (dateString) => {
@@ -527,10 +586,87 @@ export default function AnnouncementsPage() {
                 Loading announcements...
               </div>
             </div>
-          ) : filteredBulletins.length > 0 ? (
-            <div className="divide-y divide-gray-200 dark:divide-slate-700">
-              {filteredBulletins.map((bulletin) => (
-                <div key={bulletin.id} className={`p-6 ${!bulletin.is_active ? 'opacity-60' : ''}`}>
+          ) : Object.keys(groupedBulletins).length > 0 ? (
+            <div className="space-y-8">
+              {Object.entries(groupedBulletins).map(([category, bulletins]) => {
+                const getCategoryIcon = (cat) => {
+                  switch (cat) {
+                    case 'appointment':
+                      return (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      )
+                    case 'website':
+                      return (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
+                        </svg>
+                      )
+                    case 'general':
+                      return (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                      )
+                    case 'reminder':
+                      return (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4.828 7l2.586 2.586a2 2 0 002.828 0L12.828 7H4.828zM4.828 17h8l-2.586-2.586a2 2 0 00-2.828 0L4.828 17z" />
+                        </svg>
+                      )
+                    default:
+                      return (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      )
+                  }
+                }
+
+                const getCategoryGradient = (cat) => {
+                  switch (cat) {
+                    case 'appointment':
+                      return 'from-blue-500 to-indigo-600'
+                    case 'website':
+                      return 'from-green-500 to-emerald-600'
+                    case 'general':
+                      return 'from-purple-500 to-violet-600'
+                    case 'reminder':
+                      return 'from-orange-500 to-red-600'
+                    default:
+                      return 'from-gray-500 to-slate-600'
+                  }
+                }
+
+                return (
+                  <div key={category} className="space-y-4">
+                    <div className="relative">
+                      <div className={`absolute inset-0 bg-gradient-to-r ${getCategoryGradient(category)} rounded-xl opacity-10`}></div>
+                      <div className="relative bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                          <div className="flex items-center space-x-3">
+                            <div className={`p-2 rounded-lg bg-gradient-to-r ${getCategoryGradient(category)} text-white`}>
+                              {getCategoryIcon(category)}
+                            </div>
+                            <div className="flex-1">
+                              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 capitalize">
+                                {category} Announcements
+                              </h2>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {bulletins.length} {bulletins.length === 1 ? 'announcement' : 'announcements'}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                {bulletins.length}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-slate-700">
+                    {bulletins.map((bulletin) => (
+                <div key={bulletin.id} className={`p-6 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${!bulletin.is_active ? 'opacity-60' : ''}`}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
@@ -673,7 +809,7 @@ export default function AnnouncementsPage() {
                         <div className="mb-3 space-y-1">
                           {bulletin.appointment_datetime && (
                             <div className="text-sm text-gray-600 dark:text-gray-400">
-                              <span className="font-medium">Date & Time:</span> {formatDate(bulletin.appointment_datetime)}
+                              <span className="font-medium">Date & Time:</span> {formatAppointmentDate(bulletin.appointment_datetime)}
                             </div>
                           )}
                           {bulletin.appointment_location && (
@@ -759,7 +895,13 @@ export default function AnnouncementsPage() {
                     )}
                   </div>
                 </div>
-              ))}
+                    ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <div className="p-6 text-center">
@@ -888,6 +1030,9 @@ export default function AnnouncementsPage() {
                         onChange={handleFormChange}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
                       />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Enter time in Arizona timezone (MST - no daylight saving)
+                      </p>
                     </div>
                     <div>
                       <label htmlFor="appointment_location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
