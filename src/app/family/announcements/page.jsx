@@ -680,7 +680,10 @@ export default function AnnouncementsPage() {
                         </div>
             <div className="divide-y divide-gray-200 dark:divide-slate-700">
                     {bulletins.map((bulletin) => (
-                <div key={bulletin.id} className="p-6 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                <div key={bulletin.id} className={`p-6 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${isExpired(bulletin.expires_at) ? 'relative pl-4 bg-zinc-100 dark:bg-slate-800/60 border border-dashed border-gray-400 dark:border-gray-500' : ''}`}>
+                  {isExpired(bulletin.expires_at) && (
+                    <div className="absolute left-0 top-0 h-full w-1.5 bg-red-600 dark:bg-red-500" aria-hidden="true"></div>
+                  )}
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
@@ -871,7 +874,7 @@ export default function AnnouncementsPage() {
                       )}
                       
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-500 dark:text-gray-500 space-y-1 sm:space-y-0 sm:space-x-4">
-                        <span>Expires: {formatDate(bulletin.expires_at)}</span>
+                        <span>{filters.status === 'all' && isExpired(bulletin.expires_at) ? 'Expired on' : 'Expires on'}: {formatDate(bulletin.expires_at)}</span>
                         <span>Created: {new Date(bulletin.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
