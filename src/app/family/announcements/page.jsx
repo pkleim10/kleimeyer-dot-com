@@ -160,22 +160,28 @@ export default function AnnouncementsPage() {
     // Sort each group
     Object.keys(grouped).forEach(category => {
       if (category === 'appointment') {
-        // Sort appointments: non-expired first, then by appointment_datetime (most recent first)
-        grouped[category].sort((a, b) => {
-          const now = new Date()
-          const aExpired = a.expires_at && new Date(a.expires_at) <= now
-          const bExpired = b.expires_at && new Date(b.expires_at) <= now
-          
-          // Non-expired appointments come first
-          if (aExpired !== bExpired) {
-            return aExpired ? 1 : -1
-          }
-          
-          // Within each group (expired/non-expired), sort by appointment date (most recent first)
-          const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('1900-01-01')
-          const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('1900-01-01')
-          return dateB - dateA // Descending order (most recent first)
-        })
+        // Sort appointments depending on status filter
+        if (filters.status === 'active') {
+          // Active: all non-expired already (API), sort by soonest first (ascending)
+          grouped[category].sort((a, b) => {
+            const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('9999-12-31')
+            const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('9999-12-31')
+            return dateA - dateB
+          })
+        } else {
+          // All: non-expired first, then by appointment date (most recent first)
+          grouped[category].sort((a, b) => {
+            const now = new Date()
+            const aExpired = a.expires_at && new Date(a.expires_at) <= now
+            const bExpired = b.expires_at && new Date(b.expires_at) <= now
+            if (aExpired !== bExpired) {
+              return aExpired ? 1 : -1
+            }
+            const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('1900-01-01')
+            const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('1900-01-01')
+            return dateB - dateA
+          })
+        }
       } else {
         // Sort other categories by priority (high first) then by creation date (newest first)
         grouped[category].sort((a, b) => {
@@ -686,29 +692,53 @@ export default function AnnouncementsPage() {
                   )}
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-0">
-                          {bulletin.title}
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(bulletin.priority)}`}>
-                            {bulletin.priority}
-                          </span>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(bulletin.category)}`}>
-                            {bulletin.category}
-                          </span>
-                          {isExpired(bulletin.expires_at) && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900/30">
-                              Expired
-                            </span>
-                          )}
+                      <div className="flex items-start space-x-3 mb-2">
+                        {/* Date Badge for active (non-expired) appointments */}
+                        {bulletin.category === 'appointment' && bulletin.appointment_datetime && !isExpired(bulletin.expires_at) && (
+                          (() => {
+                            const appointmentDate = new Date(bulletin.appointment_datetime)
+                            const month = appointmentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/Phoenix' })
+                            const day = appointmentDate.getDate()
+                            const time = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' })
+                            return (
+                              <div className="flex-shrink-0 w-16 bg-white rounded shadow-sm overflow-hidden">
+                                <div className="bg-red-500 text-white text-xs font-medium text-center py-0.5">
+                                  {month}
+                                </div>
+                                <div className="text-center py-1">
+                                  <div className="text-lg font-bold text-black leading-none">{day}</div>
+                                  <div className="text-xs text-gray-600">{time}</div>
+                                </div>
+                              </div>
+                            )
+                          })()
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-0">
+                              {bulletin.title}
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(bulletin.priority)}`}>
+                                {bulletin.priority}
+                              </span>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(bulletin.category)}`}>
+                                {bulletin.category}
+                              </span>
+                              {isExpired(bulletin.expires_at) && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900/30">
+                                  Expired
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-400 mb-3">
+                            {bulletin.content}
+                          </p>
                         </div>
                       </div>
                       
-                      <p className="text-gray-600 dark:text-gray-400 mb-3">
-                        {bulletin.content}
-                      </p>
-
                       {/* Specialized Fields Display */}
                       {bulletin.category === 'website' && (
                         <div className="mb-3 space-y-2">
@@ -819,11 +849,7 @@ export default function AnnouncementsPage() {
 
                       {bulletin.category === 'appointment' && (bulletin.appointment_datetime || bulletin.appointment_location) && (
                         <div className="mb-3 space-y-1">
-                          {bulletin.appointment_datetime && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              <span className="font-medium">Date & Time:</span> {formatAppointmentDate(bulletin.appointment_datetime)}
-                            </div>
-                          )}
+                          {/* Removed Date & Time line because badge displays this info */}
                           {bulletin.appointment_location && (
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               <span className="font-medium">Location:</span> {bulletin.appointment_location}

@@ -26,7 +26,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {/* Mom&apos;s Recipes App */}
           <Link href="/recipe" className="group">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
               <div className="relative h-48 bg-gradient-to-br from-indigo-500 to-purple-600">
                 <img
                   src="https://bqhwibhrukfryafwwwat.supabase.co/storage/v1/object/public/recipe-images/mom.jpeg"
@@ -35,14 +35,14 @@ export default function HomePage() {
                 />
                 <div className="absolute inset-0 bg-black/20" />
               </div>
-              <div className="p-6">
+              <div className="p-6 flex-1 flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-300">
                   Mom&apos;s Recipes
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
                   Discover our collection of cherished family recipes, lovingly passed down through generations
                 </p>
-                <div className="mt-4 flex items-center text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors duration-300">
+                <div className="mt-auto flex items-center text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors duration-300">
                   <span className="text-sm font-medium">Explore Recipes</span>
                   <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -54,7 +54,7 @@ export default function HomePage() {
 
           {/* Family Business App */}
           <Link href="/family" className="group">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
               <div className="relative h-48 bg-gradient-to-br from-blue-500 to-indigo-600">
                 <img
                   src="/Family.jpeg"
@@ -63,14 +63,14 @@ export default function HomePage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/50 to-indigo-700/50" />
               </div>
-              <div className="p-6">
+              <div className="p-6 flex-1 flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
                   Family Business
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
                   Stay connected and informed with important family contacts and updates
                 </p>
-                <div className="mt-4 flex items-center text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-300">
+                <div className="mt-auto flex items-center text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-300">
                   <span className="text-sm font-medium">Get Started</span>
                   <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
