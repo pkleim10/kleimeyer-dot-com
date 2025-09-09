@@ -19,6 +19,14 @@ export default function RootLayout({ children }) {
           <main className="bg-gray-50 dark:bg-slate-900">
             {children}
           </main>
+          {/* Copyright Footer */}
+          <footer className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700">
+            <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                © 2023-{new Date().getFullYear()} kleimeyer-dot-com. All rights reserved.
+              </p>
+            </div>
+          </footer>
         </AuthProvider>
       </body>
     </html>

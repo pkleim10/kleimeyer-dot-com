@@ -38,9 +38,11 @@ export async function GET(request) {
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
-    const activeOnly = searchParams.get('activeOnly') === 'true'
+    const status = searchParams.get('status') // 'active' or 'all'
     const category = searchParams.get('category')
     const priority = searchParams.get('priority')
+    
+    console.log('API received parameters:', { status, category, priority, fullUrl: request.url })
 
     // Build query
     let query = supabaseWithAuth
@@ -51,8 +53,6 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
 
     // Apply filters
-    // Note: activeOnly filter is no longer needed since we removed is_active column
-    // All non-expired announcements are considered "active"
     if (category) {
       query = query.eq('category', category)
     }
@@ -60,9 +60,15 @@ export async function GET(request) {
       query = query.eq('priority', priority)
     }
     
-    // Filter out expired announcements
-    const now = new Date().toISOString()
-    query = query.or(`expires_at.is.null,expires_at.gt.${now}`)
+    // Filter by status (active = not expired, all = regardless of expiration)
+    if (status === 'active') {
+      const now = new Date().toISOString()
+      console.log('Applying active filter - filtering out expired announcements before:', now)
+      query = query.or(`expires_at.is.null,expires_at.gt.${now}`)
+    } else {
+      console.log('Status is not active, not applying expiration filter')
+    }
+    // If status is 'all', we don't filter by expiration
 
     const { data: bulletins, error } = await query
 
@@ -71,6 +77,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch bulletins' }, { status: 500 })
     }
 
+    console.log(`API returning ${bulletins?.length || 0} bulletins for status: ${status}`)
     return NextResponse.json({ bulletins: bulletins || [] })
   } catch (error) {
     console.error('Error in bulletins GET:', error)

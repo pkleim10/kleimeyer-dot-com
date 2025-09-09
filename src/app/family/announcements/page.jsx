@@ -44,7 +44,7 @@ export default function AnnouncementsPage() {
   const [filters, setFilters] = useState({
     category: 'all',
     priority: 'all',
-    activeOnly: true
+    status: 'active' // 'active' for not expired, 'all' for all regardless of expiration
   })
   const [copiedUrl, setCopiedUrl] = useState(null)
   const [copiedCredentials, setCopiedCredentials] = useState({ type: null, bulletinId: null })
@@ -61,7 +61,15 @@ export default function AnnouncementsPage() {
         return
       }
 
-      const response = await fetch('/api/family/bulletins', {
+      // Build query parameters
+      const params = new URLSearchParams()
+      if (filters.category !== 'all') params.append('category', filters.category)
+      if (filters.priority !== 'all') params.append('priority', filters.priority)
+      params.append('status', filters.status) // Always pass status parameter
+      
+      console.log('Frontend sending request with status:', filters.status, 'URL:', `/api/family/bulletins?${params.toString()}`)
+      
+      const response = await fetch(`/api/family/bulletins?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -83,7 +91,7 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [filters])
 
   useEffect(() => {
     // Simple auth check - redirect if no user
@@ -92,12 +100,15 @@ export default function AnnouncementsPage() {
       return
     }
     
-    // If user is authenticated and we haven't loaded bulletins yet, load them
-    if (!authLoading && user && !hasLoadedBulletins) {
+    // If user is authenticated, load bulletins (this will trigger on filter changes too)
+    if (!authLoading && user) {
       fetchBulletins()
-      setPageLoading(false)
+      if (!hasLoadedBulletins) {
+        setPageLoading(false)
+        setHasLoadedBulletins(true)
+      }
     }
-  }, [user, authLoading, router, hasLoadedBulletins, fetchBulletins])
+  }, [user, authLoading, router, fetchBulletins, hasLoadedBulletins])
 
   // Purge expired announcements from database
   const purgeExpiredAnnouncements = useCallback(async () => {
@@ -131,27 +142,10 @@ export default function AnnouncementsPage() {
     }
   }, [])
 
-  // Filter and group bulletins based on current filters
+  // Group bulletins (filtering is now handled by the API)
   const groupedBulletins = useMemo(() => {
-    const now = new Date()
-    const filtered = bulletins.filter(bulletin => {
-      // Filter out expired announcements
-      if (bulletin.expires_at && new Date(bulletin.expires_at) <= now) {
-        return false
-      }
-      
-      // Filter by category
-      if (filters.category !== 'all' && bulletin.category !== filters.category) {
-        return false
-      }
-      
-      // Filter by priority
-      if (filters.priority !== 'all' && bulletin.priority !== filters.priority) {
-        return false
-      }
-      
-      return true
-    })
+    // No need to filter here since the API handles all filtering
+    const filtered = bulletins
 
     // Group by category
     const grouped = filtered.reduce((acc, bulletin) => {
@@ -166,11 +160,21 @@ export default function AnnouncementsPage() {
     // Sort each group
     Object.keys(grouped).forEach(category => {
       if (category === 'appointment') {
-        // Sort appointments by appointment_datetime (soonest first)
+        // Sort appointments: non-expired first, then by appointment_datetime (most recent first)
         grouped[category].sort((a, b) => {
-          const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('9999-12-31')
-          const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('9999-12-31')
-          return dateA - dateB
+          const now = new Date()
+          const aExpired = a.expires_at && new Date(a.expires_at) <= now
+          const bExpired = b.expires_at && new Date(b.expires_at) <= now
+          
+          // Non-expired appointments come first
+          if (aExpired !== bExpired) {
+            return aExpired ? 1 : -1
+          }
+          
+          // Within each group (expired/non-expired), sort by appointment date (most recent first)
+          const dateA = a.appointment_datetime ? new Date(a.appointment_datetime) : new Date('1900-01-01')
+          const dateB = b.appointment_datetime ? new Date(b.appointment_datetime) : new Date('1900-01-01')
+          return dateB - dateA // Descending order (most recent first)
         })
       } else {
         // Sort other categories by priority (high first) then by creation date (newest first)
@@ -553,17 +557,17 @@ export default function AnnouncementsPage() {
                 Status
               </label>
               <select
-                value={filters.activeOnly ? 'active' : 'all'}
-                onChange={(e) => setFilters({ ...filters, activeOnly: e.target.value === 'active' })}
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                 className="block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
               >
-                <option value="active">Active Only</option>
+                <option value="active">Active</option>
                 <option value="all">All</option>
               </select>
             </div>
             <div className="flex items-end">
               <button
-                onClick={() => setFilters({ category: 'all', priority: 'all', activeOnly: true })}
+                onClick={() => setFilters({ category: 'all', priority: 'all', status: 'active' })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Clear Filters
@@ -915,7 +919,7 @@ export default function AnnouncementsPage() {
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No announcements</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {filters.category !== 'all' || filters.priority !== 'all' || !filters.activeOnly
+                {filters.category !== 'all' || filters.priority !== 'all' || filters.status !== 'active'
                   ? 'No announcements match your current filters.'
                   : 'Get started by creating a new announcement.'
                 }
