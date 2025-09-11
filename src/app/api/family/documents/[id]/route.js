@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/utils/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables')
+}
 
 // GET - Get single document or download file
 export async function GET(request, { params }) {
@@ -8,17 +15,34 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url)
     const download = searchParams.get('download') === 'true'
 
-    // Get the current session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Set the auth token for this request
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    })
+
+    // Verify the user's session
+    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has family role
-    const { data: userRole } = await supabase
+    const { data: userRole } = await supabaseWithAuth
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .in('role', ['family', 'admin'])
       .single()
 
@@ -27,7 +51,7 @@ export async function GET(request, { params }) {
     }
 
     // Get document details
-    const { data: document, error } = await supabase
+    const { data: document, error } = await supabaseWithAuth
       .from('family_documents')
       .select(`
         *,
@@ -46,7 +70,7 @@ export async function GET(request, { params }) {
 
     if (download) {
       // Generate signed URL for download
-      const { data: signedUrl, error: urlError } = await supabase.storage
+      const { data: signedUrl, error: urlError } = await supabaseWithAuth.storage
         .from('family-documents')
         .createSignedUrl(document.file_path, 60) // 60 seconds expiry
 
@@ -73,17 +97,34 @@ export async function PUT(request, { params }) {
   try {
     const { id } = params
 
-    // Get the current session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Set the auth token for this request
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    })
+
+    // Verify the user's session
+    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has family role
-    const { data: userRole } = await supabase
+    const { data: userRole } = await supabaseWithAuth
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .in('role', ['family', 'admin'])
       .single()
 
@@ -96,7 +137,7 @@ export async function PUT(request, { params }) {
     const { description, category, tags } = body
 
     // Update document
-    const { data: document, error } = await supabase
+    const { data: document, error } = await supabaseWithAuth
       .from('family_documents')
       .update({
         description: description || null,
@@ -125,17 +166,34 @@ export async function DELETE(request, { params }) {
   try {
     const { id } = params
 
-    // Get the current session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Set the auth token for this request
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    })
+
+    // Verify the user's session
+    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user has family role
-    const { data: userRole } = await supabase
+    const { data: userRole } = await supabaseWithAuth
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .in('role', ['family', 'admin'])
       .single()
 
@@ -144,7 +202,7 @@ export async function DELETE(request, { params }) {
     }
 
     // Get document details first
-    const { data: document, error: fetchError } = await supabase
+    const { data: document, error: fetchError } = await supabaseWithAuth
       .from('family_documents')
       .select('file_path')
       .eq('id', id)
@@ -155,7 +213,7 @@ export async function DELETE(request, { params }) {
     }
 
     // Delete from storage
-    const { error: storageError } = await supabase.storage
+    const { error: storageError } = await supabaseWithAuth.storage
       .from('family-documents')
       .remove([document.file_path])
 
@@ -165,7 +223,7 @@ export async function DELETE(request, { params }) {
     }
 
     // Delete from database
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseWithAuth
       .from('family_documents')
       .delete()
       .eq('id', id)
