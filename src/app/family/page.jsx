@@ -32,6 +32,8 @@ export default function FamilyMattersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [bulletins, setBulletins] = useState([])
   const [bulletinsLoading, setBulletinsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [contactsPerPage] = useState(10)
 
 
   useEffect(() => {
@@ -94,12 +96,41 @@ export default function FamilyMattersPage() {
     )
   }, [contacts, searchTerm])
 
+  // Pagination logic
+  const totalContacts = filteredContacts.length
+  const totalPages = Math.ceil(totalContacts / contactsPerPage)
+  const startIndex = (currentPage - 1) * contactsPerPage
+  const endIndex = startIndex + contactsPerPage
+  const currentContacts = filteredContacts.slice(startIndex, endIndex)
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value)
   }
 
   const clearSearch = () => {
     setSearchTerm('')
+  }
+
+  // Pagination navigation functions
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
   }
 
   // Fetch bulletins for hero display
@@ -476,6 +507,11 @@ export default function FamilyMattersPage() {
                 Showing {filteredContacts.length} of {contacts.length} contacts
               </div>
             )}
+            {!searchTerm && totalContacts > contactsPerPage && (
+              <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                Showing {startIndex + 1}-{Math.min(endIndex, totalContacts)} of {totalContacts} contacts
+              </div>
+            )}
           </div>
 
           {loading ? (
@@ -486,7 +522,7 @@ export default function FamilyMattersPage() {
             </div>
           ) : filteredContacts.length > 0 ? (
             <div className="divide-y divide-gray-200 dark:divide-slate-700">
-              {filteredContacts.map((contact) => (
+              {currentContacts.map((contact) => (
                 <div key={contact.id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -594,6 +630,70 @@ export default function FamilyMattersPage() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredContacts.length > contactsPerPage && (
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPage === 1}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-600"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => goToPage(pageNum)}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                            currentPage === pageNum
+                              ? 'text-white bg-blue-600 border border-blue-600'
+                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage === totalPages}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-600"
+                  >
+                    Next
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Page {currentPage} of {totalPages}
+                </div>
+              </div>
             </div>
           )}
             </div>
