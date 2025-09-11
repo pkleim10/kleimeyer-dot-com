@@ -190,10 +190,16 @@ export default function DocumentsPage() {
   // Handle document download
   const handleDownload = async (documentId, filename) => {
     try {
-      // Get the session token
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('No active session')
+      // Get the current user session
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        throw new Error('No active session. Please log in again.')
+      }
+
+      // Get fresh access token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session || !session.access_token) {
+        throw new Error('Session expired. Please log in again.')
       }
 
       const response = await fetch(`/api/family/documents/${documentId}?download=true`, {
@@ -202,7 +208,15 @@ export default function DocumentsPage() {
         }
       })
       if (!response.ok) {
-        throw new Error('Failed to get download link')
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You need family permissions to download documents.')
+        } else if (response.status === 404) {
+          throw new Error('Document not found.')
+        } else {
+          throw new Error(`Failed to get download link (${response.status})`)
+        }
       }
 
       const data = await response.json()

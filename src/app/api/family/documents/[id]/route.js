@@ -11,7 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // GET - Get single document or download file
 export async function GET(request, { params }) {
   try {
-    const { id } = params
+    const { id } = await params
     const { searchParams } = new URL(request.url)
     const download = searchParams.get('download') === 'true'
 
@@ -53,14 +53,7 @@ export async function GET(request, { params }) {
     // Get document details
     const { data: document, error } = await supabaseWithAuth
       .from('family_documents')
-      .select(`
-        *,
-        created_by_user:auth.users!family_documents_created_by_fkey(
-          id,
-          email,
-          user_metadata
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
@@ -95,7 +88,7 @@ export async function GET(request, { params }) {
 // PUT - Update document metadata
 export async function PUT(request, { params }) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -164,7 +157,7 @@ export async function PUT(request, { params }) {
 // DELETE - Delete document
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
