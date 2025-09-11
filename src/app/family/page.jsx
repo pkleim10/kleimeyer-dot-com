@@ -276,7 +276,7 @@ export default function FamilyMattersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
-      {/* Hero Section */}
+      {/* Compact Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0">
           <img
@@ -287,121 +287,133 @@ export default function FamilyMattersPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/70 to-indigo-700/70"></div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
+        <div className="relative max-w-7xl mx-auto py-12 px-4 sm:py-16 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
+            <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl">
               Family Business
             </h1>
-            <p className="mt-6 max-w-3xl mx-auto text-xl text-blue-100">
+            <p className="mt-4 max-w-3xl mx-auto text-lg text-blue-100">
               Keep on top of the latest family news and events
             </p>
-
-            {/* Hero Bulletins - Shows 4 most important appointments based on Date+Priority */}
-            {heroBulletins.length > 0 && (
-              <div className="mt-8 max-w-4xl mx-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {heroBulletins.map((bulletin) => {
-                  const appointmentDate = bulletin.appointment_datetime ? new Date(bulletin.appointment_datetime) : null
-                  const month = appointmentDate ? appointmentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/Phoenix' }) : ''
-                  const day = appointmentDate ? appointmentDate.getDate() : ''
-                  const time = appointmentDate ? appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''
-                  
-                  return (
-                    <div key={bulletin.id} className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg p-2">
-                      <div className="flex items-start space-x-2">
-                        {/* Date Box - Left side */}
-                        {bulletin.category === 'appointment' && appointmentDate ? (
-                          <div className="flex-shrink-0 w-16 bg-white rounded shadow-sm overflow-hidden">
-                            <div className="bg-red-500 text-white text-xs font-medium text-center py-0.5">
-                              {month}
-                            </div>
-                            <div className="text-center py-1">
-                              <div className="text-lg font-bold text-black leading-none">{day}</div>
-                              <div className="text-xs text-gray-600">{time}</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex-shrink-0 w-16"></div>
-                        )}
-
-                        {/* Right side content - Title and Priority top-aligned */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <h3 className="font-medium text-white text-sm truncate pr-2">{bulletin.title}</h3>
-                            <span className={`inline-flex items-center px-1 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                              bulletin.priority === 'high' ? 'text-red-200 bg-red-900/30 border border-red-800/30' :
-                              bulletin.priority === 'medium' ? 'text-yellow-200 bg-yellow-900/30 border border-yellow-800/30' :
-                              'text-green-200 bg-green-900/30 border border-green-800/30'
-                            }`}>
-                              {bulletin.priority === 'high' ? '🚨' : bulletin.priority === 'medium' ? '⚠️' : 'ℹ️'} {bulletin.priority}
-                            </span>
-                          </div>
-                          <p className="text-xs text-blue-100 line-clamp-2 text-left mt-1">{bulletin.content}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                  })}
-                </div>
-                <div className="text-center mt-4">
-                  <Link
-                    href="/family/announcements"
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white/90 hover:bg-white transition-colors rounded-md"
-                  >
-                    View All Announcements
-                  </Link>
-                </div>
-              </div>
-            )}
-
-
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Welcome Message */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            Important Contacts
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-            This page contains important contact information and updates. 
-            Please check back regularly for updates and feel free to reach out to any of the contacts listed below.
-          </p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 rounded-md bg-red-50 dark:bg-red-900/30 p-4">
-            <div className="flex">
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
-                  Error
-                </h3>
-                <div className="mt-2 text-sm text-red-700 dark:text-red-400">
-                  <p>{error}</p>
-                </div>
-                <div className="mt-3">
-                  <button
-                    onClick={handleRetry}
-                    disabled={loading}
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/50 dark:hover:bg-red-900/70 transition-colors disabled:opacity-50"
+      {/* Main Content - Two Column Layout */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          
+          {/* Left Column - Recent Announcements (40%) */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                      Upcoming Appointments
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Next 4 important appointments
+                    </p>
+                  </div>
+                  <Link
+                    href="/family/announcements"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    View All
+                    <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    Retry
-                  </button>
+                  </Link>
                 </div>
+              </div>
+              
+              <div className="p-6">
+                {bulletinsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center px-4 py-2 font-semibold leading-6 text-gray-900 dark:text-gray-100">
+                      Loading appointments...
+                    </div>
+                  </div>
+                ) : heroBulletins.length > 0 ? (
+                  <div className="space-y-4">
+                    {heroBulletins.map((bulletin) => {
+                      const appointmentDate = bulletin.appointment_datetime ? new Date(bulletin.appointment_datetime) : null
+                      const month = appointmentDate ? appointmentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/Phoenix' }) : ''
+                      const day = appointmentDate ? appointmentDate.getDate() : ''
+                      const time = appointmentDate ? appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''
+                      
+                      return (
+                        <div key={bulletin.id} className="flex items-start space-x-4 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                          {/* Date Box */}
+                          {bulletin.category === 'appointment' && appointmentDate ? (
+                            <div className="flex-shrink-0 w-16 bg-white dark:bg-slate-600 rounded shadow-sm overflow-hidden">
+                              <div className="bg-red-500 text-white text-xs font-medium text-center py-1">
+                                {month}
+                              </div>
+                              <div className="text-center py-2">
+                                <div className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-none">{day}</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">{time}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex-shrink-0 w-16"></div>
+                          )}
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">{bulletin.title}</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{bulletin.content}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No upcoming appointments</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Check back later for updates</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
 
-        {/* Contacts Section */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+          {/* Right Column - Contacts (60%) */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
+                <div className="flex">
+                  <div className="ml-3 flex-1">
+                    <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
+                      Error
+                    </h3>
+                    <div className="mt-2 text-sm text-red-700 dark:text-red-400">
+                      <p>{error}</p>
+                    </div>
+                    <div className="mt-3">
+                      <button
+                        onClick={handleRetry}
+                        disabled={loading}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/50 dark:hover:bg-red-900/70 transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Contacts Section */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div className="flex-1">
               <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
@@ -479,104 +491,76 @@ export default function FamilyMattersPage() {
               </div>
             </div>
           ) : filteredContacts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+            <div className="divide-y divide-gray-200 dark:divide-slate-700">
               {filteredContacts.map((contact) => (
-                <div key={contact.id} className="bg-gray-50 dark:bg-slate-700 rounded-lg p-6 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center mb-2 sm:mb-0">
-                          <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-0">
+                <div key={contact.id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-lg font-medium text-gray-900 dark:text-gray-100 truncate">
                             {contact.name}
                           </h4>
+                          <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                            {contact.description && (
+                              <span className="truncate">{contact.description}</span>
+                            )}
+                            {contact.phone && (
+                              <span className="flex items-center">
+                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                                </svg>
+                                {contact.phone}
+                              </span>
+                            )}
+                          </div>
+                          {contact.notes && (
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
+                              <span className="font-medium">Notes:</span> {contact.notes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
                           {contact.phone && (
                             <a
                               href={`tel:${contact.phone}`}
-                              className="sm:ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
+                              className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
+                              title="Call"
                             >
-                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                               </svg>
-                              Call
                             </a>
                           )}
+                          {(canEditContact || canDeleteContact) && (
+                            <>
+                              {canEditContact && (
+                                <button
+                                  onClick={() => handleEdit(contact)}
+                                  className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
+                                  title="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              )}
+                              {canDeleteContact && (
+                                <button
+                                  onClick={() => openDeleteModal(contact)}
+                                  className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
+                                  title="Delete"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </>
+                          )}
                         </div>
-                        {(canEditContact || canDeleteContact) && (
-                          <div className="hidden sm:flex space-x-2">
-                            {canEditContact && (
-                              <button
-                                onClick={() => handleEdit(contact)}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit
-                              </button>
-                            )}
-                            {canDeleteContact && (
-                              <button
-                                onClick={() => openDeleteModal(contact)}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </div>
-                      
-                      {contact.description && (
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          {contact.description}
-                        </p>
-                      )}
-                      
-                      {contact.phone && (
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
-                          <span className="font-medium">Phone:</span> {contact.phone}
-                        </p>
-                      )}
-                      
-                      {contact.notes && (
-                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                          <p className="text-sm text-blue-800 dark:text-blue-300">
-                            <span className="font-medium">Notes:</span> {contact.notes}
-                          </p>
-                        </div>
-                      )}
                     </div>
-                    
-                    {/* Mobile Action Buttons - Only visible on mobile */}
-                    {(canEditContact || canDeleteContact) && (
-                      <div className="flex sm:hidden space-x-2 mt-4">
-                        {canEditContact && (
-                          <button
-                            onClick={() => handleEdit(contact)}
-                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
-                          >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Edit
-                          </button>
-                        )}
-                        {canDeleteContact && (
-                          <button
-                            onClick={() => openDeleteModal(contact)}
-                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors"
-                          >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -605,8 +589,9 @@ export default function FamilyMattersPage() {
               )}
             </div>
           )}
+            </div>
+          </div>
         </div>
-
       </div>
 
       {/* Add/Edit Contact Form Modal */}
