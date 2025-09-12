@@ -362,9 +362,10 @@ export default function FamilyMattersPage() {
   }
 
   const handleAnnouncementEdit = (bulletin) => {
-    // Navigate to announcements page with edit mode
-    router.push(`/family/announcements?edit=${bulletin.id}`)
+    // Navigate to announcements page with edit mode and from=dashboard parameter
+    router.push(`/family/announcements?edit=${bulletin.id}&from=dashboard`)
   }
+
 
   // Show loading while auth is being determined
   if (authLoading || pageLoading) {
@@ -454,7 +455,7 @@ export default function FamilyMattersPage() {
                       const day = displayDate ? displayDate.getDate() : ''
                       const time = displayDate ? displayDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''
                   
-                      return (
+                  return (
                         <div 
                           key={bulletin.id} 
                           className="group relative flex items-start space-x-4 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"

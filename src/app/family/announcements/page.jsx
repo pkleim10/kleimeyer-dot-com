@@ -49,6 +49,8 @@ export default function AnnouncementsPage() {
   })
   const [copiedUrl, setCopiedUrl] = useState(null)
   const [copiedCredentials, setCopiedCredentials] = useState({ type: null, bulletinId: null })
+  const [refreshCreatedDate, setRefreshCreatedDate] = useState(false)
+  const [cameFromDashboard, setCameFromDashboard] = useState(false)
 
   const fetchBulletins = useCallback(async () => {
     try {
@@ -114,10 +116,13 @@ export default function AnnouncementsPage() {
   // Handle edit parameter from URL
   useEffect(() => {
     const editId = searchParams.get('edit')
+    const fromDashboard = searchParams.get('from') === 'dashboard'
+    
     if (editId && bulletins.length > 0) {
       const bulletinToEdit = bulletins.find(b => b.id === editId)
       if (bulletinToEdit) {
         setEditingBulletin(bulletinToEdit)
+        setCameFromDashboard(fromDashboard)
         setFormData({
           title: bulletinToEdit.title || '',
           content: bulletinToEdit.content || '',
@@ -138,10 +143,11 @@ export default function AnnouncementsPage() {
           medical_provider: bulletinToEdit.medical_provider || ''
         })
         setShowAddForm(true)
-        
-        // Clean up URL parameter
+
+        // Clean up URL parameters
         const newUrl = new URL(window.location)
         newUrl.searchParams.delete('edit')
+        newUrl.searchParams.delete('from')
         window.history.replaceState({}, '', newUrl)
       }
     }
@@ -265,6 +271,23 @@ export default function AnnouncementsPage() {
     })
     setEditingBulletin(null)
     setShowAddForm(false)
+    setRefreshCreatedDate(false)
+    
+    // If user came from dashboard, redirect back there
+    if (cameFromDashboard) {
+      setCameFromDashboard(false)
+      router.push('/family')
+    }
+  }
+
+  const handleRefreshCreatedDate = () => {
+    if (editingBulletin) {
+      // Set flag to refresh created date on submit
+      setRefreshCreatedDate(true)
+      
+      // Show a brief confirmation
+      alert('Created date will be refreshed to current time when you save the announcement.')
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -282,6 +305,12 @@ export default function AnnouncementsPage() {
 
       // Convert appointment/expiration time from Arizona time to UTC for storage
       const dataToSend = { ...formData }
+      
+      // If editing and refresh was requested, update created_at to current time
+      if (editingBulletin && refreshCreatedDate) {
+        dataToSend.created_at = new Date().toISOString()
+        dataToSend.updated_at = new Date().toISOString()
+      }
       
       if (formData.appointment_datetime) {
         // Treat the input as Arizona time and convert to UTC
@@ -1306,6 +1335,18 @@ export default function AnnouncementsPage() {
                   >
                     Cancel
                   </button>
+                  {editingBulletin && (
+                    <button
+                      type="button"
+                      onClick={handleRefreshCreatedDate}
+                      className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh Date
+                    </button>
+                  )}
                   <button
                     type="submit"
                     disabled={submitting}
