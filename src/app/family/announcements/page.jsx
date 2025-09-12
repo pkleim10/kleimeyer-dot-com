@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Link from 'next/link'
@@ -12,6 +12,7 @@ export default function AnnouncementsPage() {
   const { user, loading: authLoading } = useAuth()
   const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement, isAdmin } = usePermissions()
   const router = useRouter()
+  const searchParams = useSearchParams()
   
   const [bulletins, setBulletins] = useState([])
   const [loading, setLoading] = useState(true)
@@ -109,6 +110,42 @@ export default function AnnouncementsPage() {
       }
     }
   }, [user, authLoading, router, fetchBulletins, hasLoadedBulletins])
+
+  // Handle edit parameter from URL
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (editId && bulletins.length > 0) {
+      const bulletinToEdit = bulletins.find(b => b.id === editId)
+      if (bulletinToEdit) {
+        setEditingBulletin(bulletinToEdit)
+        setFormData({
+          title: bulletinToEdit.title || '',
+          content: bulletinToEdit.content || '',
+          category: bulletinToEdit.category || 'general',
+          priority: bulletinToEdit.priority || 'medium',
+          expires_at: bulletinToEdit.expires_at || '',
+          // Specialized fields
+          url: bulletinToEdit.url || '',
+          website_email: bulletinToEdit.website_email || '',
+          website_password: bulletinToEdit.website_password || '',
+          appointment_datetime: bulletinToEdit.appointment_datetime || '',
+          appointment_location: bulletinToEdit.appointment_location || '',
+          payment_amount: bulletinToEdit.payment_amount || '',
+          payment_due_date: bulletinToEdit.payment_due_date || '',
+          payment_reference: bulletinToEdit.payment_reference || '',
+          payment_recipient: bulletinToEdit.payment_recipient || '',
+          action_required: bulletinToEdit.action_required || false,
+          medical_provider: bulletinToEdit.medical_provider || ''
+        })
+        setShowAddForm(true)
+        
+        // Clean up URL parameter
+        const newUrl = new URL(window.location)
+        newUrl.searchParams.delete('edit')
+        window.history.replaceState({}, '', newUrl)
+      }
+    }
+  }, [searchParams, bulletins])
 
   // Purge expired announcements from database
   const purgeExpiredAnnouncements = useCallback(async () => {

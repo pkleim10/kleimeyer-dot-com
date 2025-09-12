@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabase'
 import Link from 'next/link'
 import { usePermissions } from '@/hooks/usePermissions'
 import ContactDeleteModal from '@/apps/family/components/ContactDeleteModal'
+import AnnouncementDetailsModal from '@/apps/family/components/AnnouncementDetailsModal'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
@@ -29,6 +30,7 @@ export default function FamilyMattersPage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, contact: null })
+  const [announcementModal, setAnnouncementModal] = useState({ isOpen: false, bulletinId: null })
   const [searchTerm, setSearchTerm] = useState('')
   const [bulletins, setBulletins] = useState([])
   const [bulletinsLoading, setBulletinsLoading] = useState(true)
@@ -355,6 +357,15 @@ export default function FamilyMattersPage() {
     setDeleteModal({ isOpen: false, contact: null })
   }
 
+  const closeAnnouncementModal = () => {
+    setAnnouncementModal({ isOpen: false, bulletinId: null })
+  }
+
+  const handleAnnouncementEdit = (bulletin) => {
+    // Navigate to announcements page with edit mode
+    router.push(`/family/announcements?edit=${bulletin.id}`)
+  }
+
   // Show loading while auth is being determined
   if (authLoading || pageLoading) {
     return (
@@ -443,8 +454,19 @@ export default function FamilyMattersPage() {
                       const day = displayDate ? displayDate.getDate() : ''
                       const time = displayDate ? displayDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''
                   
-                  return (
-                        <div key={bulletin.id} className="flex items-start space-x-4 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                      return (
+                        <div 
+                          key={bulletin.id} 
+                          className="group relative flex items-start space-x-4 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
+                          onClick={() => setAnnouncementModal({ isOpen: true, bulletinId: bulletin.id })}
+                        >
+                          {/* Click indicator */}
+                          <div className="absolute top-3 right-3">
+                            <svg className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </div>
                           {/* Date Box */}
                           {displayDate ? (
                             <div className="flex-shrink-0 w-16 bg-white dark:bg-slate-600 rounded shadow-sm overflow-hidden">
@@ -906,6 +928,14 @@ export default function FamilyMattersPage() {
         isOpen={deleteModal.isOpen}
         onClose={closeDeleteModal}
         onDelete={handleDelete}
+      />
+
+      {/* Announcement Details Modal */}
+      <AnnouncementDetailsModal
+        bulletinId={announcementModal.bulletinId}
+        isOpen={announcementModal.isOpen}
+        onClose={closeAnnouncementModal}
+        onEdit={handleAnnouncementEdit}
       />
     </div>
   )
