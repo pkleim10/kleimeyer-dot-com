@@ -1140,7 +1140,7 @@ export default function AnnouncementsPage() {
                     disabled={submitting}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Rate this announcement from 1-5 stars. Unrated announcements won't show star ratings.
+                    Rate this announcement from 1-5 stars. Unrated announcements won&apos;t show star ratings.
                   </p>
                 </div>
 
