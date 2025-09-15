@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
+import { StarRating } from '@/apps/shared/components'
 
 export default function AnnouncementDetailsModal({ 
   bulletinId, 
@@ -225,6 +226,14 @@ export default function AnnouncementDetailsModal({
                   </p>
                 </div>
               </div>
+
+              {/* Rating Display */}
+              {bulletin.rating && bulletin.rating > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Rating</h3>
+                  <StarRating rating={bulletin.rating} size="md" />
+                </div>
+              )}
 
               {/* Specialized Fields */}
               {(bulletin.category === 'appointment' && bulletin.appointment_datetime) && (

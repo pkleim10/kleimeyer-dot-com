@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabase'
 import { usePermissions } from '@/hooks/usePermissions'
 import Link from 'next/link'
 import AnnouncementDeleteModal from '@/apps/family/components/AnnouncementDeleteModal'
+import { StarRating, StarRatingDropdown } from '@/apps/shared/components'
 
 export default function AnnouncementsPage() {
   const { user, loading: authLoading } = useAuth()
@@ -26,6 +27,7 @@ export default function AnnouncementsPage() {
     category: 'general',
     priority: 'medium',
     expires_at: '',
+    rating: 0,
     // Specialized fields
     url: '',
     website_email: '',
@@ -70,7 +72,6 @@ export default function AnnouncementsPage() {
       if (filters.priority !== 'all') params.append('priority', filters.priority)
       params.append('status', filters.status) // Always pass status parameter
       
-      console.log('Frontend sending request with status:', filters.status, 'URL:', `/api/family/bulletins?${params.toString()}`)
       
       const response = await fetch(`/api/family/bulletins?${params.toString()}`, {
         headers: {
@@ -129,6 +130,7 @@ export default function AnnouncementsPage() {
           category: bulletinToEdit.category || 'general',
           priority: bulletinToEdit.priority || 'medium',
           expires_at: bulletinToEdit.expires_at || '',
+          rating: bulletinToEdit.rating ? parseInt(bulletinToEdit.rating) : 0,
           // Specialized fields
           url: bulletinToEdit.url || '',
           website_email: bulletinToEdit.website_email || '',
@@ -174,7 +176,6 @@ export default function AnnouncementsPage() {
         console.error('Error purging expired announcements:', error)
         setError('Failed to purge expired announcements')
       } else {
-        console.log('Expired announcements purged successfully')
         // Refresh bulletins after successful purge
         setHasLoadedBulletins(false)
         await fetchBulletins()
@@ -337,7 +338,6 @@ export default function AnnouncementsPage() {
       
       const method = editingBulletin ? 'PUT' : 'POST'
 
-      console.log('Sending data to API:', dataToSend)
       const response = await fetch(url, {
         method,
         headers: {
@@ -396,12 +396,15 @@ export default function AnnouncementsPage() {
       appointmentDateTime = `${year}-${month}-${day}T${hours}:${minutes}`
     }
     
+    const ratingValue = bulletin.rating ? parseInt(bulletin.rating) : 0
+    
     setFormData({
       title: bulletin.title,
       content: bulletin.content,
       category: bulletin.category,
       priority: bulletin.priority,
       expires_at: expiresAtLocal,
+      rating: ratingValue,
       // Specialized fields
       url: bulletin.url || '',
       website_email: bulletin.website_email || '',
@@ -799,9 +802,16 @@ export default function AnnouncementsPage() {
                               )}
                             </div>
                           </div>
-                          <p className="text-gray-600 dark:text-gray-400 mb-3">
+                          <p className="text-gray-600 dark:text-gray-400 mb-3 whitespace-pre-wrap">
                             {bulletin.content}
                           </p>
+                          
+                          {/* Rating Display */}
+                          {bulletin.rating && bulletin.rating > 0 && (
+                            <div className="mb-3">
+                              <StarRating rating={bulletin.rating} size="sm" />
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -1117,6 +1127,21 @@ export default function AnnouncementsPage() {
                       <option value="low">Low</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Rating Field */}
+                <div>
+                  <label htmlFor="rating" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Rating (Optional)
+                  </label>
+                  <StarRatingDropdown
+                    rating={formData.rating}
+                    onRatingChange={(rating) => setFormData(prev => ({ ...prev, rating }))}
+                    disabled={submitting}
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Rate this announcement from 1-5 stars. Unrated announcements won't show star ratings.
+                  </p>
                 </div>
 
                 {/* Specialized Fields - Right after category/priority */}

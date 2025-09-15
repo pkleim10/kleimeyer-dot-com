@@ -8,13 +8,13 @@ import Link from 'next/link'
 import { usePermissions } from '@/hooks/usePermissions'
 import ContactDeleteModal from '@/apps/family/components/ContactDeleteModal'
 import AnnouncementDetailsModal from '@/apps/family/components/AnnouncementDetailsModal'
+import { StarRating } from '@/apps/shared/components'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
   const { canCreateContact, canEditContact, canDeleteContact, isFamily } = usePermissions()
   const router = useRouter()
   
-  console.log('Family page permissions:', { canCreateContact, canEditContact, canDeleteContact, user: !!user })
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -329,7 +329,6 @@ export default function FamilyMattersPage() {
   }
 
   const handleEdit = (contact) => {
-    console.log('Edit button clicked for contact:', contact)
     setEditingContact(contact)
     setFormData({
       name: contact.name,
@@ -520,7 +519,13 @@ export default function FamilyMattersPage() {
                           {/* Content */}
                         <div className="flex-1 min-w-0">
                             <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">{bulletin.title}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{bulletin.content}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">{bulletin.content}</p>
+                            {/* Rating Display */}
+                            {bulletin.rating && bulletin.rating > 0 && (
+                              <div className="mt-2">
+                                <StarRating rating={bulletin.rating} size="sm" />
+                              </div>
+                            )}
                       </div>
                     </div>
                   )
@@ -590,10 +595,7 @@ export default function FamilyMattersPage() {
               </button>
               {canCreateContact && (
                 <button
-                  onClick={() => {
-                    console.log('Add Contact button clicked')
-                    setShowAddForm(true)
-                  }}
+                  onClick={() => setShowAddForm(true)}
                   className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

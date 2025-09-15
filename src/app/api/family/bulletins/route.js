@@ -130,6 +130,7 @@ export async function POST(request) {
       category, 
       priority, 
       expires_at, 
+      rating,
       // Specialized fields
       url,
       website_email,
@@ -161,6 +162,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
     }
 
+    // Validate rating if provided
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const ratingNum = parseInt(rating)
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 })
+      }
+    }
+
     // Helper function to handle empty strings for timestamp fields
     const cleanTimestamp = (value) => {
       if (!value || value === '' || value === 'null') return null
@@ -182,6 +191,7 @@ export async function POST(request) {
         category,
         priority,
         expires_at: cleanTimestamp(expires_at),
+        rating: rating && rating !== '' ? parseInt(rating) : null,
         // Specialized fields
         url: url || null,
         website_email: website_email || null,
