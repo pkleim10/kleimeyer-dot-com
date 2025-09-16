@@ -124,18 +124,71 @@ export default function AnnouncementsPage() {
       if (bulletinToEdit) {
         setEditingBulletin(bulletinToEdit)
         setCameFromDashboard(fromDashboard)
+        
+        // Convert expiration from UTC to Arizona time for editing (only for non-appointment announcements)
+        let expiresAtLocal = ''
+        if (bulletinToEdit.expires_at && bulletinToEdit.category !== 'appointment') {
+          const date = new Date(bulletinToEdit.expires_at)
+          
+          // Use Intl.DateTimeFormat to properly convert to Arizona timezone
+          const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Phoenix',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })
+          
+          const parts = formatter.formatToParts(date)
+          const year = parts.find(part => part.type === 'year').value
+          const month = parts.find(part => part.type === 'month').value
+          const day = parts.find(part => part.type === 'day').value
+          const hour = parts.find(part => part.type === 'hour').value
+          const minute = parts.find(part => part.type === 'minute').value
+          
+          expiresAtLocal = `${year}-${month}-${day}T${hour}:${minute}`
+        }
+        
+        // Convert appointment datetime from UTC to Arizona time for editing
+        let appointmentDateTime = ''
+        if (bulletinToEdit.appointment_datetime) {
+          const date = new Date(bulletinToEdit.appointment_datetime)
+          
+          // Use Intl.DateTimeFormat to properly convert to Arizona timezone
+          const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Phoenix',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })
+          
+          const parts = formatter.formatToParts(date)
+          const year = parts.find(part => part.type === 'year').value
+          const month = parts.find(part => part.type === 'month').value
+          const day = parts.find(part => part.type === 'day').value
+          const hour = parts.find(part => part.type === 'hour').value
+          const minute = parts.find(part => part.type === 'minute').value
+          
+          appointmentDateTime = `${year}-${month}-${day}T${hour}:${minute}`
+        }
+        
         setFormData({
           title: bulletinToEdit.title || '',
           content: bulletinToEdit.content || '',
           category: bulletinToEdit.category || 'general',
           priority: bulletinToEdit.priority || 'medium',
-          expires_at: bulletinToEdit.expires_at || '',
+          expires_at: expiresAtLocal,
           rating: bulletinToEdit.rating ? parseInt(bulletinToEdit.rating) : 0,
           // Specialized fields
           url: bulletinToEdit.url || '',
           website_email: bulletinToEdit.website_email || '',
           website_password: bulletinToEdit.website_password || '',
-          appointment_datetime: bulletinToEdit.appointment_datetime || '',
+          appointment_datetime: appointmentDateTime,
           appointment_location: bulletinToEdit.appointment_location || '',
           payment_amount: bulletinToEdit.payment_amount || '',
           payment_due_date: bulletinToEdit.payment_due_date || '',
@@ -372,28 +425,52 @@ export default function AnnouncementsPage() {
     let expiresAtLocal = ''
     if (bulletin.expires_at && bulletin.category !== 'appointment') {
       const date = new Date(bulletin.expires_at)
-      const arizonaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Phoenix' }))
-      const year = arizonaDate.getFullYear()
-      const month = String(arizonaDate.getMonth() + 1).padStart(2, '0')
-      const day = String(arizonaDate.getDate()).padStart(2, '0')
-      const hours = String(arizonaDate.getHours()).padStart(2, '0')
-      const minutes = String(arizonaDate.getMinutes()).padStart(2, '0')
-      expiresAtLocal = `${year}-${month}-${day}T${hours}:${minutes}`
+      
+      // Use Intl.DateTimeFormat to properly convert to Arizona timezone
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Phoenix',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+      
+      const parts = formatter.formatToParts(date)
+      const year = parts.find(part => part.type === 'year').value
+      const month = parts.find(part => part.type === 'month').value
+      const day = parts.find(part => part.type === 'day').value
+      const hour = parts.find(part => part.type === 'hour').value
+      const minute = parts.find(part => part.type === 'minute').value
+      
+      expiresAtLocal = `${year}-${month}-${day}T${hour}:${minute}`
     }
     
     let appointmentDateTime = ''
     if (bulletin.appointment_datetime) {
       // Convert from UTC to Arizona time for editing
       const date = new Date(bulletin.appointment_datetime)
-      // Create a new date in Arizona timezone
-      const arizonaDate = new Date(date.toLocaleString("en-US", {timeZone: "America/Phoenix"}))
-      // Get the local datetime-local format for Arizona time
-      const year = arizonaDate.getFullYear()
-      const month = String(arizonaDate.getMonth() + 1).padStart(2, '0')
-      const day = String(arizonaDate.getDate()).padStart(2, '0')
-      const hours = String(arizonaDate.getHours()).padStart(2, '0')
-      const minutes = String(arizonaDate.getMinutes()).padStart(2, '0')
-      appointmentDateTime = `${year}-${month}-${day}T${hours}:${minutes}`
+      
+      // Use Intl.DateTimeFormat to properly convert to Arizona timezone
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Phoenix',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+      
+      const parts = formatter.formatToParts(date)
+      const year = parts.find(part => part.type === 'year').value
+      const month = parts.find(part => part.type === 'month').value
+      const day = parts.find(part => part.type === 'day').value
+      const hour = parts.find(part => part.type === 'hour').value
+      const minute = parts.find(part => part.type === 'minute').value
+      
+      appointmentDateTime = `${year}-${month}-${day}T${hour}:${minute}`
     }
     
     const ratingValue = bulletin.rating ? parseInt(bulletin.rating) : 0

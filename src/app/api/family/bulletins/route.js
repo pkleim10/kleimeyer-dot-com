@@ -162,8 +162,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
     }
 
-    // Validate rating if provided
-    if (rating !== undefined && rating !== null && rating !== '') {
+    // Validate rating if provided (0 means unrated, so skip validation)
+    if (rating !== undefined && rating !== null && rating !== '' && rating !== 0 && rating !== '0') {
       const ratingNum = parseInt(rating)
       if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
         return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 })
