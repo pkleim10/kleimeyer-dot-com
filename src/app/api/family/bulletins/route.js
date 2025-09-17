@@ -111,14 +111,24 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is contributor or admin
-    const { data: userRole, error: roleError } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to create bulletins
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .single()
 
-    if (roleError || !['contributor', 'admin', 'family'].includes(userRole?.role)) {
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:create_bulletins'
+    )
+
+    if (!hasPermission) {
       return NextResponse.json({ error: 'Forbidden - Family access required' }, { status: 403 })
     }
 
@@ -146,8 +156,13 @@ export async function POST(request) {
     } = body
 
     // Validate required fields
-    if (!title || !content || !category || !priority) {
-      return NextResponse.json({ error: 'Title, content, category, and priority are required' }, { status: 400 })
+    if (!title || !category || !priority) {
+      return NextResponse.json({ error: 'Title, category, and priority are required' }, { status: 400 })
+    }
+
+    // Content is required for all categories except appointments
+    if (!content && category !== 'appointment') {
+      return NextResponse.json({ error: 'Content is required for this category' }, { status: 400 })
     }
 
     // Validate category and priority values

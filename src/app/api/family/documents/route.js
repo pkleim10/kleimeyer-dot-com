@@ -30,27 +30,29 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole, error: roleError } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to view documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    console.log('User role check:', { userRole, roleError, userId: user.id })
-
-    if (roleError) {
-      console.error('Role check error:', roleError)
-      return NextResponse.json({ error: 'Role check failed: ' + roleError.message }, { status: 500 })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
     }
 
-    if (!userRole) {
-      console.log('Access denied - no family/admin role found for user:', user.id)
-      return NextResponse.json({ error: 'Access denied - family role required' }, { status: 403 })
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:view_documents'
+    )
+
+    if (!hasPermission) {
+      console.log('Access denied - no document view permission for user:', user.id)
+      return NextResponse.json({ error: 'Access denied - family access required' }, { status: 403 })
     }
 
-    console.log('User has role:', userRole.role)
+    console.log('User has document view permission')
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
@@ -122,16 +124,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to upload documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    if (!userRole) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:upload_documents'
+    )
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Access denied - upload permission required' }, { status: 403 })
     }
 
     // Parse form data

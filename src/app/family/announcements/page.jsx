@@ -11,7 +11,7 @@ import { StarRating, StarRatingDropdown } from '@/apps/shared/components'
 
 export default function AnnouncementsPage() {
   const { user, loading: authLoading } = useAuth()
-  const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement, isAdmin } = usePermissions()
+  const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement, canManageUsers, canViewFamily, permissionsLoading } = usePermissions()
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -104,15 +104,21 @@ export default function AnnouncementsPage() {
       return
     }
     
-    // If user is authenticated, load bulletins (this will trigger on filter changes too)
-    if (!authLoading && user) {
+    // Permission check - redirect if user doesn't have family permissions
+    if (!authLoading && !permissionsLoading && user && !canViewFamily) {
+      router.push('/')
+      return
+    }
+    
+    // If user is authenticated and has permissions, load bulletins (this will trigger on filter changes too)
+    if (!authLoading && !permissionsLoading && user && canViewFamily) {
       fetchBulletins()
       if (!hasLoadedBulletins) {
         setPageLoading(false)
         setHasLoadedBulletins(true)
       }
     }
-  }, [user, authLoading, router, fetchBulletins, hasLoadedBulletins])
+  }, [user, authLoading, permissionsLoading, canViewFamily, router, fetchBulletins, hasLoadedBulletins])
 
   // Handle edit parameter from URL
   useEffect(() => {
@@ -612,8 +618,8 @@ export default function AnnouncementsPage() {
     return expirationDate.getTime() < currentDate.getTime()
   }
 
-  // Show loading while auth is being determined
-  if (authLoading || pageLoading) {
+  // Show loading while auth and permissions are being determined
+  if (authLoading || permissionsLoading || pageLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
@@ -651,7 +657,7 @@ export default function AnnouncementsPage() {
                   Add Announcement
                 </button>
               )}
-              {isAdmin && (
+              {canManageUsers && (
                 <button
                   onClick={purgeExpiredAnnouncements}
                   className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
@@ -1152,17 +1158,17 @@ export default function AnnouncementsPage() {
 
                 <div>
                   <label htmlFor="content" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Content *
+                    Content {formData.category !== 'appointment' ? '*' : ''}
                   </label>
                   <textarea
                     id="content"
                     name="content"
-                    required
+                    required={formData.category !== 'appointment'}
                     rows={4}
                     value={formData.content}
                     onChange={handleFormChange}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
-                    placeholder="Announcement content"
+                    placeholder={formData.category === 'appointment' ? 'Optional appointment details' : 'Announcement content'}
                   />
                 </div>
 

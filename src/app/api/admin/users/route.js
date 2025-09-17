@@ -39,28 +39,36 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is admin
-    const { data: userRole, error: roleError } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has admin permissions
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .single()
 
-    if (roleError || userRole?.role !== 'admin') {
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasAdminPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || p.permission === 'admin:manage_users'
+    )
+
+    if (!hasAdminPermission) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Get user roles - this should work with the updated RLS policies
-    const { data: userRoles, error: rolesError } = await supabaseWithAuth
-      .from('user_roles')
+    // Get user permissions for all users
+    const { data: allUserPermissions, error: allPermError } = await supabaseWithAuth
+      .from('user_permissions')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (rolesError) {
-      console.error('Error fetching user roles:', rolesError)
+    if (allPermError) {
+      console.error('Error fetching user permissions:', allPermError)
       return NextResponse.json({ 
-        error: 'Failed to fetch user roles',
-        details: rolesError
+        error: 'Failed to fetch user permissions',
+        details: allPermError
       }, { status: 500 })
     }
 
@@ -68,30 +76,33 @@ export async function GET(request) {
     let usersWithDetails = []
     
     if (supabaseAdmin) {
-      // Use admin client to get all users and roles
+      // Use admin client to get all users and permissions
       
       // Get all users from auth.users
       const { data: allUsers, error: usersError } = await supabaseAdmin.auth.admin.listUsers()
       
       if (usersError) {
         console.error('Error fetching all users:', usersError)
-        // Fall back to basic user roles
+        // Fall back to basic user permissions
       } else {
-        // Create a map of user roles by user_id
-        const userRolesMap = new Map()
-        userRoles.forEach(userRole => {
-          userRolesMap.set(userRole.user_id, userRole)
+        // Create a map of user permissions by user_id
+        const userPermissionsMap = new Map()
+        allUserPermissions.forEach(userPerm => {
+          if (!userPermissionsMap.has(userPerm.user_id)) {
+            userPermissionsMap.set(userPerm.user_id, [])
+          }
+          userPermissionsMap.get(userPerm.user_id).push(userPerm)
         })
 
-        // Combine user data with roles
+        // Combine user data with permissions
         usersWithDetails = allUsers.users.map(authUser => {
-          const userRole = userRolesMap.get(authUser.id)
+          const userPerms = userPermissionsMap.get(authUser.id) || []
           
           return {
-            id: userRole?.id || null,
+            id: authUser.id,
             user_id: authUser.id,
-            role: userRole?.role || 'no-role',
-            created_at: userRole?.created_at || authUser.created_at,
+            permissions: userPerms,
+            created_at: authUser.created_at,
             user: {
               id: authUser.id,
               email: authUser.email,
@@ -103,46 +114,63 @@ export async function GET(request) {
           }
         })
 
-        // Auto-assign 'member' role to users who don't have a role
-        const usersWithoutRoles = usersWithDetails.filter(user => user.role === 'no-role')
-        if (usersWithoutRoles.length > 0) {
-          for (const userWithoutRole of usersWithoutRoles) {
+        // Auto-assign basic member permissions to users who don't have any permissions
+        const usersWithoutPermissions = usersWithDetails.filter(user => user.permissions.length === 0)
+        if (usersWithoutPermissions.length > 0) {
+          for (const userWithoutPerms of usersWithoutPermissions) {
             try {
+              const memberPermissions = [
+                'member:basic_access',
+                'member:view_profile',
+                'member:edit_profile'
+              ]
+              
+              const permissionInserts = memberPermissions.map(permission => ({
+                user_id: userWithoutPerms.user_id,
+                permission: permission
+              }))
+              
               const { error: insertError } = await supabaseAdmin
-                .from('user_roles')
-                .insert({
-                  user_id: userWithoutRole.user_id,
-                  role: 'member'
-                })
+                .from('user_permissions')
+                .insert(permissionInserts)
               
               if (insertError) {
-                console.error(`Failed to assign role to user ${userWithoutRole.user_id}:`, insertError)
+                console.error(`Failed to assign permissions to user ${userWithoutPerms.user_id}:`, insertError)
               } else {
-                // Update the user's role in the response
-                userWithoutRole.role = 'member'
+                // Update the user's permissions in the response
+                userWithoutPerms.permissions = permissionInserts.map(p => ({ permission: p.permission }))
               }
             } catch (err) {
-              console.error(`Error assigning role to user ${userWithoutRole.user_id}:`, err)
+              console.error(`Error assigning permissions to user ${userWithoutPerms.user_id}:`, err)
             }
           }
         }
       }
     }
     
-    // If we don't have admin client or it failed, use basic user roles
+    // If we don't have admin client or it failed, use basic user permissions
     if (usersWithDetails.length === 0) {
-      usersWithDetails = userRoles.map(userRole => {
+      // Group permissions by user_id
+      const userPermissionsMap = new Map()
+      allUserPermissions.forEach(userPerm => {
+        if (!userPermissionsMap.has(userPerm.user_id)) {
+          userPermissionsMap.set(userPerm.user_id, [])
+        }
+        userPermissionsMap.get(userPerm.user_id).push(userPerm)
+      })
+      
+      usersWithDetails = Array.from(userPermissionsMap.entries()).map(([userId, perms]) => {
         return {
-          id: userRole.id,
-          user_id: userRole.user_id,
-          role: userRole.role,
-          created_at: userRole.created_at,
+          id: userId,
+          user_id: userId,
+          permissions: perms,
+          created_at: perms[0]?.created_at || new Date().toISOString(),
           user: {
-            id: userRole.user_id,
-            email: `User ${userRole.user_id.slice(0, 8)}...`,
+            id: userId,
+            email: `User ${userId.slice(0, 8)}...`,
             first_name: 'Unknown',
             last_name: 'User',
-            created_at: userRole.created_at,
+            created_at: perms[0]?.created_at || new Date().toISOString(),
             email_confirmed_at: null
           }
         }

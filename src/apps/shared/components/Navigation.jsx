@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useRouter, usePathname } from 'next/navigation'
 import { getRandomNavImage } from '@/utils/navImages'
 
@@ -85,7 +86,7 @@ const generateBreadcrumbs = (pathname) => {
 }
 
 // App section navigation items
-const getAppNavigation = (context, user, isAdmin) => {
+const getAppNavigation = (context, user, canManageUsers) => {
   switch (context.app) {
     case 'recipes':
       return [
@@ -114,7 +115,8 @@ export default function Navigation() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [navImage, setNavImage] = useState('')
-  const { user, signOut, isAdmin } = useAuth()
+  const { user, signOut } = useAuth()
+  const { canManageUsers } = usePermissions()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -126,7 +128,7 @@ export default function Navigation() {
 
   const context = getNavigationContext(pathname)
   const breadcrumbs = generateBreadcrumbs(pathname)
-  const appNavigation = getAppNavigation(context, user, isAdmin)
+  const appNavigation = getAppNavigation(context, user, canManageUsers)
 
   const handleSignOut = async () => {
     try {
@@ -245,7 +247,7 @@ export default function Navigation() {
                         Profile
                       </Link>
                       
-                      {isAdmin && (
+                      {canManageUsers && (
                         <Link
                           href="/admin"
                           className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600"

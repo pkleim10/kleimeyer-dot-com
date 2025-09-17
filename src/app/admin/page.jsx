@@ -2,61 +2,62 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import Link from 'next/link'
+import UserList from '@/apps/admin/components/UserList'
 
 export default function AdminPage() {
-  const { user, isAdmin, loading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const { canManageUsers, loading: permissionsLoading } = usePermissions()
   const router = useRouter()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [assigningRole, setAssigningRole] = useState(false)
   const [error, setError] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
 
   // Wait for auth to be ready before checking permissions
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && !permissionsLoading) {
       if (!user) {
         router.push('/')
         return
       }
       
-      if (!isAdmin) {
+      if (!canManageUsers) {
         router.push('/')
         return
       }
       
       setPageLoading(false)
     }
-  }, [user, isAdmin, authLoading, router])
+  }, [user, canManageUsers, authLoading, permissionsLoading, router])
 
   // Redirect if not admin
   useEffect(() => {
-    if (user && !isAdmin && !authLoading) {
+    if (user && !canManageUsers && !authLoading && !permissionsLoading) {
       router.push('/')
     }
-  }, [user, isAdmin, authLoading, router])
+  }, [user, canManageUsers, authLoading, permissionsLoading, router])
 
   // Fetch users
   useEffect(() => {
-    if (isAdmin && !pageLoading) {
+    if (canManageUsers && !pageLoading) {
       fetchUsers()
     }
-  }, [isAdmin, pageLoading])
+  }, [canManageUsers, pageLoading])
 
   // Add automatic refresh when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAdmin && !pageLoading) {
+      if (!document.hidden && canManageUsers && !pageLoading) {
         fetchUsers()
       }
     }
 
     const handleFocus = () => {
-      if (isAdmin && !pageLoading) {
+      if (canManageUsers && !pageLoading) {
         fetchUsers()
       }
     }
@@ -68,7 +69,7 @@ export default function AdminPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [isAdmin, pageLoading])
+  }, [canManageUsers, pageLoading])
 
   const fetchUsers = async () => {
     try {
@@ -103,33 +104,9 @@ export default function AdminPage() {
     }
   }
 
-  const updateUserRole = async (userId, newRole) => {
-    setUpdating(true)
-    setError('')
-
-    try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', userId)
-
-      if (error) {
-        console.error('Error updating user role:', error)
-        setError('Failed to update user role')
-      } else {
-        // Refresh the users list
-        await fetchUsers()
-      }
-    } catch (err) {
-      console.error('Error updating user role:', err)
-      setError('Failed to update user role')
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   // Show loading while auth is being determined
-  if (authLoading || pageLoading) {
+  if (authLoading || permissionsLoading || pageLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -159,7 +136,7 @@ export default function AdminPage() {
     )
   }
 
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -190,7 +167,7 @@ export default function AdminPage() {
                 Admin Panel
               </h1>
               <p className="mt-2 text-gray-600 dark:text-gray-400">
-                Manage user roles and permissions
+                Manage user permissions with granular control
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -233,61 +210,11 @@ export default function AdminPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-slate-800 shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200 dark:divide-slate-700">
-              {users.map((userRole) => {
-                const listUser = userRole.user
-                const displayName = `${listUser?.first_name || 'Unknown'} ${listUser?.last_name || 'User'}`
-                
-                return (
-                  <li key={userRole.id} className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-3">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {displayName}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {listUser?.email}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Role:</span>
-                          <select
-                            value={userRole.role}
-                            onChange={(e) => updateUserRole(userRole.user_id, e.target.value)}
-                            disabled={updating || user?.id === listUser?.id}
-                            className="text-sm border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                          >
-                            <option value="member">Member</option>
-                            <option value="contributor">Contributor</option>
-                            <option value="family">Family</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                          {user?.id === listUser?.id && (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">(You)</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          Joined: {new Date(userRole.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-            
-            {users.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400">No users found.</p>
-              </div>
-            )}
-          </div>
+          <UserList 
+            users={users} 
+            onUpdate={fetchUsers} 
+            currentUserId={user?.id}
+          />
         )}
       </div>
     </div>

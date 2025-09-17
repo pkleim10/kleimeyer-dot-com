@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import { createClient } from '@supabase/supabase-js'
+import { usePermissions } from '@/hooks/usePermissions'
 import Link from 'next/link'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -12,6 +13,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth()
+  const { permissions, loading: permissionsLoading } = usePermissions()
   const router = useRouter()
   const [formData, setFormData] = useState({
     firstName: '',
@@ -21,11 +23,27 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
-  const [userRole, setUserRole] = useState(null)
+
+  // Function to determine role from permissions
+  const getUserRole = () => {
+    if (!permissions || permissions.length === 0) return 'member'
+    
+    const permissionList = permissions.map(p => p.permission)
+    
+    if (permissionList.includes('admin:full_access')) {
+      return 'admin'
+    } else if (permissionList.includes('family:full_access')) {
+      return 'family'
+    } else if (permissionList.some(p => p.startsWith('recipe:'))) {
+      return 'contributor'
+    }
+    
+    return 'member'
+  }
 
   useEffect(() => {
-    // Wait for auth to be ready
-    if (!authLoading) {
+    // Wait for auth and permissions to be ready
+    if (!authLoading && !permissionsLoading) {
       if (!user) {
         router.push('/')
         return
@@ -39,55 +57,17 @@ export default function ProfilePage() {
         })
       }
 
-      // Load user role
-      const loadUserRole = async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            // Create authenticated client
-            const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-              global: {
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`
-                }
-              }
-            })
-
-            // Fetch user's role directly
-            const { data: userRoleData, error } = await supabaseWithAuth
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', user.id)
-              .single()
-
-            if (error) {
-              console.error('Error fetching user role:', error)
-              // Set default role if none exists
-              setUserRole('member')
-            } else {
-              console.log('User role loaded:', userRoleData.role)
-              setUserRole(userRoleData.role)
-            }
-          }
-        } catch (error) {
-          console.error('Error loading user role:', error)
-          // Set default role on error
-          setUserRole('member')
-        }
-      }
-
-      loadUserRole()
       setPageLoading(false)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, permissionsLoading, router])
 
   // Debug loading state
   useEffect(() => {
     console.log('Loading state changed:', loading)
   }, [loading])
 
-  // Show loading while auth is being determined
-  if (authLoading || pageLoading) {
+  // Show loading while auth and permissions are being determined
+  if (authLoading || permissionsLoading || pageLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -231,7 +211,7 @@ export default function ProfilePage() {
           {/* User Role Display */}
           <div>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-black bg-orange-200 dark:text-black dark:bg-orange-300">
-              {userRole ? formatRole(userRole) : 'Loading...'}
+              {formatRole(getUserRole())}
             </span>
           </div>
 

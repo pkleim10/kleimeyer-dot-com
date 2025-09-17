@@ -14,7 +14,7 @@ function generateSlug(name) {
 
 export default function CategoryCard({ category, onCategoryUpdate, onCategoryDelete }) {
   const { user } = useAuth()
-  const { isAdmin } = usePermissions()
+  const { canManageCategories } = usePermissions()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
@@ -45,8 +45,8 @@ export default function CategoryCard({ category, onCategoryUpdate, onCategoryDel
         </div>
       </Link>
       
-              {/* Admin buttons - only visible to admins */}
-        {isAdmin && (
+              {/* Admin buttons - only visible to users who can manage categories */}
+        {canManageCategories && (
         <div className="absolute bottom-4 right-4 flex space-x-4">
           <button
             onClick={() => setIsEditModalOpen(true)}

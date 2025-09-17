@@ -38,16 +38,25 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to manage documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    if (!userRole) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:manage_documents'
+    )
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
     }
 
     // Get document details
@@ -113,16 +122,25 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to manage documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    if (!userRole) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:manage_documents'
+    )
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
     }
 
     // Get request body
@@ -182,16 +200,25 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to manage documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    if (!userRole) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:manage_documents'
+    )
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
     }
 
     // Get document details first

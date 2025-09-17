@@ -11,7 +11,7 @@ import { supabase } from '@/utils/supabase'
 
 export default function CategoriesGrid({ categories: initialCategories, uncategorizedRecipes }) {
   const { user } = useAuth()
-  const { isAdmin } = usePermissions()
+  const { canManageCategories } = usePermissions()
   const [categories, setCategories] = useState(initialCategories)
   const [recipes, setRecipes] = useState(uncategorizedRecipes || [])
 
@@ -87,8 +87,8 @@ export default function CategoriesGrid({ categories: initialCategories, uncatego
 
   return (
     <div>
-      {/* Uncategorized Recipes Section - Only visible to admin users */}
-      {isAdmin && recipes && recipes.length > 0 && (
+      {/* Uncategorized Recipes Section - Only visible to users who can manage categories */}
+      {canManageCategories && recipes && recipes.length > 0 && (
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
             Uncategorized Recipes
@@ -111,8 +111,8 @@ export default function CategoriesGrid({ categories: initialCategories, uncatego
         </div>
       )}
 
-      {/* Add New Category Button - Only visible to admin users */}
-      {isAdmin && (
+      {/* Add New Category Button - Only visible to users who can manage categories */}
+      {canManageCategories && (
         <div className="mb-12">
                           <AddCategoryButton onCategoryCreate={handleCategoryCreate} />
         </div>

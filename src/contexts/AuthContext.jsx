@@ -12,63 +12,10 @@ export const useAuth = () => useContext(AuthContext)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [userRole, setUserRole] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [lastFetchedUserId, setLastFetchedUserId] = useState(null)
   const [isProcessingAuthChange, setIsProcessingAuthChange] = useState(false)
 
-  // Function to fetch user role
-  const fetchUserRole = useCallback(async (userId) => {
-    if (!userId) {
-      setUserRole(null)
-      setLastFetchedUserId(null)
-      return
-    }
-    
-    // Prevent duplicate fetches for the same user
-    if (lastFetchedUserId === userId) {
-      if (DEBUG_AUTH) console.log('fetchUserRole: Skipping duplicate fetch for user:', userId)
-      return
-    }
-    
-    try {
-      if (DEBUG_AUTH) console.log('fetchUserRole: Querying user_roles table for user:', userId)
-      
-      // Add timeout to the role fetch
-      const rolePromise = supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .single()
-      
-      const timeoutPromise = new Promise((resolve) => 
-        setTimeout(() => resolve({ timeout: true }), 3000)
-      )
-      
-      const result = await Promise.race([rolePromise, timeoutPromise])
-      
-      // Check if we got a timeout
-      if (result.timeout) {
-        if (DEBUG_AUTH) console.log('Role fetch timed out after 3 seconds')
-        // Don't clear role on timeout - keep existing role if available
-        return
-      }
-      
-      const { data, error } = result
-      
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-        console.error('Error fetching user role:', error.message)
-      }
-      
-      if (DEBUG_AUTH) console.log('fetchUserRole: Role data:', data?.role || 'no role found')
-      setUserRole(data?.role || null)
-      setLastFetchedUserId(userId)
-    } catch (error) {
-      console.error('Error fetching user role:', error.message)
-      setUserRole(null)
-      setLastFetchedUserId(null)
-    }
-  }, [])
+  // Legacy role fetching removed - roles are now determined from permissions
 
   useEffect(() => {
     let isMounted = true
@@ -105,7 +52,6 @@ export function AuthProvider({ children }) {
           console.error('Error fetching session:', error.message)
           // If there's an error getting the session, clear user state
           setUser(null)
-          setUserRole(null)
           setLoading(false)
           return
         }
@@ -129,7 +75,6 @@ export function AuthProvider({ children }) {
           if (expiresAt < now) {
             console.log('Session expired, clearing user state')
             setUser(null)
-            setUserRole(null)
             setLoading(false)
             return
           }
@@ -137,19 +82,12 @@ export function AuthProvider({ children }) {
           if (DEBUG_AUTH) console.log('User ID from AuthContext:', session.user.id)
           setUser(session.user)
           
-          const roleStartTime = Date.now()
-          if (DEBUG_AUTH) console.log('AuthContext: Starting role fetch...')
-          await fetchUserRole(session.user.id)
-          const roleDuration = Date.now() - roleStartTime
-          if (DEBUG_AUTH) console.log(`AuthContext: Role fetch completed in ${roleDuration}ms`)
         } else {
           setUser(null)
-          setUserRole(null)
         }
       } catch (error) {
         console.error('Error in getSession:', error)
         setUser(null)
-        setUserRole(null)
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -189,21 +127,13 @@ export function AuthProvider({ children }) {
         if (expiresAt < now) {
           console.log('Session expired during auth state change')
           setUser(null)
-          setUserRole(null)
           setLoading(false)
           return
         }
         
         setUser(session.user)
-        // Use a timeout for the role fetch in auth state change
-        const rolePromise = fetchUserRole(session.user.id)
-        const timeoutPromise = new Promise((resolve) => 
-          setTimeout(() => resolve(), 3000)
-        )
-        await Promise.race([rolePromise, timeoutPromise])
       } else {
         setUser(null)
-        setUserRole(null)
       }
       if (isMounted) {
         setLoading(false)
@@ -216,7 +146,7 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe()
       clearTimeout(authTimeout)
     }
-  }, [fetchUserRole])
+  }, [])
 
   const signOut = async () => {
     try {
@@ -226,7 +156,6 @@ export function AuthProvider({ children }) {
       // If no session, just clear the user state
       if (!session) {
         setUser(null)
-        setUserRole(null)
         return
       }
 
@@ -237,12 +166,10 @@ export function AuthProvider({ children }) {
       }
       
       setUser(null)
-      setUserRole(null)
     } catch (error) {
       console.error('Error signing out:', error.message)
       // Even if there's an error, clear the user state
       setUser(null)
-      setUserRole(null)
       throw error
     }
   }
@@ -252,10 +179,7 @@ export function AuthProvider({ children }) {
     signIn: (data) => supabase.auth.signInWithPassword(data),
     signOut,
     user,
-    userRole,
-    loading,
-    isAdmin: userRole === 'admin',
-    isContributor: userRole === 'contributor' || userRole === 'admin'
+    loading
   }
 
   return (

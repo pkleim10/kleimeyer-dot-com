@@ -12,7 +12,7 @@ import { StarRating } from '@/apps/shared/components'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
-  const { canCreateContact, canEditContact, canDeleteContact, isFamily } = usePermissions()
+  const { canCreateContact, canEditContact, canDeleteContact, canViewFamily, permissionsLoading } = usePermissions()
   const router = useRouter()
   
   const [contacts, setContacts] = useState([])
@@ -45,28 +45,46 @@ export default function FamilyMattersPage() {
       return
     }
     
-    // If user is authenticated and we haven't loaded contacts yet, load them
-    if (!authLoading && user && !hasLoadedContacts) {
+    // Permission check - redirect if user doesn't have family permissions
+    if (!authLoading && !permissionsLoading && user && !canViewFamily) {
+      router.push('/')
+      return
+    }
+    
+    // If user is authenticated and has permissions and we haven't loaded contacts yet, load them
+    if (!authLoading && !permissionsLoading && user && canViewFamily && !hasLoadedContacts) {
       fetchContacts()
       setPageLoading(false)
     }
-  }, [user, authLoading, router, hasLoadedContacts])
+  }, [user, authLoading, permissionsLoading, canViewFamily, router, hasLoadedContacts])
 
   const fetchContacts = useCallback(async () => {
     try {
       setLoading(true)
       setError('')
       
-      const { data, error } = await supabase
-        .from('family_contacts')
-        .select('*')
-        .order('name', { ascending: true })
+      // Get the current session to access the token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setError('Not authenticated')
+        return
+      }
 
-      if (error) {
-        console.error('Error fetching contacts:', error)
-        setError('Failed to load contacts')
+      // Use the API endpoint instead of direct database access
+      const response = await fetch('/api/family/contacts', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('Error fetching contacts:', result.error)
+        setError(result.error || 'Failed to load contacts')
       } else {
-        setContacts(data || [])
+        setContacts(result.contacts || [])
         setHasLoadedContacts(true)
       }
     } catch (err) {
@@ -366,8 +384,8 @@ export default function FamilyMattersPage() {
   }
 
 
-  // Show loading while auth is being determined
-  if (authLoading || pageLoading) {
+  // Show loading while auth and permissions are being determined
+  if (authLoading || permissionsLoading || pageLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">

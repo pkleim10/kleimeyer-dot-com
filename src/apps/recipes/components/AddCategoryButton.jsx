@@ -7,11 +7,11 @@ import CategoryEditModal from './CategoryEditModal'
 
 export default function AddCategoryButton({ onCategoryCreate }) {
   const { user } = useAuth()
-  const { isAdmin } = usePermissions()
+  const { canManageCategories } = usePermissions()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Only show the button if user is admin
-  if (!isAdmin) {
+  // Only show the button if user can manage categories
+  if (!canManageCategories) {
     return null
   }
 

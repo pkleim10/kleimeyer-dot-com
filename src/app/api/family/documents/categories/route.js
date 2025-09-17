@@ -30,22 +30,29 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    // Check if user has family role
-    const { data: userRole } = await supabaseWithAuth
-      .from('user_roles')
-      .select('role')
+    // Check if user has permission to view documents
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', user.id)
-      .in('role', ['family', 'admin'])
-      .single()
 
-    console.log('Categories API - User role check:', { userRole, userId: user.id })
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
 
-    if (!userRole) {
-      console.log('Categories API - Access denied - no family/admin role found for user:', user.id)
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:view_documents'
+    )
+
+    if (!hasPermission) {
+      console.log('Categories API - Access denied - no document view permission for user:', user.id)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    console.log('Categories API - User has role:', userRole.role)
+    console.log('Categories API - User has document view permission')
 
     const { data: categories, error } = await supabaseWithAuth
       .from('document_categories')
@@ -73,15 +80,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Check if user is admin
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
+    // Check if user has admin permissions
+    const { data: userPermissions, error: permError } = await supabase
+      .from('user_permissions')
+      .select('permission')
       .eq('user_id', session.user.id)
-      .eq('role', 'admin')
-      .single()
 
-    if (!userRole) {
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasAdminPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || p.permission === 'admin:manage_users'
+    )
+
+    if (!hasAdminPermission) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 

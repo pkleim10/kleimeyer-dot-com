@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 
 export default function DocumentsPage() {
   const { user, authLoading } = useAuth()
-  const { isFamily, canUploadDocuments, canEditDocuments, canDeleteDocuments } = usePermissions()
+  const { canUploadDocuments, canEditDocuments, canDeleteDocuments, canViewFamily, permissionsLoading } = usePermissions()
   const router = useRouter()
 
   // State
@@ -91,12 +91,12 @@ export default function DocumentsPage() {
 
   // Initial data fetch
   useEffect(() => {
-    if (!authLoading && user && !hasLoadedDocuments) {
+    if (!authLoading && !permissionsLoading && user && canViewFamily && !hasLoadedDocuments) {
       fetchDocuments()
       fetchCategories()
       setHasLoadedDocuments(true)
     }
-  }, [authLoading, user, hasLoadedDocuments, fetchDocuments, fetchCategories])
+  }, [authLoading, permissionsLoading, user, canViewFamily, hasLoadedDocuments, fetchDocuments, fetchCategories])
 
   // Handle file upload
   const handleFileUpload = async (event) => {
@@ -289,18 +289,18 @@ export default function DocumentsPage() {
 
   // Redirect if not family member
   useEffect(() => {
-    if (!authLoading && !isFamily) {
-      router.push('/family')
+    if (!authLoading && !permissionsLoading && user && !canViewFamily) {
+      router.push('/')
     }
-  }, [authLoading, isFamily, router])
+  }, [authLoading, permissionsLoading, user, canViewFamily, router])
 
-  // Show loading while auth is being determined, redirecting, or loading documents
-  if (authLoading || loading || (!isFamily && !authLoading)) {
+  // Show loading while auth and permissions are being determined, redirecting, or loading documents
+  if (authLoading || permissionsLoading || loading || (!canViewFamily && !authLoading && !permissionsLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-flex items-center px-4 py-2 font-semibold leading-6 text-gray-900 dark:text-gray-100">
-            {authLoading ? 'Loading...' : (!isFamily && !authLoading) ? 'Redirecting...' : 'Loading documents...'}
+            {authLoading || permissionsLoading ? 'Loading...' : (!canViewFamily && !authLoading && !permissionsLoading) ? 'Redirecting...' : 'Loading documents...'}
           </div>
         </div>
       </div>

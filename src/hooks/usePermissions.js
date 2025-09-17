@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
 
 export const usePermissions = () => {
-  const { user, userRole, isAdmin, isContributor } = useAuth()
+  const { user } = useAuth()
   const [permissions, setPermissions] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -24,87 +24,21 @@ export const usePermissions = () => {
 
         if (error) {
           console.error('Error fetching permissions:', error)
-          // Fallback to legacy role system
-          setPermissions(getLegacyPermissions(userRole))
+          setPermissions([])
         } else {
           setPermissions(data?.map(p => p.permission) || [])
         }
       } catch (err) {
         console.error('Error fetching permissions:', err)
-        // Fallback to legacy role system
-        setPermissions(getLegacyPermissions(userRole))
+        setPermissions([])
       } finally {
         setLoading(false)
       }
     }
 
     fetchPermissions()
-  }, [user, userRole])
+  }, [user])
 
-  // Convert legacy roles to permissions for backward compatibility
-  const getLegacyPermissions = (role) => {
-    switch (role) {
-      case 'admin':
-        return [
-          'admin:full_access',
-          'admin:manage_users',
-          'admin:manage_roles',
-          'family:full_access',
-          'family:view_bulletins',
-          'family:create_bulletins',
-          'family:edit_bulletins',
-          'family:delete_bulletins',
-          'family:view_contacts',
-          'family:manage_contacts',
-          'family:view_documents',
-          'family:upload_documents',
-          'family:manage_documents',
-          'recipe:view_recipes',
-          'recipe:create_recipes',
-          'recipe:edit_recipes',
-          'recipe:delete_recipes',
-          'recipe:manage_categories',
-          'member:basic_access',
-          'member:view_profile',
-          'member:edit_profile'
-        ]
-      case 'family':
-        return [
-          'family:full_access',
-          'family:view_bulletins',
-          'family:create_bulletins',
-          'family:edit_bulletins',
-          'family:delete_bulletins',
-          'family:view_contacts',
-          'family:manage_contacts',
-          'family:view_documents',
-          'family:upload_documents',
-          'family:manage_documents',
-          'recipe:view_recipes',
-          'recipe:create_recipes',
-          'recipe:edit_recipes',
-          'member:basic_access',
-          'member:view_profile',
-          'member:edit_profile'
-        ]
-      case 'contributor':
-        return [
-          'recipe:view_recipes',
-          'recipe:create_recipes',
-          'recipe:edit_recipes',
-          'member:basic_access',
-          'member:view_profile',
-          'member:edit_profile'
-        ]
-      case 'member':
-      default:
-        return [
-          'member:basic_access',
-          'member:view_profile',
-          'member:edit_profile'
-        ]
-    }
-  }
 
   // Permission checking functions
   const hasPermission = (permission) => {
@@ -221,20 +155,29 @@ export const usePermissions = () => {
     'admin:manage_roles'
   ])
 
-  // Legacy role compatibility (for backward compatibility)
-  const isFamily = hasAnyPermission([
+  const canViewFamily = hasAnyPermission([
     'admin:full_access',
     'family:full_access',
     'family:view_bulletins',
     'family:create_bulletins',
     'family:edit_bulletins',
-    'family:delete_bulletins'
+    'family:delete_bulletins',
+    'family:view_contacts',
+    'family:create_contacts',
+    'family:edit_contacts',
+    'family:delete_contacts',
+    'family:view_documents',
+    'family:upload_documents',
+    'family:manage_documents'
   ])
+
+
 
   return {
     // Basic authentication
     isAuthenticated: !!user,
     loading,
+    permissionsLoading: loading,
     
     // Permission system
     permissions,
@@ -261,12 +204,7 @@ export const usePermissions = () => {
     canManageCategories,
     canManageUsers,
     canManageRoles,
-    
-    // Legacy role compatibility
-    isAdmin,
-    isContributor,
-    isFamily,
-    userRole,
+    canViewFamily,
     
     // Helper functions for complex permission checks
     hasPermission: (permission) => {

@@ -54,7 +54,8 @@ export default function SignupPage() {
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName
-          }
+          },
+          emailRedirectTo: 'https://kleimeyer.com'
         }
       })
 
@@ -78,28 +79,36 @@ export default function SignupPage() {
         if (data.user.email_confirmed_at) {
           console.log('Email already confirmed, proceeding with role assignment')
           
-          // Manually assign 'member' role after successful signup
+          // Manually assign basic member permissions after successful signup
           try {
-            console.log('Assigning member role...')
-            const { error: roleError } = await supabase
-              .from('user_roles')
-              .insert({
-                user_id: data.user.id,
-                role: 'member'
-              })
+            console.log('Assigning member permissions...')
+            const memberPermissions = [
+              'member:basic_access',
+              'member:view_profile',
+              'member:edit_profile'
+            ]
             
-            if (roleError) {
-              console.warn('Role assignment failed:', roleError)
-              // Don't fail the signup if role assignment fails
-              if (roleError.code !== '23505') { // 23505 is unique constraint violation
-                console.error('Role assignment error:', roleError)
+            const permissionInserts = memberPermissions.map(permission => ({
+              user_id: data.user.id,
+              permission: permission
+            }))
+            
+            const { error: permError } = await supabase
+              .from('user_permissions')
+              .insert(permissionInserts)
+            
+            if (permError) {
+              console.warn('Permission assignment failed:', permError)
+              // Don't fail the signup if permission assignment fails
+              if (permError.code !== '23505') { // 23505 is unique constraint violation
+                console.error('Permission assignment error:', permError)
               }
             } else {
-              console.log('Role assigned successfully')
+              console.log('Member permissions assigned successfully')
             }
-          } catch (roleErr) {
-            console.warn('Role assignment exception:', roleErr)
-            // Don't fail the signup if role assignment fails
+          } catch (permErr) {
+            console.warn('Permission assignment exception:', permErr)
+            // Don't fail the signup if permission assignment fails
           }
           
           setSuccess(true)
