@@ -9,6 +9,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import ContactDeleteModal from '@/apps/family/components/ContactDeleteModal'
 import AnnouncementDetailsModal from '@/apps/family/components/AnnouncementDetailsModal'
 import { StarRating } from '@/apps/shared/components'
+import { ANNOUNCEMENT_SUMMARY_LIMIT, MIN_APPOINTMENTS_IN_SUMMARY } from '@/config/announcements'
 
 export default function FamilyMattersPage() {
   const { user, loading: authLoading } = useAuth()
@@ -212,10 +213,17 @@ export default function FamilyMattersPage() {
       }
     })
     
-    // Step 2: If 4 or fewer items, return all
-    if (initialSelection.length <= 4) {
+    // Step 2: If limit or fewer items, return all
+    if (initialSelection.length <= ANNOUNCEMENT_SUMMARY_LIMIT) {
       return initialSelection.sort((a, b) => {
-        // Sort by appointment date for appointments, created date for others
+        // First, prioritize appointments over other categories
+        if (a.category === 'appointment' && b.category !== 'appointment') {
+          return -1 // a comes before b
+        }
+        if (a.category !== 'appointment' && b.category === 'appointment') {
+          return 1 // b comes before a
+        }
+        // If both are same category, sort by their respective dates
         const dateA = a.category === 'appointment' 
           ? new Date(a.appointment_datetime) 
           : new Date(a.created_at)
@@ -244,24 +252,24 @@ export default function FamilyMattersPage() {
       }
     })
     
-    // Step 4: Smart selection - choose 4 items closest to now
-    // Priority: at least 2 appointments if possible
+    // Step 4: Smart selection - choose items closest to now
+    // Priority: at least MIN_APPOINTMENTS_IN_SUMMARY appointments if possible
     const appointments = itemsWithSelectionDate.filter(item => item.category === 'appointment')
     const nonAppointments = itemsWithSelectionDate.filter(item => item.category !== 'appointment')
     
     let selectedItems = []
     
-    if (appointments.length >= 2) {
-      // Include at least 2 appointments
+    if (appointments.length >= MIN_APPOINTMENTS_IN_SUMMARY) {
+      // Include at least MIN_APPOINTMENTS_IN_SUMMARY appointments
       const sortedAppointments = appointments.sort((a, b) => 
         Math.abs(a.selectionDate.getTime() - now.getTime()) - Math.abs(b.selectionDate.getTime() - now.getTime())
       )
       
-      // Take 2 closest appointments
-      selectedItems.push(...sortedAppointments.slice(0, 2))
+      // Take MIN_APPOINTMENTS_IN_SUMMARY closest appointments
+      selectedItems.push(...sortedAppointments.slice(0, MIN_APPOINTMENTS_IN_SUMMARY))
       
       // Fill remaining slots with closest non-appointments
-      const remainingSlots = 4 - selectedItems.length
+      const remainingSlots = ANNOUNCEMENT_SUMMARY_LIMIT - selectedItems.length
       if (remainingSlots > 0 && nonAppointments.length > 0) {
         const sortedNonAppointments = nonAppointments.sort((a, b) => 
           Math.abs(a.selectionDate.getTime() - now.getTime()) - Math.abs(b.selectionDate.getTime() - now.getTime())
@@ -270,21 +278,31 @@ export default function FamilyMattersPage() {
       }
       
       // If we still have slots, add more appointments
-      if (selectedItems.length < 4 && appointments.length > 2) {
-        const remainingAppointments = sortedAppointments.slice(2)
-        const remainingSlots = 4 - selectedItems.length
+      if (selectedItems.length < ANNOUNCEMENT_SUMMARY_LIMIT && appointments.length > MIN_APPOINTMENTS_IN_SUMMARY) {
+        const remainingAppointments = sortedAppointments.slice(MIN_APPOINTMENTS_IN_SUMMARY)
+        const remainingSlots = ANNOUNCEMENT_SUMMARY_LIMIT - selectedItems.length
         selectedItems.push(...remainingAppointments.slice(0, remainingSlots))
       }
     } else {
-      // Less than 2 appointments available, just select 4 closest items
+      // Less than MIN_APPOINTMENTS_IN_SUMMARY appointments available, just select closest items
       const allItems = itemsWithSelectionDate.sort((a, b) => 
         Math.abs(a.selectionDate.getTime() - now.getTime()) - Math.abs(b.selectionDate.getTime() - now.getTime())
       )
-      selectedItems = allItems.slice(0, 4)
+      selectedItems = allItems.slice(0, ANNOUNCEMENT_SUMMARY_LIMIT)
     }
     
-    // Sort final selection by selection date
-    return selectedItems.sort((a, b) => a.selectionDate.getTime() - b.selectionDate.getTime())
+    // Sort final selection: appointments first, then by selection date
+    return selectedItems.sort((a, b) => {
+      // First, prioritize appointments over other categories
+      if (a.category === 'appointment' && b.category !== 'appointment') {
+        return -1 // a comes before b
+      }
+      if (a.category !== 'appointment' && b.category === 'appointment') {
+        return 1 // b comes before a
+      }
+      // If both are same category (both appointments or both non-appointments), sort by date
+      return a.selectionDate.getTime() - b.selectionDate.getTime()
+    })
   }, [bulletins])
 
   // Fetch bulletins when component mounts
