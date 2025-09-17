@@ -23,11 +23,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Apps Grid */}
+      {/* Apps Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex flex-wrap justify-center gap-8">
           {/* Mom&apos;s Recipes App */}
-          <Link href="/recipe" className="group">
+          <Link href="/recipe" className="group w-full max-w-sm">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
               <div className="relative h-48 bg-gradient-to-br from-indigo-500 to-purple-600">
                 <img
@@ -56,7 +56,7 @@ export default function HomePage() {
 
           {/* Family Business App - Only show if user has family permissions */}
           {canViewFamily && (
-            <Link href="/family" className="group">
+            <Link href="/family" className="group w-full max-w-sm">
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
                 <div className="relative h-48 bg-gradient-to-br from-blue-500 to-indigo-600">
                   <img

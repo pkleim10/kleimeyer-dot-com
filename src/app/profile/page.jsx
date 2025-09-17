@@ -28,13 +28,14 @@ export default function ProfilePage() {
   const getUserRole = () => {
     if (!permissions || permissions.length === 0) return 'member'
     
-    const permissionList = permissions.map(p => p.permission)
+    // permissions is already an array of strings from usePermissions hook
+    const permissionList = permissions
     
     if (permissionList.includes('admin:full_access')) {
       return 'admin'
     } else if (permissionList.includes('family:full_access')) {
       return 'family'
-    } else if (permissionList.some(p => p.startsWith('recipe:'))) {
+    } else if (permissionList.some(p => p && p.startsWith('recipe:'))) {
       return 'contributor'
     }
     
