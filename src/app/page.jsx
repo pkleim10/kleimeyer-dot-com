@@ -53,10 +53,22 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Hero Section */}
       <div className="relative bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        {/* Hero Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: 'url(/main-hero.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-gray-900/60" />
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-white mb-4 sm:text-5xl md:text-6xl">
-              Welcome to Kleimeyer.com
+              Welcome to kleimeyer-dot-com
             </h1>
             <p className="text-lg text-gray-100 mb-8 max-w-2xl mx-auto">
               Your digital hub for family favorites, recipes, and more. Explore our collection of apps and tools.
