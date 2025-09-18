@@ -764,7 +764,7 @@ export default function FamilyMattersPage() {
                           {contact.phone && (
                             <a
                               href={`tel:${contact.phone}`}
-                              className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
+                              className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors sm:hidden"
                               title="Call"
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
