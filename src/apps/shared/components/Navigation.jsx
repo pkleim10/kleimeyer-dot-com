@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRouter, usePathname } from 'next/navigation'
-import { getRandomNavImage } from '@/utils/navImages'
 
 // Navigation context detection
 const getNavigationContext = (pathname) => {
@@ -95,7 +94,7 @@ const getAppNavigation = (context, user, canManageUsers) => {
       ]
     case 'family':
       return [
-        { name: 'Contacts', href: '/family', current: context.section === 'home' },
+        { name: 'Dashboard', href: '/family', current: context.section === 'home' },
         { name: 'Announcements', href: '/family/announcements', current: context.section === 'announcements' },
         { name: 'Documents', href: '/family/documents', current: context.section === 'documents' }
       ]
@@ -114,17 +113,10 @@ const getAppNavigation = (context, user, canManageUsers) => {
 export default function Navigation() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [navImage, setNavImage] = useState('')
   const { user, signOut } = useAuth()
   const { canManageUsers } = usePermissions()
   const router = useRouter()
   const pathname = usePathname()
-
-  // Set random navigation image on component mount
-  useEffect(() => {
-    const randomImage = getRandomNavImage()
-    setNavImage(randomImage)
-  }, [])
 
   const context = getNavigationContext(pathname)
   const breadcrumbs = generateBreadcrumbs(pathname)
@@ -151,20 +143,11 @@ export default function Navigation() {
           {/* Top Bar - Brand, Navigation Links, and User Actions */}
           <div id="nav-top" className="flex justify-between h-16 overflow-visible">
             {/* Brand */}
-            <div className="flex items-center relative overflow-visible">
-              <Link href="/" className="flex items-center relative">
-                {/* Invisible spacer to reserve space for the logo */}
-                <div className="w-24 h-12" />
-                <img
-                  src={navImage || "/kleimeyer-dot-com.jpeg"}
-                  alt="Kleimeyer.com"
-                  className="absolute top-0 left-0 object-cover object-center"
-                  style={{ 
-                    top: '-8px',
-                    height: '64px',
-                    width: '80px'
-                  }}
-                />
+            <div className="flex items-center">
+              <Link href="/" className="flex items-center">
+                <span className="text-2xl font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200">
+                  kleimeyer-dot-com
+                </span>
               </Link>
               
               {/* App Navigation Links - Desktop */}
