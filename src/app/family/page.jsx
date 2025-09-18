@@ -336,21 +336,43 @@ export default function FamilyMattersPage() {
     setError('')
 
     try {
+      // Get the current session to access the token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setError('Not authenticated')
+        return
+      }
+
       if (editingContact) {
-        // Update existing contact
-        const { error } = await supabase
-          .from('family_contacts')
-          .update(formData)
-          .eq('id', editingContact.id)
+        // Update existing contact using API endpoint
+        const response = await fetch(`/api/family/contacts/${editingContact.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify(formData)
+        })
 
-        if (error) throw error
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update contact')
+        }
       } else {
-        // Add new contact
-        const { error } = await supabase
-          .from('family_contacts')
-          .insert(formData)
+        // Add new contact using API endpoint
+        const response = await fetch('/api/family/contacts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify(formData)
+        })
 
-        if (error) throw error
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create contact')
+        }
       }
 
       // Refresh contacts and reset form
@@ -358,7 +380,7 @@ export default function FamilyMattersPage() {
       resetForm()
     } catch (err) {
       console.error('Error saving contact:', err)
-      setError('Failed to save contact')
+      setError('Failed to save contact: ' + err.message)
     } finally {
       setSubmitting(false)
     }
@@ -377,10 +399,31 @@ export default function FamilyMattersPage() {
 
   const handleDelete = async (contactId) => {
     try {
+      // Get the current session to access the token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setError('Not authenticated')
+        return
+      }
+
+      // Delete contact using API endpoint
+      const response = await fetch(`/api/family/contacts/${contactId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete contact')
+      }
+
+      // Refresh contacts after successful deletion
       await fetchContacts()
     } catch (err) {
-      console.error('Error refreshing contacts after delete:', err)
-      setError('Failed to refresh contacts')
+      console.error('Error deleting contact:', err)
+      setError('Failed to delete contact: ' + err.message)
     }
   }
 

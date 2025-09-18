@@ -9,8 +9,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// GET - Fetch family contacts
-export async function GET(request) {
+// PUT - Update contact
+export async function PUT(request, { params }) {
+  const resolvedParams = await params
+  const { id } = resolvedParams
+
   try {
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -35,7 +38,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to view contacts
+    // Check if user has permission to edit contacts
     const { data: userPermissions, error: permError } = await supabaseWithAuth
       .from('user_permissions')
       .select('permission')
@@ -49,80 +52,11 @@ export async function GET(request) {
     const hasPermission = userPermissions?.some(p => 
       p.permission === 'admin:full_access' || 
       p.permission === 'family:full_access' || 
-      p.permission === 'family:view_contacts'
+      p.permission === 'family:edit_contacts'
     )
 
     if (!hasPermission) {
-      console.log('Access denied - no contact view permission for user:', user.id)
-      return NextResponse.json({ error: 'Access denied - family access required' }, { status: 403 })
-    }
-
-    console.log('User has contact view permission')
-
-    // Fetch contacts
-    const { data: contacts, error } = await supabaseWithAuth
-      .from('family_contacts')
-      .select('*')
-      .order('name', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching contacts:', error)
-      return NextResponse.json({ error: 'Failed to fetch contacts' }, { status: 500 })
-    }
-
-    return NextResponse.json({ contacts: contacts || [] })
-
-  } catch (error) {
-    console.error('Unexpected error in GET /api/family/contacts:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-// POST - Create new contact
-export async function POST(request) {
-  try {
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user has permission to create contacts
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-    }
-
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:create_contacts'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - create permission required' }, { status: 403 })
+      return NextResponse.json({ error: 'Access denied - edit permission required' }, { status: 403 })
     }
 
     // Get request body
@@ -134,29 +68,105 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
-    // Create contact using service role to bypass RLS
+    // Update contact using service role to bypass RLS
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     
     const { data: contact, error } = await supabaseAdmin
       .from('family_contacts')
-      .insert({
+      .update({
         name: name.trim(),
         phone: phone?.trim() || null,
         description: description?.trim() || null,
         notes: notes?.trim() || null
       })
+      .eq('id', id)
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating contact:', error)
-      return NextResponse.json({ error: 'Failed to create contact: ' + error.message }, { status: 500 })
+      console.error('Error updating contact:', error)
+      return NextResponse.json({ error: 'Failed to update contact: ' + error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ contact }, { status: 201 })
+    if (!contact) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ contact })
 
   } catch (error) {
-    console.error('Unexpected error in POST /api/family/contacts:', error)
+    console.error('Unexpected error in PUT /api/family/contacts/[id]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE - Delete contact
+export async function DELETE(request, { params }) {
+  const resolvedParams = await params
+  const { id } = resolvedParams
+
+  try {
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Create a client with the user's token
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    })
+
+    // Verify the user's session
+    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user has permission to delete contacts
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
+      .from('user_permissions')
+      .select('permission')
+      .eq('user_id', user.id)
+
+    if (permError) {
+      console.error('Error fetching user permissions:', permError)
+      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    }
+
+    const hasPermission = userPermissions?.some(p => 
+      p.permission === 'admin:full_access' || 
+      p.permission === 'family:full_access' || 
+      p.permission === 'family:delete_contacts'
+    )
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Access denied - delete permission required' }, { status: 403 })
+    }
+
+    // Delete contact using service role to bypass RLS
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    
+    const { error } = await supabaseAdmin
+      .from('family_contacts')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting contact:', error)
+      return NextResponse.json({ error: 'Failed to delete contact' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+
+  } catch (error) {
+    console.error('Unexpected error in DELETE /api/family/contacts/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
