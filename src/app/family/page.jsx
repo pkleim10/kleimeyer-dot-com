@@ -312,6 +312,15 @@ export default function FamilyMattersPage() {
     }
   }, [fetchBulletins, authLoading, user])
 
+  // Clear new announcements badge when user visits family page
+  useEffect(() => {
+    if (user) {
+      // Set localStorage to track when user last visited family page
+      // This will clear the "New!" badge on the main page
+      localStorage.setItem(`lastFamilyVisit_${user.id}`, new Date().toISOString())
+    }
+  }, [user])
+
   const handleFormChange = (e) => {
     setFormData({
       ...formData,

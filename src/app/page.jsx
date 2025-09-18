@@ -1,12 +1,54 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
+import { supabase } from '@/utils/supabase'
 
 export default function HomePage() {
   const { user } = useAuth()
   const { canViewFamily } = usePermissions()
+  const [hasNewAnnouncements, setHasNewAnnouncements] = useState(false)
+  const [checkingAnnouncements, setCheckingAnnouncements] = useState(false)
+
+  // Check for new announcements since user's last visit to family page
+  const checkForNewAnnouncements = async () => {
+    if (!user || !canViewFamily) return
+    
+    setCheckingAnnouncements(true)
+    try {
+      // Get user's last visit to family page from localStorage
+      const lastFamilyVisit = localStorage.getItem(`lastFamilyVisit_${user.id}`)
+      const lastVisitTime = lastFamilyVisit ? new Date(lastFamilyVisit) : new Date(user.last_sign_in_at)
+      
+      // Check for announcements created after last visit
+      const { data: newAnnouncements, error } = await supabase
+        .from('family_bulletins')
+        .select('id, created_at')
+        .gt('created_at', lastVisitTime.toISOString())
+        .limit(1)
+      
+      if (error) {
+        console.error('Error checking for new announcements:', error)
+        return
+      }
+      
+      setHasNewAnnouncements(newAnnouncements && newAnnouncements.length > 0)
+    } catch (error) {
+      console.error('Error checking for new announcements:', error)
+    } finally {
+      setCheckingAnnouncements(false)
+    }
+  }
+
+  // Check for new announcements when user and permissions are loaded
+  useEffect(() => {
+    if (user && canViewFamily) {
+      checkForNewAnnouncements()
+    }
+  }, [user, canViewFamily])
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Hero Section */}
@@ -65,6 +107,15 @@ export default function HomePage() {
                     className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-600/50 to-indigo-700/50" />
+                  
+                  {/* New Announcements Badge */}
+                  {hasNewAnnouncements && (
+                    <div className="absolute top-4 right-4">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white animate-pulse shadow-lg">
+                        New!
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-6 flex-1 flex flex-col">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
