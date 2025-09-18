@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // GET - Fetch documents with optional filters
 export async function GET(request) {
@@ -54,6 +55,9 @@ export async function GET(request) {
 
     console.log('User has document view permission')
 
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
     // Get query parameters
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
@@ -62,8 +66,8 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 50
     const offset = parseInt(searchParams.get('offset')) || 0
 
-    // Build query
-    let query = supabaseWithAuth
+    // Build query using admin client to bypass RLS
+    let query = supabaseAdmin
       .from('family_documents')
       .select('*')
       .order('created_at', { ascending: false })
@@ -200,8 +204,11 @@ export async function POST(request) {
                     file.type.includes('word') ? 'document' :
                     file.type.includes('excel') ? 'spreadsheet' : 'other'
 
-    // Insert document record
-    const { data: document, error: insertError } = await supabaseWithAuth
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Insert document record using admin client to bypass RLS
+    const { data: document, error: insertError } = await supabaseAdmin
       .from('family_documents')
       .insert({
         filename,
@@ -220,7 +227,7 @@ export async function POST(request) {
     if (insertError) {
       console.error('Error inserting document:', insertError)
       // Clean up uploaded file if database insert fails
-      await supabase.storage.from('family-documents').remove([filePath])
+      await supabaseAdmin.storage.from('family-documents').remove([filePath])
       return NextResponse.json({ error: 'Failed to save document record' }, { status: 500 })
     }
 

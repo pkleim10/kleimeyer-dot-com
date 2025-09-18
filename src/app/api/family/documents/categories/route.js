@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // GET - Fetch all document categories
 export async function GET(request) {
@@ -54,7 +55,10 @@ export async function GET(request) {
 
     console.log('Categories API - User has document view permission')
 
-    const { data: categories, error } = await supabaseWithAuth
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: categories, error } = await supabaseAdmin
       .from('document_categories')
       .select('*')
       .order('name')
@@ -74,17 +78,34 @@ export async function GET(request) {
 // POST - Create new category (admin only)
 export async function POST(request) {
   try {
-    // Get the current session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Missing or invalid authorization header' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Create a client with the user's token
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    })
+
+    // Verify the user's session
+    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
     // Check if user has admin permissions
-    const { data: userPermissions, error: permError } = await supabase
+    const { data: userPermissions, error: permError } = await supabaseWithAuth
       .from('user_permissions')
       .select('permission')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
 
     if (permError) {
       console.error('Error fetching user permissions:', permError)
@@ -106,7 +127,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Category name is required' }, { status: 400 })
     }
 
-    const { data: category, error } = await supabase
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: category, error } = await supabaseAdmin
       .from('document_categories')
       .insert({
         name: name.toLowerCase(),
