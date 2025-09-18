@@ -204,8 +204,13 @@ export async function POST(request) {
                     file.type.includes('word') ? 'document' :
                     file.type.includes('excel') ? 'spreadsheet' : 'other'
 
-    // Create admin client for database operations
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    // Create admin client for database operations with proper configuration
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
     // Insert document record using admin client to bypass RLS
     const { data: document, error: insertError } = await supabaseAdmin
@@ -218,6 +223,7 @@ export async function POST(request) {
         file_type: fileType,
         mime_type: file.type,
         category,
+        created_by: user.id,
         description,
         tags
       })
