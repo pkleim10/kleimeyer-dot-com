@@ -166,7 +166,7 @@ export default function PhotoAlbumPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                Family Photo Albums
+                Photo Albums
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Organize and share precious family memories
