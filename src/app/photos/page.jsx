@@ -240,7 +240,7 @@ export default function PhotoAlbumPage() {
                   className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border-2 border-gray-200 dark:border-slate-700 hover:border-green-300 cursor-pointer transition-all duration-200 hover:shadow-md relative group"
                   onClick={() => {
                     // Navigate to album detail page
-                    window.location.href = `/family/photos/album/${album.id}`
+                    window.location.href = `/photos/album/${album.id}`
                   }}
                 >
                   {/* Delete button - only show for albums created by current user */}

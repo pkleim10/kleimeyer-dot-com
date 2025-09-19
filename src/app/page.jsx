@@ -80,24 +80,24 @@ export default function HomePage() {
       {/* Apps Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex flex-wrap justify-center gap-8">
-          {/* Family Photo Album App */}
+          {/* Photo Albums App */}
           {canViewFamily && (
-            <Link href="/family/photos" className="group w-full max-w-sm">
+            <Link href="/photos" className="group w-full max-w-sm">
               <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
                 <div className="relative h-48 bg-gradient-to-br from-green-500 to-emerald-600">
                   <img
                     src="/album-card.png"
-                    alt="Family Photo Album"
+                    alt="Photo Albums"
                     className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
                   />
                   <div className="absolute inset-0 bg-black/20" />
                 </div>
                 <div className="p-6 flex-1 flex flex-col">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors duration-300">
-                    Family Photo Album
+                    Photo Albums
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300">
-                    Cherish and share precious family memories through our curated photo collection
+                    Cherish and share precious memories through our curated photo collection
                   </p>
                   <div className="mt-auto flex items-center text-green-600 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors duration-300">
                     <span className="text-sm font-medium">View Photos</span>

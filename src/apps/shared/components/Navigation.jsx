@@ -16,6 +16,8 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/family') return { app: 'family', section: 'home', page: 'family-home' }
   if (pathname === '/family/announcements') return { app: 'family', section: 'announcements', page: 'announcements' }
   if (pathname === '/family/documents') return { app: 'family', section: 'documents', page: 'documents' }
+  if (pathname === '/photos') return { app: 'photos', section: 'home', page: 'photos-home' }
+  if (pathname.startsWith('/photos/album/')) return { app: 'photos', section: 'album', page: 'album-detail' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -67,6 +69,12 @@ const generateBreadcrumbs = (pathname) => {
         breadcrumbs.push({ name: 'Documents', href: '/family/documents', current: true })
       }
       break
+    case 'photos':
+      breadcrumbs.push({ name: 'Photo Albums', href: '/photos', current: context.section === 'home' })
+      if (context.section === 'album') {
+        breadcrumbs.push({ name: 'Album', href: pathname, current: true })
+      }
+      break
     case 'admin':
       breadcrumbs.push({ name: 'Admin', href: '/admin', current: true })
       break
@@ -97,6 +105,10 @@ const getAppNavigation = (context, user, canManageUsers) => {
         { name: 'Dashboard', href: '/family', current: context.section === 'home' },
         { name: 'Announcements', href: '/family/announcements', current: context.section === 'announcements' },
         { name: 'Documents', href: '/family/documents', current: context.section === 'documents' }
+      ]
+    case 'photos':
+      return [
+        { name: 'Photo Albums', href: '/photos', current: context.section === 'home' }
       ]
     case 'admin':
       return [
