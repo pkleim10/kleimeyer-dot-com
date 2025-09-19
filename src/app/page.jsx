@@ -47,7 +47,7 @@ export default function HomePage() {
     if (user && canViewFamily) {
       checkForNewAnnouncements()
     }
-  }, [user, canViewFamily])
+  }, [user, canViewFamily, checkForNewAnnouncements])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">

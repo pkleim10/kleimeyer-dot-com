@@ -392,7 +392,7 @@ export default function PhotoAlbumPage() {
             </div>
             <div className="px-6 py-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Are you sure you want to delete the album "{albumToDelete.name}"? This action cannot be undone.
+                Are you sure you want to delete the album &quot;{albumToDelete.name}&quot;? This action cannot be undone.
               </p>
             </div>
             <div className="px-6 py-4 bg-gray-50 dark:bg-slate-700 flex justify-end space-x-3">

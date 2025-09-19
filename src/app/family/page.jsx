@@ -57,7 +57,7 @@ export default function FamilyMattersPage() {
       fetchContacts()
       setPageLoading(false)
     }
-  }, [user, authLoading, permissionsLoading, canViewFamily, router, hasLoadedContacts])
+  }, [user, authLoading, permissionsLoading, canViewFamily, router, hasLoadedContacts, fetchContacts])
 
   const fetchContacts = useCallback(async () => {
     try {

@@ -116,7 +116,7 @@ export default function AlbumPage() {
     } catch (err) {
       setError(err.message)
     }
-  }, [albumId])
+  }, [albumId, allPhotos.length, photos.length])
 
   // Client-side filtering and sorting
   const filterAndSortPhotos = useCallback((searchTerm = '', sortBy = 'newest') => {
@@ -197,10 +197,10 @@ export default function AlbumPage() {
     }
   }
 
-  const handleDeletePhoto = (photoId) => {
+  const handleDeletePhoto = useCallback((photoId) => {
     setPhotoToDelete(photoId)
     setShowDeleteModal(true)
-  }
+  }, [])
 
   const confirmDeletePhoto = async () => {
     if (!photoToDelete) return
@@ -258,7 +258,7 @@ export default function AlbumPage() {
   }
 
   // Set cover image
-  const handleSetCover = async (photoId) => {
+  const handleSetCover = useCallback(async (photoId) => {
     try {
       setSettingCover(true)
       const { data: { session } } = await supabase.auth.getSession()
@@ -286,14 +286,14 @@ export default function AlbumPage() {
     } finally {
       setSettingCover(false)
     }
-  }
+  }, [album.id])
 
-  const openEditModal = (photo) => {
+  const openEditModal = useCallback((photo) => {
     setEditingPhoto(photo)
     setEditDescription(photo.description || '')
     setEditTags(Array.isArray(photo.tags) ? photo.tags.join(', ') : '')
     setShowEditModal(true)
-  }
+  }, [])
 
   const closeEditModal = () => {
     setShowEditModal(false)
@@ -360,13 +360,13 @@ export default function AlbumPage() {
     setShowLightbox(true)
   }
 
-  const closeLightbox = () => {
+  const closeLightbox = useCallback(() => {
     setLightboxPhoto(null)
     setShowLightbox(false)
-  }
+  }, [])
 
   // Navigate between photos in lightbox
-  const navigatePhoto = (direction) => {
+  const navigatePhoto = useCallback((direction) => {
     if (!lightboxPhoto || photos.length <= 1) return
 
     const currentIndex = photos.findIndex(p => p.id === lightboxPhoto.id)
@@ -379,7 +379,7 @@ export default function AlbumPage() {
     }
 
     setLightboxPhoto(photos[newIndex])
-  }
+  }, [lightboxPhoto, photos])
 
   // Format file size for display
   const formatFileSize = (bytes) => {
@@ -391,7 +391,7 @@ export default function AlbumPage() {
   }
 
   // Start slideshow
-  const startSlideshow = () => {
+  const startSlideshow = useCallback(() => {
     if (photos.length === 0) return
     
     // If lightbox is not open, open it with the first photo
@@ -412,16 +412,16 @@ export default function AlbumPage() {
     }, 3000)
     
     setSlideshowInterval(interval)
-  }
+  }, [photos, showLightbox])
 
   // Stop slideshow
-  const stopSlideshow = () => {
+  const stopSlideshow = useCallback(() => {
     setIsSlideshow(false)
     if (slideshowInterval) {
       clearInterval(slideshowInterval)
       setSlideshowInterval(null)
     }
-  }
+  }, [slideshowInterval])
 
   // Clean up slideshow on unmount
   useEffect(() => {
@@ -437,7 +437,7 @@ export default function AlbumPage() {
     if (!showLightbox && isSlideshow) {
       stopSlideshow()
     }
-  }, [showLightbox, isSlideshow])
+  }, [showLightbox, isSlideshow, stopSlideshow])
 
   // Keyboard controls for slideshow, navigation, and toolbar actions
   useEffect(() => {

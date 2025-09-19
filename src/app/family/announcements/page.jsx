@@ -243,7 +243,7 @@ export default function AnnouncementsPage() {
       console.error('Error purging expired announcements:', err)
       setError('Failed to purge expired announcements')
     }
-  }, [])
+  }, [fetchBulletins])
 
   // Group bulletins (filtering is now handled by the API)
   const groupedBulletins = useMemo(() => {
