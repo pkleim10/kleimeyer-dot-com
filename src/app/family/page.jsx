@@ -38,27 +38,6 @@ export default function FamilyMattersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [contactsPerPage] = useState(10)
 
-
-  useEffect(() => {
-    // Simple auth check - redirect if no user
-    if (!authLoading && !user) {
-      router.push('/login?redirect=/family')
-      return
-    }
-    
-    // Permission check - redirect if user doesn't have family permissions
-    if (!authLoading && !permissionsLoading && user && !canViewFamily) {
-      router.push('/')
-      return
-    }
-    
-    // If user is authenticated and has permissions and we haven't loaded contacts yet, load them
-    if (!authLoading && !permissionsLoading && user && canViewFamily && !hasLoadedContacts) {
-      fetchContacts()
-      setPageLoading(false)
-    }
-  }, [user, authLoading, permissionsLoading, canViewFamily, router, hasLoadedContacts, fetchContacts])
-
   const fetchContacts = useCallback(async () => {
     try {
       setLoading(true)
@@ -95,6 +74,26 @@ export default function FamilyMattersPage() {
       setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    // Simple auth check - redirect if no user
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/family')
+      return
+    }
+    
+    // Permission check - redirect if user doesn't have family permissions
+    if (!authLoading && !permissionsLoading && user && !canViewFamily) {
+      router.push('/')
+      return
+    }
+    
+    // If user is authenticated and has permissions and we haven't loaded contacts yet, load them
+    if (!authLoading && !permissionsLoading && user && canViewFamily && !hasLoadedContacts) {
+      fetchContacts()
+      setPageLoading(false)
+    }
+  }, [user, authLoading, permissionsLoading, canViewFamily, router, hasLoadedContacts, fetchContacts])
 
   const handleRetry = useCallback(async () => {
     setError('')

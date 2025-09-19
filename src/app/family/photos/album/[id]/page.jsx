@@ -413,7 +413,6 @@ export default function AlbumPage() {
     
     setSlideshowInterval(interval)
   }, [photos, showLightbox])
-
   // Stop slideshow
   const stopSlideshow = useCallback(() => {
     setIsSlideshow(false)
