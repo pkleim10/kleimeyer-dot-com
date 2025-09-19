@@ -71,7 +71,7 @@ export default function HomePage() {
               Welcome to kleimeyer-dot-com
             </h1>
             <p className="text-lg text-gray-100 mb-8 max-w-2xl mx-auto">
-              Your digital hub for family favorites, recipes, and more. Explore our collection of apps and tools.
+              Your digital hub for family information and more.
             </p>
           </div>
         </div>
@@ -80,6 +80,36 @@ export default function HomePage() {
       {/* Apps Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex flex-wrap justify-center gap-8">
+          {/* Family Photo Album App */}
+          {canViewFamily && (
+            <Link href="/family/photos" className="group w-full max-w-sm">
+              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+                <div className="relative h-48 bg-gradient-to-br from-green-500 to-emerald-600">
+                  <img
+                    src="/album-card.png"
+                    alt="Family Photo Album"
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/20" />
+                </div>
+                <div className="p-6 flex-1 flex flex-col">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors duration-300">
+                    Family Photo Album
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Cherish and share precious family memories through our curated photo collection
+                  </p>
+                  <div className="mt-auto flex items-center text-green-600 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors duration-300">
+                    <span className="text-sm font-medium">View Photos</span>
+                    <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
+
           {/* Mom&apos;s Recipes App */}
           <Link href="/recipe" className="group w-full max-w-sm">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">

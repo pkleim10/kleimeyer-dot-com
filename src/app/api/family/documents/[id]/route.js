@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
@@ -38,7 +39,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to manage documents
+    // Check if user has permission to view or manage documents
     const { data: userPermissions, error: permError } = await supabaseWithAuth
       .from('user_permissions')
       .select('permission')
@@ -52,6 +53,7 @@ export async function GET(request, { params }) {
     const hasPermission = userPermissions?.some(p => 
       p.permission === 'admin:full_access' || 
       p.permission === 'family:full_access' || 
+      p.permission === 'family:view_documents' ||
       p.permission === 'family:manage_documents'
     )
 
@@ -59,8 +61,13 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
     }
 
+    // Use admin client for storage and DB reads to bypass RLS, while keeping permission checks above
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
     // Get document details
-    const { data: document, error } = await supabaseWithAuth
+    const { data: document, error } = await supabaseAdmin
       .from('family_documents')
       .select('*')
       .eq('id', id)
@@ -71,8 +78,8 @@ export async function GET(request, { params }) {
     }
 
     if (download) {
-      // Generate signed URL for download
-      const { data: signedUrl, error: urlError } = await supabaseWithAuth.storage
+      // Generate signed URL for download with admin client
+      const { data: signedUrl, error: urlError } = await supabaseAdmin.storage
         .from('family-documents')
         .createSignedUrl(document.file_path, 60) // 60 seconds expiry
 
@@ -145,20 +152,36 @@ export async function PUT(request, { params }) {
 
     // Get request body
     const body = await request.json()
-    const { description, category, tags } = body
+    const { description, category, tags, album_id } = body
 
     // Update document
-    const { data: document, error } = await supabaseWithAuth
+    const updateData = {
+      description: description || null,
+      category: category || 'general',
+      tags: tags || [],
+      updated_at: new Date().toISOString()
+    }
+    
+    // Add album_id if provided
+    if (album_id !== undefined) {
+      updateData.album_id = album_id
+    }
+    
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    
+    console.log('🔍 DEBUG: Updating document with ID:', id)
+    console.log('🔍 DEBUG: Update data:', updateData)
+    console.log('🔍 DEBUG: User ID:', user.id)
+    
+    const { data: document, error } = await supabaseAdmin
       .from('family_documents')
-      .update({
-        description: description || null,
-        category: category || 'general',
-        tags: tags || [],
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
+    
+    console.log('🔍 DEBUG: Update result:', { document, error })
 
     if (error) {
       console.error('Error updating document:', error)

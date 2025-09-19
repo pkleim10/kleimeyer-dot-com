@@ -63,6 +63,7 @@ export async function GET(request) {
     const category = searchParams.get('category')
     const search = searchParams.get('search')
     const fileType = searchParams.get('fileType')
+    const albumId = searchParams.get('albumId')
     const limit = parseInt(searchParams.get('limit')) || 50
     const offset = parseInt(searchParams.get('offset')) || 0
 
@@ -75,27 +76,71 @@ export async function GET(request) {
 
     // Apply filters
     if (category && category !== 'all') {
-      query = query.eq('category', category)
+      // Special case: when looking for photos in an album, don't filter by category
+      // because photos might have different categories after editing
+      if (!albumId) {
+        query = query.eq('category', category)
+      }
     }
 
     if (fileType && fileType !== 'all') {
       query = query.eq('file_type', fileType)
     }
 
+    if (albumId) {
+      // When requesting specific album photos, include only that album
+      query = query.eq('album_id', albumId)
+    } else {
+      // When not requesting album photos, exclude all photos that belong to albums
+      query = query.is('album_id', null)
+    }
+
     if (search) {
-      query = query.or(`original_filename.ilike.%${search}%,description.ilike.%${search}%`)
+      const safeSearch = search.replace(/[,]/g, '')
+      query = query.or(`original_filename.ilike.*${safeSearch}*,description.ilike.*${safeSearch}*`)
     }
 
     const { data: documents, error } = await query
 
-    console.log('Documents query result:', { documents, error })
+    console.log('🔍 DEBUG: Documents query result:', { 
+      documents: documents?.length || 0, 
+      error,
+      albumId,
+      category,
+      search
+    })
+    
+    if (documents && documents.length > 0) {
+      console.log('🔍 DEBUG: First document:', {
+        id: documents[0].id,
+        original_filename: documents[0].original_filename,
+        album_id: documents[0].album_id,
+        category: documents[0].category
+      })
+    }
 
     if (error) {
       console.error('Error fetching documents:', error)
       return NextResponse.json({ error: 'Failed to fetch documents: ' + error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ documents })
+    // For images, attach a short-lived signed URL for previewing
+    const documentsWithUrls = await Promise.all((documents || []).map(async (doc) => {
+      if (doc.file_type === 'image' && doc.file_path) {
+        try {
+          const { data: signed, error: signedErr } = await supabaseAdmin
+            .storage
+            .from('family-documents')
+            .createSignedUrl(doc.file_path, 3600) // 1 hour
+          if (!signedErr && signed?.signedUrl) {
+            return { ...doc, preview_url: signed.signedUrl }
+          }
+        } catch (_) {}
+      }
+      return doc
+    }))
+
+    return NextResponse.json({ documents: documentsWithUrls })
   } catch (error) {
     console.error('Error in documents GET:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -155,6 +200,7 @@ export async function POST(request) {
     const description = formData.get('description') || ''
     const category = formData.get('category') || 'general'
     const tags = formData.get('tags') ? formData.get('tags').split(',').map(tag => tag.trim()) : []
+    const albumIdForm = formData.get('albumId') || null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -185,8 +231,16 @@ export async function POST(request) {
     const filename = `${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`
     const filePath = `documents/${category}/${filename}`
 
-    // Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabaseWithAuth.storage
+    // Create admin client for database and storage operations with proper configuration
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+
+    // Upload file to Supabase Storage using admin client to bypass Storage RLS
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('family-documents')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -204,14 +258,6 @@ export async function POST(request) {
                     file.type.includes('word') ? 'document' :
                     file.type.includes('excel') ? 'spreadsheet' : 'other'
 
-    // Create admin client for database operations with proper configuration
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-
     // Insert document record using admin client to bypass RLS
     const { data: document, error: insertError } = await supabaseAdmin
       .from('family_documents')
@@ -223,6 +269,7 @@ export async function POST(request) {
         file_type: fileType,
         mime_type: file.type,
         category,
+        album_id: albumIdForm,
         created_by: user.id,
         description,
         tags
@@ -235,6 +282,37 @@ export async function POST(request) {
       // Clean up uploaded file if database insert fails
       await supabaseAdmin.storage.from('family-documents').remove([filePath])
       return NextResponse.json({ error: 'Failed to save document record' }, { status: 500 })
+    }
+
+    // If this is an image uploaded to an album, check if it should be the cover image
+    if (albumIdForm && fileType === 'image') {
+      try {
+        // Check if the album already has a cover image
+        const { data: album, error: albumError } = await supabaseAdmin
+          .from('photo_albums')
+          .select('cover_image_id')
+          .eq('id', albumIdForm)
+          .single()
+
+        if (albumError && albumError.code === '42703') {
+          // Column doesn't exist yet, skip cover image setting
+          console.log('cover_image_id column not found, skipping cover image setting')
+        } else if (!albumError && !album.cover_image_id) {
+          // Set this image as the cover image
+          const { error: updateError } = await supabaseAdmin
+            .from('photo_albums')
+            .update({ cover_image_id: document.id })
+            .eq('id', albumIdForm)
+          
+          if (updateError && updateError.code === '42703') {
+            console.log('cover_image_id column not found, skipping cover image setting')
+          }
+        }
+      } catch (coverError) {
+        console.error('Error setting cover image:', coverError)
+        // Don't fail the upload if cover image setting fails
+        // This might happen if the cover_image_id column doesn't exist yet
+      }
     }
 
     return NextResponse.json({ document }, { status: 201 })
