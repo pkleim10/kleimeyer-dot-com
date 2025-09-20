@@ -41,6 +41,32 @@ export default function AlbumPage() {
     sortBy: 'newest'
   })
 
+  // Compute filtered and sorted photos synchronously
+  const filteredPhotos = useMemo(() => {
+    let filtered = [...allPhotos]
+
+    // Apply search filter
+    if (filters.search.trim()) {
+      const searchTerm = filters.search.toLowerCase()
+      filtered = filtered.filter(photo =>
+        photo.original_filename?.toLowerCase().includes(searchTerm) ||
+        photo.description?.toLowerCase().includes(searchTerm) ||
+        (Array.isArray(photo.tags) && photo.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
+      )
+    }
+
+    // Apply sorting
+    if (filters.sortBy === 'newest') {
+      filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    } else if (filters.sortBy === 'oldest') {
+      filtered.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    } else if (filters.sortBy === 'name') {
+      filtered.sort((a, b) => a.original_filename.localeCompare(b.original_filename))
+    }
+
+    return filtered
+  }, [allPhotos, filters.search, filters.sortBy])
+
   // Redirect if no family permissions
   useEffect(() => {
     if (!permissionsLoading && !canViewFamily) {
@@ -103,7 +129,7 @@ export default function AlbumPage() {
         albumId,
         fetchedCount: fetchedPhotos.length,
         allPhotosCount: allPhotos.length,
-        photosCount: photos.length
+        filteredPhotosCount: filteredPhotos.length
       })
       
       if (fetchedPhotos.length > 0) {
@@ -119,38 +145,8 @@ export default function AlbumPage() {
     } catch (err) {
       setError(err.message)
     }
-  }, [albumId, allPhotos.length, photos.length])
+  }, [albumId, allPhotos.length, filteredPhotos.length])
 
-  // Client-side filtering and sorting
-  const filterAndSortPhotos = useCallback((searchTerm = '', sortBy = 'newest') => {
-    let filteredPhotos = [...allPhotos]
-
-    // Apply search filter
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase()
-      filteredPhotos = filteredPhotos.filter(photo => 
-        photo.original_filename.toLowerCase().includes(searchLower) ||
-        (photo.description && photo.description.toLowerCase().includes(searchLower)) ||
-        (photo.tags && photo.tags.some(tag => tag.toLowerCase().includes(searchLower)))
-      )
-    }
-
-    // Apply sorting
-    if (sortBy === 'newest') {
-      filteredPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    } else if (sortBy === 'oldest') {
-      filteredPhotos.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    } else if (sortBy === 'name') {
-      filteredPhotos.sort((a, b) => a.original_filename.localeCompare(b.original_filename))
-    }
-
-    setPhotos(filteredPhotos)
-  }, [allPhotos])
-
-  // Apply filters when allPhotos or filters change
-  useEffect(() => {
-    filterAndSortPhotos(filters.search, filters.sortBy)
-  }, [allPhotos, filters.search, filters.sortBy, filterAndSortPhotos])
 
   useEffect(() => {
     if (albumId && canViewFamily) {
@@ -318,12 +314,12 @@ export default function AlbumPage() {
       }
 
       // Handle navigation after successful deletion
-      const currentPhotoIndex = photos.findIndex(p => p.id === photoToDelete)
+      const currentPhotoIndex = filteredPhotos.findIndex(p => p.id === photoToDelete)
 
       // Update local state instead of refetching
       setAllPhotos(prevPhotos => prevPhotos.filter(p => p.id !== photoToDelete))
 
-      const remainingPhotos = photos.filter(p => p.id !== photoToDelete)
+      const remainingPhotos = filteredPhotos.filter(p => p.id !== photoToDelete)
 
       if (remainingPhotos.length === 0) {
         // No photos left, close lightbox and return to album view
@@ -406,7 +402,7 @@ export default function AlbumPage() {
     if (!editingPhoto || !canManageDocuments) return
     
     console.log('🔍 DEBUG: Starting save details for photo:', editingPhoto.id)
-    console.log('🔍 DEBUG: Current photos count before edit:', photos.length)
+    console.log('🔍 DEBUG: Current filtered photos count before edit:', filteredPhotos.length)
     console.log('🔍 DEBUG: All photos count before edit:', allPhotos.length)
     
     setSaving(true)
@@ -472,19 +468,19 @@ export default function AlbumPage() {
 
   // Navigate between photos in lightbox
   const navigatePhoto = useCallback((direction) => {
-    if (!lightboxPhoto || photos.length <= 1) return
+    if (!lightboxPhoto || filteredPhotos.length <= 1) return
 
-    const currentIndex = photos.findIndex(p => p.id === lightboxPhoto.id)
+    const currentIndex = filteredPhotos.findIndex(p => p.id === lightboxPhoto.id)
     let newIndex
 
     if (direction === 'prev') {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1
+      newIndex = currentIndex > 0 ? currentIndex - 1 : filteredPhotos.length - 1
     } else {
-      newIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0
+      newIndex = currentIndex < filteredPhotos.length - 1 ? currentIndex + 1 : 0
     }
 
-    setLightboxPhoto(photos[newIndex])
-  }, [lightboxPhoto, photos])
+    setLightboxPhoto(filteredPhotos[newIndex])
+  }, [lightboxPhoto, filteredPhotos])
 
   // Format file size for display
   const formatFileSize = (bytes) => {
@@ -497,27 +493,27 @@ export default function AlbumPage() {
 
   // Start slideshow
   const startSlideshow = useCallback(() => {
-    if (photos.length === 0) return
-    
+    if (filteredPhotos.length === 0) return
+
     // If lightbox is not open, open it with the first photo
     if (!showLightbox) {
-      setLightboxPhoto(photos[0])
+      setLightboxPhoto(filteredPhotos[0])
       setShowLightbox(true)
     }
-    
+
     setIsSlideshow(true)
-    
+
     // Start slideshow with 3-second intervals
     const interval = setInterval(() => {
       setLightboxPhoto(prevPhoto => {
-        const currentIndex = photos.findIndex(p => p.id === prevPhoto.id)
-        const nextIndex = (currentIndex + 1) % photos.length
-        return photos[nextIndex]
+        const currentIndex = filteredPhotos.findIndex(p => p.id === prevPhoto.id)
+        const nextIndex = (currentIndex + 1) % filteredPhotos.length
+        return filteredPhotos[nextIndex]
       })
     }, 3000)
-    
+
     setSlideshowInterval(interval)
-  }, [photos, showLightbox])
+  }, [filteredPhotos, showLightbox])
   // Stop slideshow
   const stopSlideshow = useCallback(() => {
     setIsSlideshow(false)
@@ -608,7 +604,7 @@ export default function AlbumPage() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [showLightbox, isSlideshow, navigatePhoto, canManageDocuments, user, album, lightboxPhoto, photos.length, openEditModal, handleSetCover, startSlideshow, stopSlideshow, closeLightbox, handleDeletePhoto])
+  }, [showLightbox, isSlideshow, navigatePhoto, canManageDocuments, user, album, lightboxPhoto, filteredPhotos.length, openEditModal, handleSetCover, startSlideshow, stopSlideshow, closeLightbox, handleDeletePhoto])
 
   if (permissionsLoading || loading) {
     return (
@@ -854,7 +850,7 @@ export default function AlbumPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {photos.length} photos
+                  {filteredPhotos.length} photos
                 </h3>
                 <div className="flex gap-2">
                   <input
@@ -865,7 +861,7 @@ export default function AlbumPage() {
                     className="w-48 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 dark:bg-slate-700 dark:text-gray-100"
                     placeholder="Search photos..."
                   />
-                  {photos.length > 0 && (
+                  {filteredPhotos.length > 0 && (
                     <button
                       onClick={isSlideshow ? stopSlideshow : startSlideshow}
                       className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
@@ -898,7 +894,7 @@ export default function AlbumPage() {
         </div>
 
         {/* Photo Grid */}
-        {photos.length === 0 ? (
+        {filteredPhotos.length === 0 ? (
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
             <div className="p-12 text-center">
               <svg className="mx-auto h-24 w-24 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -929,7 +925,7 @@ export default function AlbumPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0">
-            {photos.map((photo) => (
+            {filteredPhotos.map((photo) => (
               <div
                 key={photo.id}
                 className="aspect-square cursor-pointer overflow-hidden hover:opacity-90 transition-opacity duration-200 relative group"
@@ -976,7 +972,7 @@ export default function AlbumPage() {
           {/* Photo container */}
           <div className="relative max-w-4xl max-h-full p-4">
             {/* Navigation buttons - positioned just outside image area */}
-            {photos.length > 1 && (
+            {filteredPhotos.length > 1 && (
               <>
                 <button
                   onClick={() => navigatePhoto('prev')}
@@ -1034,7 +1030,7 @@ export default function AlbumPage() {
               )}
 
               {/* Slideshow Toggle */}
-              {photos.length > 0 && (
+              {filteredPhotos.length > 0 && (
                 <button
                   onClick={isSlideshow ? stopSlideshow : startSlideshow}
                   className={`p-2 rounded-full transition-colors ${
