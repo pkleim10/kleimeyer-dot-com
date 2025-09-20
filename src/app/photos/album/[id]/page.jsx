@@ -259,6 +259,11 @@ export default function AlbumPage() {
 
   // Set cover image
   const handleSetCover = useCallback(async (photoId) => {
+    if (!album?.id) {
+      console.error('Cannot set cover: album not loaded')
+      return
+    }
+
     try {
       setSettingCover(true)
       const { data: { session } } = await supabase.auth.getSession()
@@ -286,7 +291,7 @@ export default function AlbumPage() {
     } finally {
       setSettingCover(false)
     }
-  }, [album.id])
+  }, [album?.id, fetchAlbum])
 
   const openEditModal = useCallback((photo) => {
     setEditingPhoto(photo)
@@ -478,7 +483,7 @@ export default function AlbumPage() {
         }
       } else if (e.key === 'c' || e.key === 'C') {
         e.preventDefault()
-        if (user && album && album.created_by === user.id && lightboxPhoto) {
+        if (user && album?.created_by === user.id && lightboxPhoto) {
           handleSetCover(lightboxPhoto.id)
         }
       } else if (e.key === 's' || e.key === 'S') {
@@ -840,7 +845,7 @@ export default function AlbumPage() {
               )}
 
               {/* Set as Cover */}
-              {user && album.created_by === user.id && (
+              {user && album?.created_by === user.id && (
                 <button
                   onClick={() => handleSetCover(lightboxPhoto.id)}
                   disabled={settingCover}
