@@ -27,6 +27,8 @@ export default function AlbumPage() {
   const [selectedPhotos, setSelectedPhotos] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 })
+  const [touchStart, setTouchStart] = useState(null)
+  const [touchEnd, setTouchEnd] = useState(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [photoToDelete, setPhotoToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -559,6 +561,31 @@ export default function AlbumPage() {
 
     setLightboxPhoto(filteredPhotos[newIndex])
   }, [lightboxPhoto, filteredPhotos])
+
+  // Swipe gesture handlers for mobile navigation
+  const handleTouchStart = useCallback((e) => {
+    setTouchEnd(null)
+    setTouchStart(e.targetTouches[0].clientX)
+  }, [])
+
+  const handleTouchMove = useCallback((e) => {
+    setTouchEnd(e.targetTouches[0].clientX)
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStart || !touchEnd) return
+    
+    const distance = touchStart - touchEnd
+    const isLeftSwipe = distance > 50
+    const isRightSwipe = distance < -50
+
+    if (isLeftSwipe && filteredPhotos.length > 1) {
+      navigatePhoto('next')
+    }
+    if (isRightSwipe && filteredPhotos.length > 1) {
+      navigatePhoto('prev')
+    }
+  }, [touchStart, touchEnd, navigatePhoto, filteredPhotos.length])
 
   // Format file size for display
   const formatFileSize = (bytes) => {
@@ -1145,13 +1172,28 @@ export default function AlbumPage() {
 
       {/* Lightbox */}
       {showLightbox && lightboxPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
 
           {/* Slideshow indicator */}
           {isSlideshow && (
             <div className="absolute top-4 left-4 z-10 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
               Slideshow
+            </div>
+          )}
+
+          {/* Mobile swipe hint */}
+          {filteredPhotos.length > 1 && (
+            <div className="absolute top-4 right-4 z-10 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 sm:hidden">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+              </svg>
+              Swipe
             </div>
           )}
 
@@ -1162,7 +1204,7 @@ export default function AlbumPage() {
               <>
                 <button
                   onClick={() => navigatePhoto('prev')}
-                  className="absolute -left-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10"
+                  className="absolute -left-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
                   title="Previous photo"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1171,7 +1213,7 @@ export default function AlbumPage() {
                 </button>
                 <button
                   onClick={() => navigatePhoto('next')}
-                  className="absolute -right-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10"
+                  className="absolute -right-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
                   title="Next photo"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
