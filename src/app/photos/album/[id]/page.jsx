@@ -536,9 +536,26 @@ export default function AlbumPage() {
     }
   }
 
-  const openLightbox = (photo) => {
+  const openLightbox = async (photo) => {
     setLightboxPhoto(photo)
     setShowLightbox(true)
+    
+    // Fetch high-quality image URL for lightbox
+    try {
+      const response = await fetch(`/api/family/documents/${photo.id}/lightbox`, {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setLightboxPhoto(prev => ({ ...prev, lightbox_url: data.lightbox_url }))
+      }
+    } catch (error) {
+      console.error('Error fetching high-quality image:', error)
+      // Fall back to preview_url if lightbox URL fails
+    }
   }
 
   const closeLightbox = useCallback(() => {
@@ -547,7 +564,7 @@ export default function AlbumPage() {
   }, [])
 
   // Navigate between photos in lightbox
-  const navigatePhoto = useCallback((direction) => {
+  const navigatePhoto = useCallback(async (direction) => {
     if (!lightboxPhoto || filteredPhotos.length <= 1) return
 
     const currentIndex = filteredPhotos.findIndex(p => p.id === lightboxPhoto.id)
@@ -559,7 +576,25 @@ export default function AlbumPage() {
       newIndex = currentIndex < filteredPhotos.length - 1 ? currentIndex + 1 : 0
     }
 
-    setLightboxPhoto(filteredPhotos[newIndex])
+    const newPhoto = filteredPhotos[newIndex]
+    setLightboxPhoto(newPhoto)
+    
+    // Fetch high-quality image URL for the new photo
+    try {
+      const response = await fetch(`/api/family/documents/${newPhoto.id}/lightbox`, {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setLightboxPhoto(prev => ({ ...prev, lightbox_url: data.lightbox_url }))
+      }
+    } catch (error) {
+      console.error('Error fetching high-quality image:', error)
+      // Fall back to preview_url if lightbox URL fails
+    }
   }, [lightboxPhoto, filteredPhotos])
 
   // Swipe gesture handlers for mobile navigation
@@ -609,11 +644,27 @@ export default function AlbumPage() {
     setIsSlideshow(true)
 
     // Start slideshow with 3-second intervals
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       setLightboxPhoto(prevPhoto => {
         const currentIndex = filteredPhotos.findIndex(p => p.id === prevPhoto.id)
         const nextIndex = (currentIndex + 1) % filteredPhotos.length
-        return filteredPhotos[nextIndex]
+        const newPhoto = filteredPhotos[nextIndex]
+        
+        // Fetch high-quality image URL for slideshow
+        fetch(`/api/family/documents/${newPhoto.id}/lightbox`, {
+          headers: {
+            'Authorization': `Bearer ${supabase.auth.getSession().then(s => s.data.session?.access_token)}`
+          }
+        })
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+          if (data?.lightbox_url) {
+            setLightboxPhoto(prev => ({ ...prev, lightbox_url: data.lightbox_url }))
+          }
+        })
+        .catch(error => console.error('Error fetching high-quality image:', error))
+        
+        return newPhoto
       })
     }, 3000)
 
@@ -1198,13 +1249,13 @@ export default function AlbumPage() {
           )}
 
           {/* Photo container */}
-          <div className="relative max-w-4xl max-h-full p-4">
+          <div className="relative w-full h-full p-4 flex items-center justify-center">
             {/* Navigation buttons - positioned just outside image area */}
             {filteredPhotos.length > 1 && (
               <>
                 <button
                   onClick={() => navigatePhoto('prev')}
-                  className="absolute -left-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
+                  className="fixed left-4 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
                   title="Previous photo"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1213,7 +1264,7 @@ export default function AlbumPage() {
                 </button>
                 <button
                   onClick={() => navigatePhoto('next')}
-                  className="absolute -right-16 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
+                  className="fixed right-4 top-1/2 transform -translate-y-1/2 p-3 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors z-10 sm:block hidden"
                   title="Next photo"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1223,9 +1274,14 @@ export default function AlbumPage() {
               </>
             )}
             <img
-              src={lightboxPhoto.preview_url}
+              src={lightboxPhoto.lightbox_url || lightboxPhoto.preview_url}
               alt={lightboxPhoto.original_filename}
-              className="max-w-full max-h-full object-contain"
+              className="w-full h-full object-contain"
+              style={{ 
+                maxHeight: 'calc(100vh - 8rem)',
+                minHeight: '70vh',
+                minWidth: '50vw'
+              }}
             />
 
             {/* Image Toolbar - always visible */}

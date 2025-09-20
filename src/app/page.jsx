@@ -94,7 +94,7 @@ export default function HomePage() {
                 </div>
                 <div className="p-6 flex-1 flex flex-col">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors duration-300">
-                    Photo Albums
+                    Gallery
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300">
                     Cherish and share precious memories through our curated photo collection
