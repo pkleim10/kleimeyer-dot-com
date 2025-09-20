@@ -20,6 +20,9 @@ export default function AlbumPage() {
   const [error, setError] = useState(null)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState([])
+  const [previews, setPreviews] = useState([])
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [photoToDelete, setPhotoToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -158,13 +161,80 @@ export default function AlbumPage() {
     }
   }, [albumId, canViewFamily, fetchAlbum, fetchPhotos])
 
+  // Handle file selection and drag-drop
+  const handleFiles = useCallback((files) => {
+    const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+
+    if (validFiles.length === 0) {
+      setError('Please select valid image files')
+      return
+    }
+
+    setSelectedFiles(validFiles)
+    setError('')
+
+    // Generate previews
+    const newPreviews = validFiles.map(file => ({
+      file,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size
+    }))
+    setPreviews(newPreviews)
+  }, [])
+
+  // Drag and drop handlers
+  const handleDrag = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files)
+    }
+  }, [handleFiles])
+
+  // File input change handler
+  const handleFileInputChange = useCallback((e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFiles(e.target.files)
+    }
+  }, [handleFiles])
+
+  // Remove file from selection
+  const removeFile = useCallback((index) => {
+    const newFiles = selectedFiles.filter((_, i) => i !== index)
+    const newPreviews = previews.filter((_, i) => i !== index)
+
+    setSelectedFiles(newFiles)
+    setPreviews(newPreviews)
+  }, [selectedFiles, previews])
+
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      previews.forEach(preview => URL.revokeObjectURL(preview.url))
+    }
+  }, [previews])
+
   const handleFileUpload = async (e) => {
     e.preventDefault()
-    if (!albumId) return
+    if (!albumId || selectedFiles.length === 0) return
 
+    // Get form data
     const formData = new FormData(e.target)
-    formData.append('albumId', albumId)
-    formData.append('category', 'photos')
+    const description = formData.get('description')
+    const tags = formData.get('tags')
 
     setUploading(true)
     try {
@@ -174,20 +244,32 @@ export default function AlbumPage() {
         throw new Error('No active session')
       }
 
-      const response = await fetch('/api/family/documents', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: formData
-      })
+      // Upload each file
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const fileFormData = new FormData()
+        fileFormData.append('file', selectedFiles[i])
+        fileFormData.append('albumId', albumId)
+        fileFormData.append('category', 'photos')
+        if (description) fileFormData.append('description', description)
+        if (tags) fileFormData.append('tags', tags)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Upload failed')
+        const response = await fetch('/api/family/documents', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: fileFormData
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Upload failed for ${selectedFiles[i].name}`)
+        }
       }
 
       setShowUploadForm(false)
+      setSelectedFiles([])
+      setPreviews([])
       e.target.reset()
       await fetchPhotos()
     } catch (err) {
@@ -604,44 +686,115 @@ export default function AlbumPage() {
           <div className="mb-8 bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
               <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                Upload New Photo
+                Upload Photos
               </h3>
             </div>
             <div className="px-6 py-4">
-              <form onSubmit={handleFileUpload} className="space-y-4">
+              <form onSubmit={handleFileUpload} className="space-y-6">
+                {/* Drag & Drop Zone */}
                 <div>
-                  <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Photo *
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Photos *
                   </label>
-                  <input
-                    type="file"
-                    id="file"
-                    name="file"
-                    required
-                    accept="image/*"
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 dark:bg-slate-700 dark:text-gray-100"
-                  />
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Maximum file size: 10MB. Supported formats: JPG, PNG, GIF, WebP.
-                  </p>
+                  <div
+                    className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
+                      dragActive
+                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                        : 'border-gray-300 dark:border-slate-600'
+                    }`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    <input
+                      type="file"
+                      id="file"
+                      name="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleFileInputChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="text-center">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {dragActive ? (
+                            <span className="text-green-600 font-medium">Drop your photos here</span>
+                          ) : (
+                            <>
+                              Drag & drop photos here, or{' '}
+                              <span className="text-green-600 font-medium">browse files</span>
+                            </>
+                          )}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          Maximum file size: 10MB each. Supported formats: JPG, PNG, GIF, WebP. Multiple files allowed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Image Previews */}
+                {previews.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Selected Photos ({previews.length})
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {previews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-700">
+                            <img
+                              src={preview.url}
+                              alt={preview.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            title="Remove photo"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate" title={preview.name}>
+                              {preview.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              {(preview.size / 1024 / 1024).toFixed(1)} MB
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Description
+                    Description (applied to all photos)
                   </label>
                   <textarea
                     id="description"
                     name="description"
                     rows={3}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 dark:bg-slate-700 dark:text-gray-100"
-                    placeholder="Describe this photo..."
+                    placeholder="Describe these photos..."
                   />
                 </div>
 
                 <div>
                   <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Tags
+                    Tags (applied to all photos)
                   </label>
                   <input
                     type="text"
@@ -655,17 +808,21 @@ export default function AlbumPage() {
                 <div className="flex justify-end space-x-3">
                   <button
                     type="button"
-                    onClick={() => setShowUploadForm(false)}
+                    onClick={() => {
+                      setShowUploadForm(false)
+                      setSelectedFiles([])
+                      setPreviews([])
+                    }}
                     className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={uploading}
+                    disabled={uploading || selectedFiles.length === 0}
                     className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                   >
-                    {uploading ? 'Uploading...' : 'Upload Photo'}
+                    {uploading ? `Uploading... (${selectedFiles.length} files)` : `Upload ${selectedFiles.length} Photo${selectedFiles.length !== 1 ? 's' : ''}`}
                   </button>
                 </div>
               </form>
@@ -735,7 +892,7 @@ export default function AlbumPage() {
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {filters.search
                   ? 'Try adjusting your search terms.'
-                  : 'Start building your family photo album by uploading your first photo.'}
+                  : 'Start building your family photo album by uploading your photos.'}
               </p>
               {canUploadDocuments && !filters.search && (
                 <div className="mt-6">
@@ -746,7 +903,7 @@ export default function AlbumPage() {
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    Upload First Photo
+                    Upload Photos
                   </button>
                 </div>
               )}
@@ -874,8 +1031,8 @@ export default function AlbumPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
                     </svg>
                   )}
                 </button>
