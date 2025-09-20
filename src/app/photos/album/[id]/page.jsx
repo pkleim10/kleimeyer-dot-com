@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -20,9 +20,13 @@ export default function AlbumPage() {
   const [error, setError] = useState(null)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [dragActive, setDragActive] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState([])
   const [previews, setPreviews] = useState([])
+  const [selectedPhotos, setSelectedPhotos] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 })
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [photoToDelete, setPhotoToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -136,16 +140,17 @@ export default function AlbumPage() {
         console.log('🔍 DEBUG: First fetched photo:', {
           id: fetchedPhotos[0].id,
           filename: fetchedPhotos[0].original_filename,
-          album_id: fetchedPhotos[0].album_id
+          album_id: fetchedPhotos[0].album_id,
+          preview_url: fetchedPhotos[0].preview_url,
+          file_path: fetchedPhotos[0].file_path
         })
       }
       
       setAllPhotos(fetchedPhotos)
-      setPhotos(fetchedPhotos)
     } catch (err) {
       setError(err.message)
     }
-  }, [albumId, allPhotos.length, filteredPhotos.length])
+  }, [albumId])
 
 
   useEffect(() => {
@@ -233,6 +238,7 @@ export default function AlbumPage() {
     const tags = formData.get('tags')
 
     setUploading(true)
+    setUploadProgress({ current: 0, total: selectedFiles.length })
     try {
       // Get the session token
       const { data: { session } } = await supabase.auth.getSession()
@@ -266,14 +272,21 @@ export default function AlbumPage() {
 
         const result = await response.json()
         uploadedPhotos.push(result.document)
+        
+        // Update progress
+        setUploadProgress({ current: i + 1, total: selectedFiles.length })
       }
 
-      // Update local state instead of refetching
+      // Add uploaded photos to local state (without signed URLs)
+      // The signed URLs will be generated when the page refreshes or when fetchPhotos is called
       setAllPhotos(prevPhotos => {
         const newPhotos = [...prevPhotos, ...uploadedPhotos]
         // Sort by newest first (assuming created_at is available)
         return newPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       })
+
+      // Refresh photos to get signed URLs from the API
+      await fetchPhotos()
 
       setShowUploadForm(false)
       setSelectedFiles([])
@@ -283,6 +296,71 @@ export default function AlbumPage() {
       setError(err.message)
     } finally {
       setUploading(false)
+      setUploadProgress({ current: 0, total: 0 })
+    }
+  }
+
+  const togglePhotoSelection = useCallback((photoId) => {
+    setSelectedPhotos(prev => {
+      const newSelection = new Set(prev)
+      if (newSelection.has(photoId)) {
+        newSelection.delete(photoId)
+      } else {
+        newSelection.add(photoId)
+      }
+      return newSelection
+    })
+  }, [])
+
+  const selectAllPhotos = useCallback(() => {
+    setSelectedPhotos(new Set(filteredPhotos.map(photo => photo.id)))
+  }, [filteredPhotos])
+
+  const clearSelection = useCallback(() => {
+    setSelectedPhotos(new Set())
+  }, [])
+
+  const handleBulkDelete = async () => {
+    if (selectedPhotos.size === 0) return
+
+    setBulkDeleting(true)
+    setDeleteProgress({ current: 0, total: selectedPhotos.size })
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
+      const photosToDelete = Array.from(selectedPhotos)
+      let currentIndex = 0
+
+      for (const photoId of photosToDelete) {
+        const response = await fetch(`/api/family/documents/${photoId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Failed to delete photo ${photoId}`)
+        }
+
+        currentIndex++
+        setDeleteProgress({ current: currentIndex, total: photosToDelete.length })
+      }
+
+      // Update local state
+      setAllPhotos(prevPhotos => prevPhotos.filter(photo => !selectedPhotos.has(photo.id)))
+      setSelectedPhotos(new Set())
+      
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBulkDeleting(false)
+      setDeleteProgress({ current: 0, total: 0 })
     }
   }
 
@@ -831,13 +909,26 @@ export default function AlbumPage() {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={uploading || selectedFiles.length === 0}
-                    className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {uploading ? `Uploading... (${selectedFiles.length} files)` : `Upload ${selectedFiles.length} Photo${selectedFiles.length !== 1 ? 's' : ''}`}
-                  </button>
+                  <div className="space-y-2">
+                    {uploading && uploadProgress.total > 0 && (
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={uploading || selectedFiles.length === 0}
+                      className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                    >
+                      {uploading 
+                        ? `Uploading... (${uploadProgress.current}/${uploadProgress.total} files)` 
+                        : `Upload ${selectedFiles.length} Photo${selectedFiles.length !== 1 ? 's' : ''}`
+                      }
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -876,19 +967,64 @@ export default function AlbumPage() {
                 </div>
               </div>
 
-              <select
-                id="sort"
-                value={filters.sortBy}
-                onChange={(e) => {
-                  const sortBy = e.target.value
-                  setFilters(prev => ({ ...prev, sortBy }))
-                }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 dark:bg-slate-700 dark:text-gray-100"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="name">Name</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  id="sort"
+                  value={filters.sortBy}
+                  onChange={(e) => {
+                    const sortBy = e.target.value
+                    setFilters(prev => ({ ...prev, sortBy }))
+                  }}
+                  className="px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 dark:bg-slate-700 dark:text-gray-100"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="name">Name</option>
+                </select>
+
+                {/* Selection Controls */}
+                {canManageDocuments && filteredPhotos.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    {selectedPhotos.size === 0 ? (
+                      <button
+                        onClick={selectAllPhotos}
+                        className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded transition-colors"
+                      >
+                        Select All
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={clearSelection}
+                          className="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition-colors"
+                        >
+                          Clear ({selectedPhotos.size})
+                        </button>
+                        <div className="space-y-2">
+                          {bulkDeleting && deleteProgress.total > 0 && (
+                            <div className="w-32 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-red-600 h-2 rounded-full transition-all duration-300 ease-out"
+                                style={{ width: `${(deleteProgress.current / deleteProgress.total) * 100}%` }}
+                              />
+                            </div>
+                          )}
+                          <button
+                            onClick={handleBulkDelete}
+                            disabled={bulkDeleting}
+                            className="px-3 py-1 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+                          >
+                            {bulkDeleting 
+                              ? `Deleting... (${deleteProgress.current}/${deleteProgress.total})` 
+                              : `Delete ${selectedPhotos.size} Photo${selectedPhotos.size !== 1 ? 's' : ''}`
+                            }
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -925,34 +1061,84 @@ export default function AlbumPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0">
-            {filteredPhotos.map((photo) => (
-              <div
-                key={photo.id}
-                className="aspect-square cursor-pointer overflow-hidden hover:opacity-90 transition-opacity duration-200 relative group"
-                onClick={() => openLightbox(photo)}
-              >
-                <img
-                  src={photo.preview_url || photo.file_path}
-                  alt={photo.original_filename}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-                {canManageDocuments && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeletePhoto(photo.id)
-                    }}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                    title="Delete photo"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            ))}
+            {filteredPhotos.map((photo) => {
+              const isSelected = selectedPhotos.has(photo.id)
+              return (
+                <div
+                  key={photo.id}
+                  className={`aspect-square cursor-pointer overflow-hidden hover:opacity-90 transition-all duration-200 relative group ${
+                    isSelected ? 'ring-4 ring-blue-500 ring-opacity-75' : ''
+                  }`}
+                  onClick={() => {
+                    if (selectedPhotos.size > 0) {
+                      togglePhotoSelection(photo.id)
+                    } else {
+                      openLightbox(photo)
+                    }
+                  }}
+                >
+                  <img
+                    src={photo.preview_url}
+                    alt={photo.original_filename}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  
+                  {/* Selection overlay */}
+                  {isSelected && (
+                    <div className="absolute inset-0 bg-blue-500 bg-opacity-30 flex items-center justify-center">
+                      <div className="bg-blue-500 text-white rounded-full p-2">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selection checkbox */}
+                  {canManageDocuments && (
+                    <div className="absolute top-2 left-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          togglePhotoSelection(photo.id)
+                        }}
+                        className={`p-1 rounded-full transition-all duration-200 ${
+                          isSelected 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-white bg-opacity-80 text-gray-700 hover:bg-opacity-100'
+                        }`}
+                        title={isSelected ? "Deselect photo" : "Select photo"}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {isSelected ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          )}
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Individual delete button (only show when no selection) */}
+                  {canManageDocuments && selectedPhotos.size === 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeletePhoto(photo.id)
+                      }}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                      title="Delete photo"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -995,7 +1181,7 @@ export default function AlbumPage() {
               </>
             )}
             <img
-              src={lightboxPhoto.preview_url || lightboxPhoto.file_path}
+              src={lightboxPhoto.preview_url}
               alt={lightboxPhoto.original_filename}
               className="max-w-full max-h-full object-contain"
             />

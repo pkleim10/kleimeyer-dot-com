@@ -244,8 +244,11 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
     }
 
+    // Create admin client for storage and database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
     // Get document details first
-    const { data: document, error: fetchError } = await supabaseWithAuth
+    const { data: document, error: fetchError } = await supabaseAdmin
       .from('family_documents')
       .select('file_path')
       .eq('id', id)
@@ -255,18 +258,27 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    // Delete from storage
-    const { error: storageError } = await supabaseWithAuth.storage
-      .from('family-documents')
-      .remove([document.file_path])
+    console.log('🗑️ DEBUG: Deleting document:', {
+      id,
+      file_path: document.file_path
+    })
 
-    if (storageError) {
-      console.error('Error deleting file from storage:', storageError)
-      // Continue with database deletion even if storage deletion fails
+    // Delete from storage using admin client
+    if (document.file_path) {
+      const { error: storageError } = await supabaseAdmin.storage
+        .from('family-documents')
+        .remove([document.file_path])
+
+      if (storageError) {
+        console.error('Error deleting file from storage:', storageError)
+        // Continue with database deletion even if storage deletion fails
+      } else {
+        console.log('✅ File deleted from storage:', document.file_path)
+      }
     }
 
-    // Delete from database
-    const { error: deleteError } = await supabaseWithAuth
+    // Delete from database using admin client
+    const { error: deleteError } = await supabaseAdmin
       .from('family_documents')
       .delete()
       .eq('id', id)

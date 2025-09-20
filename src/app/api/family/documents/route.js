@@ -111,11 +111,13 @@ export async function GET(request) {
     })
     
     if (documents && documents.length > 0) {
-      console.log('🔍 DEBUG: First document:', {
+      console.log('🔍 DEBUG: First document (before signed URLs):', {
         id: documents[0].id,
         original_filename: documents[0].original_filename,
         album_id: documents[0].album_id,
-        category: documents[0].category
+        category: documents[0].category,
+        file_path: documents[0].file_path,
+        file_type: documents[0].file_type
       })
     }
 
@@ -135,10 +137,19 @@ export async function GET(request) {
           if (!signedErr && signed?.signedUrl) {
             return { ...doc, preview_url: signed.signedUrl }
           }
-        } catch (_) {}
+        } catch (err) {
+          console.error('Error generating signed URL for document:', doc.id, err)
+        }
       }
       return doc
     }))
+
+    console.log('🔍 DEBUG: First document (after signed URLs):', {
+      id: documentsWithUrls[0]?.id,
+      original_filename: documentsWithUrls[0]?.original_filename,
+      preview_url: documentsWithUrls[0]?.preview_url,
+      file_path: documentsWithUrls[0]?.file_path
+    })
 
     return NextResponse.json({ documents: documentsWithUrls })
   } catch (error) {
