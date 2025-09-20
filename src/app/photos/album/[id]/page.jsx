@@ -244,6 +244,8 @@ export default function AlbumPage() {
         throw new Error('No active session')
       }
 
+      const uploadedPhotos = []
+
       // Upload each file
       for (let i = 0; i < selectedFiles.length; i++) {
         const fileFormData = new FormData()
@@ -265,13 +267,22 @@ export default function AlbumPage() {
           const errorData = await response.json()
           throw new Error(errorData.error || `Upload failed for ${selectedFiles[i].name}`)
         }
+
+        const result = await response.json()
+        uploadedPhotos.push(result.document)
       }
+
+      // Update local state instead of refetching
+      setAllPhotos(prevPhotos => {
+        const newPhotos = [...prevPhotos, ...uploadedPhotos]
+        // Sort by newest first (assuming created_at is available)
+        return newPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      })
 
       setShowUploadForm(false)
       setSelectedFiles([])
       setPreviews([])
       e.target.reset()
-      await fetchPhotos()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -308,24 +319,26 @@ export default function AlbumPage() {
 
       // Handle navigation after successful deletion
       const currentPhotoIndex = photos.findIndex(p => p.id === photoToDelete)
+
+      // Update local state instead of refetching
+      setAllPhotos(prevPhotos => prevPhotos.filter(p => p.id !== photoToDelete))
+
       const remainingPhotos = photos.filter(p => p.id !== photoToDelete)
-      
+
       if (remainingPhotos.length === 0) {
         // No photos left, close lightbox and return to album view
         setShowDeleteModal(false)
         setPhotoToDelete(null)
         closeLightbox()
-        await fetchPhotos()
       } else {
         // Navigate to next photo (wrap around if at the end)
         let nextPhotoIndex = currentPhotoIndex
         if (nextPhotoIndex >= remainingPhotos.length) {
           nextPhotoIndex = 0 // Wrap to first photo
         }
-        
+
         setShowDeleteModal(false)
         setPhotoToDelete(null)
-        await fetchPhotos()
         
         // Set the next photo in lightbox
         if (remainingPhotos[nextPhotoIndex]) {
@@ -422,17 +435,22 @@ export default function AlbumPage() {
       })
       
       if (res.ok) {
-        console.log('🔍 DEBUG: Update successful, refreshing photos...')
-        // Instead of updating local state, refresh from server to ensure consistency
-        await fetchPhotos()
-        console.log('🔍 DEBUG: After refresh - photos count:', photos.length)
-        console.log('🔍 DEBUG: After refresh - allPhotos count:', allPhotos.length)
-        
+        console.log('🔍 DEBUG: Update successful, updating local state...')
+
+        // Update the photo in local state
+        setAllPhotos(prevPhotos =>
+          prevPhotos.map(photo =>
+            photo.id === editingPhoto.id
+              ? { ...photo, description: editDescription, tags: tagsArray }
+              : photo
+          )
+        )
+
         // Update lightbox photo if it's the same one
         if (lightboxPhoto && lightboxPhoto.id === editingPhoto.id) {
           setLightboxPhoto({ ...lightboxPhoto, description: editDescription, tags: tagsArray })
         }
-        
+
         closeEditModal()
       }
     } catch (error) {
