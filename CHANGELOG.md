@@ -73,6 +73,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Family Appointments Calendar**: Dedicated appointments page with wall calendar view
+  - New `/family/appointments` page with calendar and list views
+  - Month-by-month calendar navigation with previous/next buttons
+  - Wall calendar layout showing appointments on specific days
+  - Support for both regular and recurring appointments in calendar view
+  - Print-friendly calendar with professional styling for physical printing
+  - Appointment details shown in calendar cells (title, time, location)
+  - Today highlighting and smart recurring appointment calculation
+  - Toggle between calendar view and list view for different use cases
 - **Photo Album System**: Complete photo album management with cover images
   - Create and manage multiple photo albums
   - Set album cover images automatically or manually

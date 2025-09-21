@@ -15,6 +15,7 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/admin') return { app: 'admin', section: 'dashboard', page: 'admin' }
   if (pathname === '/family') return { app: 'family', section: 'home', page: 'family-home' }
   if (pathname === '/family/announcements') return { app: 'family', section: 'announcements', page: 'announcements' }
+  if (pathname === '/family/announcements/calendar') return { app: 'family', section: 'calendar', page: 'calendar' }
   if (pathname === '/family/documents') return { app: 'family', section: 'documents', page: 'documents' }
   if (pathname === '/photos') return { app: 'photos', section: 'home', page: 'photos-home' }
   if (pathname.startsWith('/photos/album/')) return { app: 'photos', section: 'album', page: 'album-detail' }
@@ -65,6 +66,9 @@ const generateBreadcrumbs = (pathname) => {
       breadcrumbs.push({ name: 'Family Business', href: '/family', current: context.section === 'home' })
       if (context.section === 'announcements') {
         breadcrumbs.push({ name: 'Announcements', href: '/family/announcements', current: true })
+      } else if (context.section === 'calendar') {
+        breadcrumbs.push({ name: 'Announcements', href: '/family/announcements', current: false })
+        breadcrumbs.push({ name: 'Calendar', href: '/family/announcements/calendar', current: true })
       } else if (context.section === 'documents') {
         breadcrumbs.push({ name: 'Documents', href: '/family/documents', current: true })
       }
@@ -104,6 +108,7 @@ const getAppNavigation = (context, user, canManageUsers) => {
       return [
         { name: 'Dashboard', href: '/family', current: context.section === 'home' },
         { name: 'Announcements', href: '/family/announcements', current: context.section === 'announcements' },
+        { name: 'Calendar', href: '/family/announcements/calendar', current: context.section === 'calendar' },
         { name: 'Documents', href: '/family/documents', current: context.section === 'documents' }
       ]
     case 'photos':
