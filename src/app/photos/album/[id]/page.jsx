@@ -176,8 +176,9 @@ export default function AlbumPage() {
     setSelectedFiles(validFiles)
     setError('')
 
-    // Generate previews
-    const newPreviews = validFiles.map(file => ({
+    // Generate previews with unique IDs
+    const newPreviews = validFiles.map((file, index) => ({
+      id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
       file,
       url: URL.createObjectURL(file),
       name: file.name,
@@ -215,13 +216,24 @@ export default function AlbumPage() {
   }, [handleFiles])
 
   // Remove file from selection
-  const removeFile = useCallback((index) => {
-    const newFiles = selectedFiles.filter((_, i) => i !== index)
-    const newPreviews = previews.filter((_, i) => i !== index)
+  const removeFile = useCallback((id) => {
+    // Find the preview to remove
+    const previewToRemove = previews.find(p => p.id === id)
+    if (!previewToRemove) return
+
+    // Revoke the object URL to prevent memory leaks
+    URL.revokeObjectURL(previewToRemove.url)
+
+    // Remove from both arrays using the unique ID
+    const newPreviews = previews.filter(p => p.id !== id)
+    
+    // For selectedFiles, we need to find the corresponding file
+    // Since we can't easily match by ID, we'll reconstruct from the remaining previews
+    const newFiles = newPreviews.map(preview => preview.file)
 
     setSelectedFiles(newFiles)
     setPreviews(newPreviews)
-  }, [selectedFiles, previews])
+  }, [previews])
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -916,8 +928,8 @@ export default function AlbumPage() {
                       Selected Photos ({previews.length})
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                      {previews.map((preview, index) => (
-                        <div key={index} className="relative group">
+                      {previews.map((preview) => (
+                        <div key={preview.id} className="relative group">
                           <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-700">
                             <img
                               src={preview.url}
@@ -927,7 +939,7 @@ export default function AlbumPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => removeFile(index)}
+                            onClick={() => removeFile(preview.id)}
                             className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                             title="Remove photo"
                           >
