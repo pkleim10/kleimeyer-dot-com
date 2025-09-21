@@ -492,12 +492,12 @@ export default function AppointmentsPage() {
                     const hasAppointments = day.appointments.length > 0
                     
                     return (
-                      <div 
-                        key={`${weekIndex}-${dayIndex}`} 
-                        className={`calendar-day border border-black p-1 bg-white text-xs ${
-                          hasAppointments ? 'min-h-[120px]' : 'min-h-[72px]'
-                        } ${isToday ? 'bg-yellow-100 border-2 border-orange-400' : ''}`}
-                      >
+                        <div 
+                          key={`${weekIndex}-${dayIndex}`} 
+                          className={`calendar-day border border-black p-1 bg-white text-xs min-h-[118px] ${
+                            isToday ? 'bg-yellow-100 border-2 border-orange-400' : ''
+                          }`}
+                        >
                         <div className="flex justify-between items-center mb-1">
                           <div className="font-medium">{day.date.getDate()}</div>
                           {day.appointments.length > 2 && (
