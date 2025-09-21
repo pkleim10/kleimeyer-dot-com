@@ -461,6 +461,18 @@ export default function AnnouncementsPage() {
         }
       }
       
+      // For recurring appointments, set expiration to 2 hours after the last occurrence
+      if (formData.category === 'appointment' && formData.is_recurring && formData.recurrence_end_date && formData.recurrence_time) {
+        // Parse the end date and recurrence time as Arizona time
+        const endDateStr = formData.recurrence_end_date
+        const timeStr = formData.recurrence_time
+        const lastOccurrenceDateTime = new Date(`${endDateStr}T${timeStr}-07:00`) // Arizona time
+        
+        // Set expiration to 2 hours after the last occurrence
+        const expirationTime = new Date(lastOccurrenceDateTime.getTime() + (2 * 60 * 60 * 1000)) // Add 2 hours
+        dataToSend.expires_at = expirationTime.toISOString()
+      }
+      
       // Only set expiration manually for non-appointment announcements
       if (formData.expires_at && formData.category !== 'appointment') {
         // Treat the input as Arizona time and convert to UTC
@@ -1696,10 +1708,15 @@ export default function AnnouncementsPage() {
                 )}
                 
                 {/* Show info message for appointment announcements */}
-                {formData.category === 'appointment' && formData.appointment_datetime && (
+                {formData.category === 'appointment' && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <span className="font-medium">Auto-expiration:</span> This appointment will automatically expire 2 hours after the appointment time.
+                      <span className="font-medium">Auto-expiration:</span> 
+                      {formData.is_recurring ? (
+                        <> This recurring appointment will automatically expire 2 hours after the last occurrence.</>
+                      ) : (
+                        <> This appointment will automatically expire 2 hours after the appointment time.</>
+                      )}
                     </p>
                   </div>
                 )}
