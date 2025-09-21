@@ -414,11 +414,7 @@ export default function AppointmentsPage() {
                   week.map((day, dayIndex) => (
                     <div
                       key={`${weekIndex}-${dayIndex}`}
-                      className={`calendar-day bg-white dark:bg-slate-800 p-2 ${
-                        day && day.appointments.length > 0 
-                          ? 'min-h-[120px]' 
-                          : 'min-h-[72px]'
-                      } ${
+                      className={`calendar-day bg-white dark:bg-slate-800 p-2 min-h-[120px] ${
                         day && day.date.toDateString() === new Date().toDateString()
                           ? 'today bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500'
                           : ''
