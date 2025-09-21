@@ -184,6 +184,50 @@ export default function FamilyMattersPage() {
     }
   }, [])
 
+  // Helper function to calculate next occurrence for recurring appointments
+  const getNextRecurringOccurrence = useCallback((bulletin) => {
+    if (!bulletin.is_recurring || !bulletin.recurrence_start_date || !bulletin.recurrence_end_date || !bulletin.recurrence_time || !bulletin.recurrence_days || bulletin.recurrence_days.length === 0) {
+      return null
+    }
+
+    const now = new Date()
+    const startDate = new Date(bulletin.recurrence_start_date)
+    const endDate = new Date(bulletin.recurrence_end_date)
+    const [hours, minutes] = bulletin.recurrence_time.split(':').map(Number)
+    
+    // If we're past the end date, no more occurrences
+    if (now > endDate) {
+      return null
+    }
+
+    // Find the next occurrence
+    let currentDate = new Date(Math.max(now, startDate))
+    const maxIterations = 365 // Prevent infinite loops
+    let iterations = 0
+
+    while (iterations < maxIterations) {
+      const dayOfWeek = currentDate.getDay()
+      
+      // Check if today is one of the recurring days
+      if (bulletin.recurrence_days.includes(dayOfWeek)) {
+        // Create the appointment datetime for this day
+        const appointmentDateTime = new Date(currentDate)
+        appointmentDateTime.setHours(hours, minutes, 0, 0)
+        
+        // If this appointment is in the future and within the end date, return it
+        if (appointmentDateTime > now && appointmentDateTime <= endDate) {
+          return appointmentDateTime
+        }
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1)
+      iterations++
+    }
+
+    return null
+  }, [])
+
   // Get announcements for hero display using new algorithm
   const heroBulletins = useMemo(() => {
     const now = new Date()
@@ -192,6 +236,7 @@ export default function FamilyMattersPage() {
     
     // Step 1: Initial selection
     // - Appointments: appointment_datetime between now and two weeks from now
+    // - Recurring appointments: next occurrence between now and two weeks from now
     // - Other announcements: created_at between one week ago and now
     const initialSelection = bulletins.filter(bulletin => {
       // Skip expired announcements
@@ -200,10 +245,16 @@ export default function FamilyMattersPage() {
       }
       
       if (bulletin.category === 'appointment') {
-        // Appointments: between now and two weeks from now
-        if (!bulletin.appointment_datetime) return false
-        const appointmentDate = new Date(bulletin.appointment_datetime)
-        return appointmentDate >= now && appointmentDate <= twoWeeksFromNow
+        if (bulletin.is_recurring) {
+          // Recurring appointments: check if next occurrence is within two weeks
+          const nextOccurrence = getNextRecurringOccurrence(bulletin)
+          return nextOccurrence && nextOccurrence >= now && nextOccurrence <= twoWeeksFromNow
+        } else {
+          // Regular appointments: between now and two weeks from now
+          if (!bulletin.appointment_datetime) return false
+          const appointmentDate = new Date(bulletin.appointment_datetime)
+          return appointmentDate >= now && appointmentDate <= twoWeeksFromNow
+        }
       } else {
         // Other announcements: created between one week ago and now
         if (!bulletin.created_at) return false
@@ -212,9 +263,28 @@ export default function FamilyMattersPage() {
       }
     })
     
-    // Step 2: If limit or fewer items, return all
+    // Step 2: If limit or fewer items, return all with proper dates
     if (initialSelection.length <= ANNOUNCEMENT_SUMMARY_LIMIT) {
-      return initialSelection.sort((a, b) => {
+      return initialSelection.map(bulletin => {
+        let selectionDate
+        
+        if (bulletin.category === 'appointment') {
+          if (bulletin.is_recurring) {
+            selectionDate = getNextRecurringOccurrence(bulletin)
+          } else {
+            selectionDate = new Date(bulletin.appointment_datetime)
+          }
+        } else if (bulletin.category === 'payment') {
+          selectionDate = bulletin.payment_due_date ? new Date(bulletin.payment_due_date) : new Date(bulletin.created_at)
+        } else {
+          selectionDate = new Date(bulletin.created_at)
+        }
+        
+        return {
+          ...bulletin,
+          selectionDate
+        }
+      }).sort((a, b) => {
         // First, prioritize appointments over other categories
         if (a.category === 'appointment' && b.category !== 'appointment') {
           return -1 // a comes before b
@@ -223,13 +293,7 @@ export default function FamilyMattersPage() {
           return 1 // b comes before a
         }
         // If both are same category, sort by their respective dates
-        const dateA = a.category === 'appointment' 
-          ? new Date(a.appointment_datetime) 
-          : new Date(a.created_at)
-        const dateB = b.category === 'appointment' 
-          ? new Date(b.appointment_datetime) 
-          : new Date(b.created_at)
-        return dateA.getTime() - dateB.getTime()
+        return a.selectionDate.getTime() - b.selectionDate.getTime()
       })
     }
     
@@ -238,7 +302,11 @@ export default function FamilyMattersPage() {
       let selectionDate
       
       if (bulletin.category === 'appointment') {
-        selectionDate = new Date(bulletin.appointment_datetime)
+        if (bulletin.is_recurring) {
+          selectionDate = getNextRecurringOccurrence(bulletin)
+        } else {
+          selectionDate = new Date(bulletin.appointment_datetime)
+        }
       } else if (bulletin.category === 'payment') {
         selectionDate = bulletin.payment_due_date ? new Date(bulletin.payment_due_date) : new Date(bulletin.created_at)
       } else {
@@ -302,7 +370,7 @@ export default function FamilyMattersPage() {
       // If both are same category (both appointments or both non-appointments), sort by date
       return a.selectionDate.getTime() - b.selectionDate.getTime()
     })
-  }, [bulletins])
+  }, [bulletins, getNextRecurringOccurrence])
 
   // Fetch bulletins when component mounts
   useEffect(() => {
@@ -605,7 +673,12 @@ export default function FamilyMattersPage() {
 
                           {/* Content */}
                         <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">{bulletin.title}</h3>
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">
+                              {bulletin.title}
+                              {bulletin.is_recurring && (
+                                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-normal">(Recurring)</span>
+                              )}
+                            </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">{bulletin.content}</p>
                             {/* Rating Display */}
                             {bulletin.rating && bulletin.rating > 0 && (

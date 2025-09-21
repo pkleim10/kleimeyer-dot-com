@@ -14,6 +14,64 @@ export default function AnnouncementsPage() {
   const { canCreateAnnouncement, canEditAnnouncement, canDeleteAnnouncement, canManageUsers, canViewFamily, permissionsLoading } = usePermissions()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Helper function to format date strings without timezone issues
+  const formatDateString = (dateString) => {
+    if (!dateString) return ''
+    // Parse the date string and create a date object in the local timezone
+    // This prevents the off-by-one day issue caused by timezone conversion
+    const [year, month, day] = dateString.split('-').map(Number)
+    const date = new Date(year, month - 1, day) // month is 0-indexed
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  // Helper function to calculate next occurrence for recurring appointments
+  const getNextRecurringOccurrence = useCallback((bulletin) => {
+    if (!bulletin.is_recurring || !bulletin.recurrence_start_date || !bulletin.recurrence_end_date || !bulletin.recurrence_time || !bulletin.recurrence_days || bulletin.recurrence_days.length === 0) {
+      return null
+    }
+
+    const now = new Date()
+    const startDate = new Date(bulletin.recurrence_start_date)
+    const endDate = new Date(bulletin.recurrence_end_date)
+    const [hours, minutes] = bulletin.recurrence_time.split(':').map(Number)
+    
+    // If we're past the end date, no more occurrences
+    if (now > endDate) {
+      return null
+    }
+
+    // Find the next occurrence
+    let currentDate = new Date(Math.max(now, startDate))
+    const maxIterations = 365 // Prevent infinite loops
+    let iterations = 0
+
+    while (iterations < maxIterations) {
+      const dayOfWeek = currentDate.getDay()
+      
+      // Check if today is one of the recurring days
+      if (bulletin.recurrence_days.includes(dayOfWeek)) {
+        // Create the appointment datetime for this day
+        const appointmentDateTime = new Date(currentDate)
+        appointmentDateTime.setHours(hours, minutes, 0, 0)
+        
+        // If this appointment is in the future and within the end date, return it
+        if (appointmentDateTime > now && appointmentDateTime <= endDate) {
+          return appointmentDateTime
+        }
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1)
+      iterations++
+    }
+
+    return null
+  }, [])
   
   const [bulletins, setBulletins] = useState([])
   const [loading, setLoading] = useState(true)
@@ -39,7 +97,13 @@ export default function AnnouncementsPage() {
     payment_reference: '',
     payment_recipient: '',
     action_required: false,
-    medical_provider: ''
+    medical_provider: '',
+    // Recurring appointment fields
+    is_recurring: false,
+    recurrence_start_date: '',
+    recurrence_end_date: '',
+    recurrence_days: [],
+    recurrence_time: ''
   })
   const [submitting, setSubmitting] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, bulletin: null })
@@ -201,7 +265,13 @@ export default function AnnouncementsPage() {
           payment_reference: bulletinToEdit.payment_reference || '',
           payment_recipient: bulletinToEdit.payment_recipient || '',
           action_required: bulletinToEdit.action_required || false,
-          medical_provider: bulletinToEdit.medical_provider || ''
+          medical_provider: bulletinToEdit.medical_provider || '',
+          // Recurring appointment fields
+          is_recurring: bulletinToEdit.is_recurring || false,
+          recurrence_start_date: bulletinToEdit.recurrence_start_date || '',
+          recurrence_end_date: bulletinToEdit.recurrence_end_date || '',
+          recurrence_days: bulletinToEdit.recurrence_days || [],
+          recurrence_time: bulletinToEdit.recurrence_time || ''
         })
         setShowAddForm(true)
 
@@ -316,6 +386,7 @@ export default function AnnouncementsPage() {
       category: 'general',
       priority: 'medium',
       expires_at: '',
+      rating: 0,
       // Specialized fields
       url: '',
       website_email: '',
@@ -327,7 +398,13 @@ export default function AnnouncementsPage() {
       payment_reference: '',
       payment_recipient: '',
       action_required: false,
-      medical_provider: ''
+      medical_provider: '',
+      // Recurring appointment fields
+      is_recurring: false,
+      recurrence_start_date: '',
+      recurrence_end_date: '',
+      recurrence_days: [],
+      recurrence_time: ''
     })
     setEditingBulletin(null)
     setShowAddForm(false)
@@ -499,7 +576,13 @@ export default function AnnouncementsPage() {
       payment_reference: bulletin.payment_reference || '',
       payment_recipient: bulletin.payment_recipient || '',
       action_required: bulletin.action_required || false,
-      medical_provider: bulletin.medical_provider || ''
+      medical_provider: bulletin.medical_provider || '',
+      // Recurring appointment fields
+      is_recurring: bulletin.is_recurring || false,
+      recurrence_start_date: bulletin.recurrence_start_date || '',
+      recurrence_end_date: bulletin.recurrence_end_date || '',
+      recurrence_days: bulletin.recurrence_days || [],
+      recurrence_time: bulletin.recurrence_time || ''
     })
     setShowAddForm(true)
   }
@@ -846,12 +929,31 @@ export default function AnnouncementsPage() {
                     <div className="flex-1">
                       <div className="flex items-start space-x-3 mb-2">
                         {/* Date Badge for active (non-expired) appointments */}
-                        {bulletin.category === 'appointment' && bulletin.appointment_datetime && !isExpired(bulletin.expires_at) && (
+                        {bulletin.category === 'appointment' && !isExpired(bulletin.expires_at) && (
                           (() => {
-                            const appointmentDate = new Date(bulletin.appointment_datetime)
+                            let appointmentDate
+                            let time
+                            
+                            if (bulletin.is_recurring) {
+                              // For recurring appointments, calculate the next occurrence
+                              const nextOccurrence = getNextRecurringOccurrence(bulletin)
+                              if (!nextOccurrence) return null
+                              appointmentDate = nextOccurrence
+                              time = bulletin.recurrence_time ? new Date(`2000-01-01T${bulletin.recurrence_time}`).toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit', 
+                                timeZone: 'America/Phoenix' 
+                              }) : ''
+                            } else {
+                              // For regular appointments, use the appointment_datetime
+                              if (!bulletin.appointment_datetime) return null
+                              appointmentDate = new Date(bulletin.appointment_datetime)
+                              time = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' })
+                            }
+                            
                             const month = appointmentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'America/Phoenix' })
                             const day = appointmentDate.getDate()
-                            const time = appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Phoenix' })
+                            
                             return (
                               <div className="flex-shrink-0 w-16 bg-white rounded shadow-sm overflow-hidden">
                                 <div className="bg-red-500 text-white text-xs font-medium text-center py-0.5">
@@ -1006,12 +1108,48 @@ export default function AnnouncementsPage() {
                         </div>
                       )}
 
-                      {bulletin.category === 'appointment' && (bulletin.appointment_datetime || bulletin.appointment_location) && (
+                      {bulletin.category === 'appointment' && (bulletin.appointment_datetime || bulletin.is_recurring || bulletin.appointment_location) && (
                         <div className="mb-3 space-y-1">
-                          {/* Removed Date & Time line because badge displays this info */}
-                          {bulletin.appointment_location && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              <span className="font-medium">Location:</span> {bulletin.appointment_location}
+                          {bulletin.is_recurring ? (
+                            // Recurring appointment details
+                            <div className="space-y-2">
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                <span className="font-medium">Recurring:</span> {bulletin.recurrence_start_date && bulletin.recurrence_end_date ? 
+                                  `${formatDateString(bulletin.recurrence_start_date)} - ${formatDateString(bulletin.recurrence_end_date)}` : 
+                                  'Not set'
+                                }
+                              </div>
+                              {bulletin.recurrence_time && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Time:</span> {new Date(`2000-01-01T${bulletin.recurrence_time}`).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    timeZone: 'America/Phoenix'
+                                  })}
+                                </div>
+                              )}
+                              {bulletin.recurrence_days && bulletin.recurrence_days.length > 0 && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Days:</span> {bulletin.recurrence_days.map(day => {
+                                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                                    return dayNames[day]
+                                  }).join(', ')}
+                                </div>
+                              )}
+                              {bulletin.appointment_location && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Location:</span> {bulletin.appointment_location}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // Regular appointment details
+                            <div>
+                              {bulletin.appointment_location && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">Location:</span> {bulletin.appointment_location}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1229,37 +1367,159 @@ export default function AnnouncementsPage() {
 
                 {/* Specialized Fields - Right after category/priority */}
                 {formData.category === 'appointment' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="appointment_datetime" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Date & Time
-                      </label>
+                  <div className="space-y-4">
+                    {/* Recurring Appointment Checkbox */}
+                    <div className="flex items-center">
                       <input
-                        type="datetime-local"
-                        id="appointment_datetime"
-                        name="appointment_datetime"
-                        value={formData.appointment_datetime}
+                        type="checkbox"
+                        id="is_recurring"
+                        name="is_recurring"
+                        checked={formData.is_recurring}
                         onChange={handleFormChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Enter time in Arizona timezone (MST - no daylight saving)
-                      </p>
-                    </div>
-                    <div>
-                      <label htmlFor="appointment_location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Location
+                      <label htmlFor="is_recurring" className="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Recurring Appointment
                       </label>
-                      <input
-                        type="text"
-                        id="appointment_location"
-                        name="appointment_location"
-                        value={formData.appointment_location}
-                        onChange={handleFormChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
-                        placeholder="Address, room, etc."
-                      />
                     </div>
+
+                    {/* Regular Appointment Date & Time (only show if not recurring) */}
+                    {!formData.is_recurring && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="appointment_datetime" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Date & Time
+                          </label>
+                          <input
+                            type="datetime-local"
+                            id="appointment_datetime"
+                            name="appointment_datetime"
+                            value={formData.appointment_datetime}
+                            onChange={handleFormChange}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                          />
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Enter time in Arizona timezone (MST - no daylight saving)
+                          </p>
+                        </div>
+                        <div>
+                          <label htmlFor="appointment_location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            id="appointment_location"
+                            name="appointment_location"
+                            value={formData.appointment_location}
+                            onChange={handleFormChange}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                            placeholder="Address, room, etc."
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recurring Appointment Controls */}
+                    {formData.is_recurring && (
+                      <div className="space-y-4 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="recurrence_start_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Start Date
+                            </label>
+                            <input
+                              type="date"
+                              id="recurrence_start_date"
+                              name="recurrence_start_date"
+                              value={formData.recurrence_start_date}
+                              onChange={handleFormChange}
+                              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="recurrence_end_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              End Date
+                            </label>
+                            <input
+                              type="date"
+                              id="recurrence_end_date"
+                              name="recurrence_end_date"
+                              value={formData.recurrence_end_date}
+                              onChange={handleFormChange}
+                              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Days of Week
+                          </label>
+                          <div className="flex space-x-2">
+                            {[
+                              { label: 'S', value: 0, name: 'Sunday' },
+                              { label: 'M', value: 1, name: 'Monday' },
+                              { label: 'T', value: 2, name: 'Tuesday' },
+                              { label: 'W', value: 3, name: 'Wednesday' },
+                              { label: 'T', value: 4, name: 'Thursday' },
+                              { label: 'F', value: 5, name: 'Friday' },
+                              { label: 'S', value: 6, name: 'Saturday' }
+                            ].map((day) => (
+                              <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => {
+                                  const newDays = formData.recurrence_days.includes(day.value)
+                                    ? formData.recurrence_days.filter(d => d !== day.value)
+                                    : [...formData.recurrence_days, day.value]
+                                  setFormData({ ...formData, recurrence_days: newDays })
+                                }}
+                                className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center text-sm font-medium transition-colors ${
+                                  formData.recurrence_days.includes(day.value)
+                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                    : 'bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-600'
+                                }`}
+                                title={day.name}
+                              >
+                                {day.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="recurrence_time" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Time
+                          </label>
+                          <input
+                            type="time"
+                            id="recurrence_time"
+                            name="recurrence_time"
+                            value={formData.recurrence_time}
+                            onChange={handleFormChange}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                          />
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Time in Arizona timezone (MST - no daylight saving)
+                          </p>
+                        </div>
+
+                        <div>
+                          <label htmlFor="appointment_location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            id="appointment_location"
+                            name="appointment_location"
+                            value={formData.appointment_location}
+                            onChange={handleFormChange}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                            placeholder="Address, room, etc."
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

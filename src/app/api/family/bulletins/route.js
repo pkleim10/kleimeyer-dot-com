@@ -152,7 +152,13 @@ export async function POST(request) {
       payment_reference,
       payment_recipient,
       action_required = false,
-      medical_provider
+      medical_provider,
+      // Recurring appointment fields
+      is_recurring = false,
+      recurrence_start_date,
+      recurrence_end_date,
+      recurrence_days = [],
+      recurrence_time
     } = body
 
     // Validate required fields
@@ -163,6 +169,23 @@ export async function POST(request) {
     // Content is required for all categories except appointments
     if (!content && category !== 'appointment') {
       return NextResponse.json({ error: 'Content is required for this category' }, { status: 400 })
+    }
+
+    // Validate recurring appointment fields if is_recurring is true
+    if (is_recurring && category === 'appointment') {
+      if (!recurrence_start_date || !recurrence_end_date || !recurrence_time || !recurrence_days || recurrence_days.length === 0) {
+        return NextResponse.json({ error: 'Recurring appointments require start date, end date, time, and at least one day of the week' }, { status: 400 })
+      }
+      
+      // Validate that start date is before end date
+      if (new Date(recurrence_start_date) >= new Date(recurrence_end_date)) {
+        return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 })
+      }
+      
+      // Validate days of week (0-6)
+      if (!recurrence_days.every(day => day >= 0 && day <= 6)) {
+        return NextResponse.json({ error: 'Invalid days of week' }, { status: 400 })
+      }
     }
 
     // Validate category and priority values
@@ -218,7 +241,13 @@ export async function POST(request) {
         payment_reference: payment_reference || null,
         payment_recipient: payment_recipient || null,
         action_required: action_required || false,
-        medical_provider: medical_provider || null
+        medical_provider: medical_provider || null,
+        // Recurring appointment fields
+        is_recurring: is_recurring || false,
+        recurrence_start_date: is_recurring ? cleanDate(recurrence_start_date) : null,
+        recurrence_end_date: is_recurring ? cleanDate(recurrence_end_date) : null,
+        recurrence_days: is_recurring ? recurrence_days : [],
+        recurrence_time: is_recurring ? recurrence_time : null
       })
       .select()
       .single()

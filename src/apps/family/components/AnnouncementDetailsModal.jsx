@@ -70,12 +70,14 @@ export default function AnnouncementDetailsModal({
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
-    const date = new Date(dateString)
+    // Parse the date string and create a date object in the local timezone
+    // This prevents the off-by-one day issue caused by timezone conversion
+    const [year, month, day] = dateString.split('-').map(Number)
+    const date = new Date(year, month - 1, day) // month is 0-indexed
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric',
-      timeZone: 'America/Phoenix'
+      day: 'numeric'
     })
   }
 
@@ -86,6 +88,15 @@ export default function AnnouncementDetailsModal({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Phoenix'
+    })
+  }
+
+  const formatTime = (timeString) => {
+    if (!timeString) return 'Not set'
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       timeZone: 'America/Phoenix'
@@ -236,27 +247,102 @@ export default function AnnouncementDetailsModal({
               )}
 
               {/* Specialized Fields */}
-              {(bulletin.category === 'appointment' && bulletin.appointment_datetime) && (
+              {(bulletin.category === 'appointment' && (bulletin.appointment_datetime || bulletin.is_recurring)) && (
                 <div className="p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">Appointment Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Date & Time</dt>
-                      <dd className="text-sm text-gray-900 dark:text-gray-100">{formatDateTime(bulletin.appointment_datetime)}</dd>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
+                    Appointment Details
+                    {bulletin.is_recurring && (
+                      <span className="ml-2 text-sm text-blue-600 dark:text-blue-400 font-normal">(Recurring)</span>
+                    )}
+                  </h3>
+                  
+                  {bulletin.is_recurring ? (
+                    // Recurring appointment details
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Start Date</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{formatDate(bulletin.recurrence_start_date)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">End Date</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{formatDate(bulletin.recurrence_end_date)}</dd>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Time</dt>
+                        <dd className="text-sm text-gray-900 dark:text-gray-100">
+                          {formatTime(bulletin.recurrence_time)}
+                        </dd>
+                      </div>
+                      
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Days of Week</dt>
+                        <dd className="text-sm text-gray-900 dark:text-gray-100">
+                          {bulletin.recurrence_days && bulletin.recurrence_days.length > 0 ? (
+                            <div className="flex space-x-2 mt-1">
+                              {[
+                                { label: 'S', value: 0, name: 'Sunday' },
+                                { label: 'M', value: 1, name: 'Monday' },
+                                { label: 'T', value: 2, name: 'Tuesday' },
+                                { label: 'W', value: 3, name: 'Wednesday' },
+                                { label: 'T', value: 4, name: 'Thursday' },
+                                { label: 'F', value: 5, name: 'Friday' },
+                                { label: 'S', value: 6, name: 'Saturday' }
+                              ].map((day) => (
+                                <span
+                                  key={day.value}
+                                  className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-xs font-medium ${
+                                    bulletin.recurrence_days.includes(day.value)
+                                      ? 'bg-blue-600 border-blue-600 text-white'
+                                      : 'bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400'
+                                  }`}
+                                  title={day.name}
+                                >
+                                  {day.label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : 'Not set'}
+                        </dd>
+                      </div>
+                      
+                      {bulletin.appointment_location && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Location</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.appointment_location}</dd>
+                        </div>
+                      )}
+                      
+                      {bulletin.medical_provider && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Provider</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.medical_provider}</dd>
+                        </div>
+                      )}
                     </div>
-                    {bulletin.appointment_location && (
+                  ) : (
+                    // Regular appointment details
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Location</dt>
-                        <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.appointment_location}</dd>
+                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Date & Time</dt>
+                        <dd className="text-sm text-gray-900 dark:text-gray-100">{formatDateTime(bulletin.appointment_datetime)}</dd>
                       </div>
-                    )}
-                    {bulletin.medical_provider && (
-                      <div>
-                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Provider</dt>
-                        <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.medical_provider}</dd>
-                      </div>
-                    )}
-                  </div>
+                      {bulletin.appointment_location && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Location</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.appointment_location}</dd>
+                        </div>
+                      )}
+                      {bulletin.medical_provider && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Provider</dt>
+                          <dd className="text-sm text-gray-900 dark:text-gray-100">{bulletin.medical_provider}</dd>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
