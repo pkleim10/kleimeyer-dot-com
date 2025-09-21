@@ -8,14 +8,17 @@ import { usePermissions } from '@/hooks/usePermissions'
 
 export default function AppointmentsPage() {
   const { user, loading: authLoading } = useAuth()
-  const { canViewFamily, permissionsLoading } = usePermissions()
+  const { canViewFamily, permissionsLoading, permissions } = usePermissions()
   const router = useRouter()
 
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode] = useState('calendar') // 'calendar' or 'list'
+  const [viewMode, setViewMode] = useState('screen') // 'screen' or 'print-preview'
+  
+  // Check if user is admin - use the permissions array directly
+  const isAdmin = permissions.includes('admin:full_access')
 
   // Helper function to calculate next occurrence for recurring appointments
   const getNextRecurringOccurrence = useCallback((appointment, targetDate) => {
@@ -286,7 +289,31 @@ export default function AppointmentsPage() {
                 View and manage family appointments in calendar format
               </p>
             </div>
-            <div className="mt-4 sm:mt-0 sm:ml-4">
+            <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col sm:flex-row gap-2">
+              {isAdmin && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setViewMode('screen')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md ${
+                      viewMode === 'screen'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Screen View
+                  </button>
+                  <button
+                    onClick={() => setViewMode('print-preview')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md ${
+                      viewMode === 'print-preview'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Print Preview
+                  </button>
+                </div>
+              )}
               <button
                 onClick={printCalendar}
                 className="print-button inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -326,8 +353,9 @@ export default function AppointmentsPage() {
             </div>
           </div>
         ) : (
-          /* Calendar View */
-          <div className="print-calendar bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+          <>
+            {/* Screen View - Complete independent calendar */}
+            <div className="screen-calendar bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden" style={{ display: viewMode === 'screen' ? 'block' : 'none' }}>
             {/* Calendar Header */}
             <div className="calendar-header px-6 py-4 border-b border-gray-200 dark:border-slate-700">
               {/* Navigation - hidden when printing */}
@@ -386,7 +414,11 @@ export default function AppointmentsPage() {
                   week.map((day, dayIndex) => (
                     <div
                       key={`${weekIndex}-${dayIndex}`}
-                      className={`calendar-day min-h-[120px] bg-white dark:bg-slate-800 p-2 ${
+                      className={`calendar-day bg-white dark:bg-slate-800 p-2 ${
+                        day && day.appointments.length > 0 
+                          ? 'min-h-[120px]' 
+                          : 'min-h-[72px]'
+                      } ${
                         day && day.date.toDateString() === new Date().toDateString()
                           ? 'today bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500'
                           : ''
@@ -394,11 +426,18 @@ export default function AppointmentsPage() {
                     >
                       {day ? (
                         <>
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                            {day.day}
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {day.day}
+                            </div>
+                            {day.appointments.length > 2 && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                +{day.appointments.length - 2} more
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-1">
-                            {day.appointments.map((appointment, index) => (
+                            {day.appointments.slice(0, 2).map((appointment, index) => (
                               <div
                                 key={`${appointment.id}-${index}`}
                                 className="appointment-item text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded truncate"
@@ -408,11 +447,7 @@ export default function AppointmentsPage() {
                                 <div className="text-blue-600 dark:text-blue-400">
                                   {formatTime(appointment.occurrenceDate)}
                                 </div>
-                                {appointment.appointment_location && (
-                                  <div className="text-blue-600 dark:text-blue-400 truncate">
-                                    {appointment.appointment_location}
-                                  </div>
-                                )}
+                                {/* Removed appointment location for space saving */}
                               </div>
                             ))}
                           </div>
@@ -423,7 +458,78 @@ export default function AppointmentsPage() {
                 )}
               </div>
             </div>
-          </div>
+            </div>
+
+            {/* Print Preview - Complete independent calendar */}
+            <div className="print-preview-calendar bg-white border-2 border-gray-300 rounded-lg overflow-hidden" style={{ maxWidth: '11in', margin: '0 auto', display: viewMode === 'print-preview' ? 'block' : 'none' }}>
+            {/* Print-only header - always visible in preview */}
+            <div className="print-header text-center bg-gray-100 border-b-2 border-black px-4 py-2">
+              <h1 className="text-xl font-bold text-black">
+                Appointment Calendar - {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </h1>
+            </div>
+
+            {/* Calendar Grid - Print Style - Completely separate rendering */}
+            <div className="p-1">
+              {/* Day Headers */}
+              <div className="calendar-grid grid grid-cols-7 gap-px bg-gray-200 mb-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="day-header bg-gray-300 border border-black font-bold text-center text-sm py-1 px-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Days - Print Style - Independent rendering */}
+              <div className="calendar-grid grid grid-cols-7 gap-px bg-gray-200">
+                {calendarData.map((week, weekIndex) => 
+                  week.map((day, dayIndex) => {
+                    if (!day) {
+                      return <div key={`${weekIndex}-${dayIndex}`} className="calendar-day border border-black min-h-[72px] p-1 bg-white text-xs"></div>
+                    }
+                    
+                    const isToday = day.date.toDateString() === new Date().toDateString()
+                    const hasAppointments = day.appointments.length > 0
+                    
+                    return (
+                      <div 
+                        key={`${weekIndex}-${dayIndex}`} 
+                        className={`calendar-day border border-black p-1 bg-white text-xs ${
+                          hasAppointments ? 'min-h-[120px]' : 'min-h-[72px]'
+                        } ${isToday ? 'bg-yellow-100 border-2 border-orange-400' : ''}`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="font-medium">{day.date.getDate()}</div>
+                          {day.appointments.length > 2 && (
+                            <div className="text-xs text-gray-600 italic">
+                              +{day.appointments.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {day.appointments.slice(0, 2).map(appointment => (
+                            <div key={appointment.id} className="appointment-item bg-blue-100 border border-blue-600 text-blue-800 p-1 text-xs rounded">
+                              <div className="font-medium truncate">{appointment.title}</div>
+                              {appointment.is_recurring ? (
+                                appointment.recurrence_time && (
+                                  <div className="text-xs opacity-75">{appointment.recurrence_time}</div>
+                                )
+                              ) : (
+                                appointment.appointment_datetime && (
+                                  <div className="text-xs opacity-75">{formatTime(new Date(appointment.appointment_datetime))}</div>
+                                )
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                ).flat()}
+              </div>
+            </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -449,7 +555,14 @@ export default function AppointmentsPage() {
             page-break-before: avoid !important;
           }
           
-          .print-calendar {
+          /* Hide screen view when actually printing */
+          .screen-calendar {
+            display: none !important;
+          }
+          
+          /* Show print preview when printing - always visible during print */
+          .print-preview-calendar {
+            display: block !important;
             background: white !important;
             color: black !important;
             box-shadow: none !important;
@@ -488,11 +601,11 @@ export default function AppointmentsPage() {
             display: inline-flex !important;
           }
           
-          .print-calendar .p-6 {
+          .print-preview-calendar .p-1 {
             padding: 0.125rem !important;
           }
           
-          .print-calendar .calendar-grid {
+          .print-preview-calendar .calendar-grid {
             border: 2px solid #000 !important;
             margin: 0 !important;
             margin-bottom: 0 !important;
@@ -500,7 +613,7 @@ export default function AppointmentsPage() {
             break-inside: avoid !important;
           }
           
-          .print-calendar .day-header {
+          .print-preview-calendar .day-header {
             background: #e5e7eb !important;
             border: 1px solid #000 !important;
             font-weight: bold !important;
@@ -510,9 +623,8 @@ export default function AppointmentsPage() {
             break-inside: avoid !important;
           }
           
-          .print-calendar .calendar-day {
+          .print-preview-calendar .calendar-day {
             border: 1px solid #000 !important;
-            min-height: 100px !important;
             padding: 0.25rem !important;
             background: white !important;
             font-size: 0.75rem !important;
@@ -520,7 +632,7 @@ export default function AppointmentsPage() {
             break-inside: avoid !important;
           }
           
-          .print-calendar .appointment-item {
+          .print-preview-calendar .appointment-item {
             background: #dbeafe !important;
             border: 1px solid #3b82f6 !important;
             color: #1e40af !important;
@@ -529,7 +641,7 @@ export default function AppointmentsPage() {
             font-size: 0.75rem !important;
           }
           
-          .print-calendar .today {
+          .print-preview-calendar .today {
             background: #fef3c7 !important;
             border: 2px solid #f59e0b !important;
           }
