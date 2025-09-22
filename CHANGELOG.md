@@ -95,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - See commit history for detailed changes
 
+## [1.8.0] - 2025-09-22
+
+### Added
+- See commit history for detailed changes
+
 ## [Unreleased]
 
 ### Added
