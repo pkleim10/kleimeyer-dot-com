@@ -261,11 +261,22 @@ export default function AlbumPage() {
       }
 
       const uploadedPhotos = []
+      const skippedFiles = []
 
       // Upload each file
       for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i]
+        
+        // Check file size before upload (5MB limit)
+        const maxSize = 5 * 1024 * 1024 // 5MB
+        if (file.size > maxSize) {
+          skippedFiles.push(file.name)
+          setUploadProgress({ current: i + 1, total: selectedFiles.length })
+          continue
+        }
+
         const fileFormData = new FormData()
-        fileFormData.append('file', selectedFiles[i])
+        fileFormData.append('file', file)
         fileFormData.append('albumId', albumId)
         fileFormData.append('category', 'photos')
         if (description) fileFormData.append('description', description)
@@ -281,7 +292,7 @@ export default function AlbumPage() {
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || `Upload failed for ${selectedFiles[i].name}`)
+          throw new Error(errorData.error || `Upload failed for ${file.name}`)
         }
 
         const result = await response.json()
@@ -289,6 +300,11 @@ export default function AlbumPage() {
         
         // Update progress
         setUploadProgress({ current: i + 1, total: selectedFiles.length })
+      }
+
+      // Show skipped files message if any
+      if (skippedFiles.length > 0) {
+        alert(`${skippedFiles.length} files skipped (larger than 5MB): ${skippedFiles.join(', ')}`)
       }
 
       // Add uploaded photos to local state (without signed URLs)
@@ -824,7 +840,7 @@ export default function AlbumPage() {
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  Upload Photo
+                  Upload Photos
                 </button>
               </div>
             )}
@@ -1143,7 +1159,7 @@ export default function AlbumPage() {
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    Upload Photos
+                    Upload Photoss
                   </button>
                 </div>
               )}

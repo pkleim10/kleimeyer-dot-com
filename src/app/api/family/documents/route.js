@@ -217,10 +217,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024 // 10MB
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024 // 5MB
     if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 10MB' }, { status: 400 })
+      return NextResponse.json({ error: 'File too large. Maximum size is 5MB' }, { status: 400 })
     }
 
     // Validate file type
