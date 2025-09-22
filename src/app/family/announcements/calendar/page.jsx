@@ -426,14 +426,9 @@ export default function AppointmentsPage() {
                             <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                               {day.day}
                             </div>
-                            {day.appointments.length > 2 && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                +{day.appointments.length - 2} more
-                              </div>
-                            )}
                           </div>
                           <div className="space-y-1">
-                            {day.appointments.slice(0, 2).map((appointment, index) => (
+                            {day.appointments.map((appointment, index) => (
                               <div
                                 key={`${appointment.id}-${index}`}
                                 className="appointment-item text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded truncate"
@@ -470,7 +465,7 @@ export default function AppointmentsPage() {
               {/* Day Headers */}
               <div className="calendar-grid grid grid-cols-7 gap-px bg-gray-200 mb-1">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="day-header bg-gray-300 border border-black font-bold text-center text-sm py-1 px-1">
+                  <div key={day} className="day-header bg-gray-300 border border-black font-bold text-center text-sm py-1 px-1 text-black">
                     {day}
                   </div>
                 ))}
@@ -495,7 +490,7 @@ export default function AppointmentsPage() {
                           }`}
                         >
                         <div className="flex justify-between items-center mb-1">
-                          <div className="font-medium">{day.date.getDate()}</div>
+                          <div className="font-medium text-black">{day.date.getDate()}</div>
                           {day.appointments.length > 2 && (
                             <div className="text-xs text-gray-600 italic">
                               +{day.appointments.length - 2} more
