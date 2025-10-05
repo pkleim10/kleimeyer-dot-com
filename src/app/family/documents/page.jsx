@@ -6,6 +6,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { supabase } from '@/utils/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import DocumentPreviewModal from '@/components/DocumentPreviewModal'
 
 export default function DocumentsPage() {
   const { user, authLoading } = useAuth()
@@ -25,6 +26,11 @@ export default function DocumentsPage() {
     search: ''
   })
   const [hasLoadedDocuments, setHasLoadedDocuments] = useState(false)
+  const [previewModal, setPreviewModal] = useState({
+    isOpen: false,
+    document: null,
+    previewUrl: null
+  })
 
   // Fetch documents
   const fetchDocuments = useCallback(async () => {
@@ -187,6 +193,37 @@ export default function DocumentsPage() {
     }
   }
 
+  // Handle document preview
+  const handlePreview = async (document) => {
+    try {
+      // Get the session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(`/api/family/documents/${document.id}?preview=true`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to get preview URL')
+      }
+      
+      const data = await response.json()
+      setPreviewModal({
+        isOpen: true,
+        document: document,
+        previewUrl: data.previewUrl
+      })
+    } catch (err) {
+      console.error('Error getting preview:', err)
+      setError(err.message || 'Failed to preview document')
+    }
+  }
+
   // Handle document download
   const handleDownload = async (documentId, filename) => {
     try {
@@ -308,7 +345,16 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 relative">
+      {/* Hero Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20 dark:opacity-10"
+        style={{
+          backgroundImage: 'url(/document-hero.png)'
+        }}
+      />
+      {/* Content Overlay */}
+      <div className="relative z-10">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -460,9 +506,9 @@ export default function DocumentsPage() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+        {/* Filters - Frosted Glass Style */}
+        <div className="mb-6 backdrop-blur-md bg-white/20 dark:bg-slate-800/20 rounded-xl shadow-xl border border-white/30 dark:border-slate-700/30 overflow-hidden">
+          <div className="px-6 py-4 border-b border-white/20 dark:border-slate-700/20">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               Filters
             </h3>
@@ -478,7 +524,7 @@ export default function DocumentsPage() {
                   id="search"
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                  className="mt-1 block w-full px-3 py-2 backdrop-blur-sm bg-white/30 dark:bg-slate-700/30 border border-white/40 dark:border-slate-600/40 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="Search documents..."
                 />
               </div>
@@ -491,7 +537,7 @@ export default function DocumentsPage() {
                   id="category-filter"
                   value={filters.category}
                   onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                  className="mt-1 block w-full px-3 py-2 backdrop-blur-sm bg-white/30 dark:bg-slate-700/30 border border-white/40 dark:border-slate-600/40 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 dark:text-gray-100"
                 >
                   <option value="all">All Categories</option>
                   {categories.map(category => (
@@ -510,7 +556,7 @@ export default function DocumentsPage() {
                   id="file-type-filter"
                   value={filters.fileType}
                   onChange={(e) => setFilters(prev => ({ ...prev, fileType: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-100"
+                  className="mt-1 block w-full px-3 py-2 backdrop-blur-sm bg-white/30 dark:bg-slate-700/30 border border-white/40 dark:border-slate-600/40 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 dark:text-gray-100"
                 >
                   <option value="all">All Types</option>
                   <option value="image">Images</option>
@@ -524,16 +570,16 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Documents List */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+        {/* Documents List - Card Layout */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               Documents ({filteredDocuments.length})
             </h3>
           </div>
 
           {filteredDocuments.length === 0 ? (
-            <div className="p-6 text-center">
+            <div className="backdrop-blur-md bg-white/20 dark:bg-slate-800/20 rounded-xl shadow-xl border border-white/30 dark:border-slate-700/30 p-8 text-center">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -562,11 +608,14 @@ export default function DocumentsPage() {
               )}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-slate-700">
+            <div className="space-y-4">
               {filteredDocuments.map((document) => (
-                <div key={document.id} className="p-6 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-4">
+                <div 
+                  key={document.id} 
+                  className="backdrop-blur-md bg-white/20 dark:bg-slate-800/20 rounded-xl shadow-xl border border-white/30 dark:border-slate-700/30 p-6 hover:bg-white/30 dark:hover:bg-slate-700/30 transition-all duration-200"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start space-x-4 flex-1 min-w-0">
                       <div className="flex-shrink-0">
                         {getFileIcon(document.file_type)}
                       </div>
@@ -579,14 +628,14 @@ export default function DocumentsPage() {
                             {document.description}
                           </p>
                         )}
-                        <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                          <span>{formatFileSize(document.file_size)}</span>
+                        <div className="mt-2 flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                          <span className="whitespace-nowrap">{formatFileSize(document.file_size)}</span>
                           <span>•</span>
-                          <span className="capitalize">{document.file_type}</span>
+                          <span className="capitalize whitespace-nowrap">{document.file_type}</span>
                           <span>•</span>
-                          <span className="capitalize">{document.category}</span>
+                          <span className="capitalize whitespace-nowrap">{document.category}</span>
                           <span>•</span>
-                          <span>{new Date(document.created_at).toLocaleDateString()}</span>
+                          <span className="whitespace-nowrap">{new Date(document.created_at).toLocaleDateString()}</span>
                         </div>
                         {document.tags && document.tags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -602,7 +651,59 @@ export default function DocumentsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    
+                    {/* Mobile buttons - below document info */}
+                    <div className="mt-4 sm:hidden">
+                      <div className="flex flex-col space-y-2">
+                        {(document.file_type === 'image' || document.file_type === 'pdf') && (
+                          <button
+                            onClick={() => handlePreview(document)}
+                            className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded text-green-600 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 transition-colors w-full"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            Preview
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDownload(document.id, document.original_filename)}
+                          className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded text-blue-600 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors w-full"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download
+                        </button>
+                        {canDeleteDocuments && (
+                          <button
+                            onClick={() => handleDeleteDocument(document.id)}
+                            className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 transition-colors w-full"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Desktop buttons - to the right */}
+                    <div className="hidden sm:flex sm:items-center sm:space-x-2">
+                      {(document.file_type === 'image' || document.file_type === 'pdf') && (
+                        <button
+                          onClick={() => handlePreview(document)}
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-green-600 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 transition-colors"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          Preview
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDownload(document.id, document.original_filename)}
                         className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded text-blue-600 bg-blue-100 hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 transition-colors"
@@ -631,6 +732,15 @@ export default function DocumentsPage() {
           )}
         </div>
       </div>
+      </div>
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal({ isOpen: false, document: null, previewUrl: null })}
+        document={previewModal.document}
+        previewUrl={previewModal.previewUrl}
+      />
     </div>
   )
 }

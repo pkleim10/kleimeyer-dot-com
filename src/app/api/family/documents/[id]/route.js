@@ -15,6 +15,7 @@ export async function GET(request, { params }) {
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const download = searchParams.get('download') === 'true'
+    const preview = searchParams.get('preview') === 'true'
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -91,6 +92,23 @@ export async function GET(request, { params }) {
       return NextResponse.json({ 
         document,
         downloadUrl: signedUrl.signedUrl 
+      })
+    }
+
+    if (preview) {
+      // Generate signed URL for preview with longer expiry
+      const { data: signedUrl, error: urlError } = await supabaseAdmin.storage
+        .from('family-documents')
+        .createSignedUrl(document.file_path, 3600) // 1 hour expiry for preview
+
+      if (urlError) {
+        console.error('Error generating preview URL:', urlError)
+        return NextResponse.json({ error: 'Failed to generate preview link' }, { status: 500 })
+      }
+
+      return NextResponse.json({ 
+        document,
+        previewUrl: signedUrl.signedUrl 
       })
     }
 
