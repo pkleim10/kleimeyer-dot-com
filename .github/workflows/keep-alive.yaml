@@ -1,0 +1,15 @@
+name: Keep Supabase Alive via Website
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sundays at midnight UTC—adjust as needed (e.g., '0 9 * * 1' for Mondays at 9 AM UTC)
+  workflow_dispatch:  # Allows manual runs from the Actions tab
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Website (Triggers Supabase)
+        run: |
+          curl -X GET "https://kleimeyer.com/recipe/categories/breakfast" \
+            -H "User-Agent: Keep-Alive-Bot" \
+            -f  # Fail on HTTP error (optional: removes -f to just log without failing)
+          echo "Ping completed at $(date)"
