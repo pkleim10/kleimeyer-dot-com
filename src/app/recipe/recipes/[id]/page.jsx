@@ -13,10 +13,67 @@ function generateSlug(name) {
     .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
 }
 
+// Helper function to generate JSON-LD structured data for recipes
+function generateRecipeJsonLd(recipe, recipeUrl) {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Recipe',
+    name: recipe.name,
+    description: recipe.description || undefined,
+    image: recipe.image || undefined,
+    recipeYield: recipe.servings ? `${recipe.servings}` : undefined,
+    recipeIngredient: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+    recipeInstructions: Array.isArray(recipe.instructions) 
+      ? recipe.instructions.map((instruction, index) => ({
+          '@type': 'HowToStep',
+          position: index + 1,
+          text: instruction
+        }))
+      : [],
+    url: recipeUrl
+  }
+
+  // Add prep time if available (format: PT{minutes}M)
+  if (recipe.prep_time) {
+    jsonLd.prepTime = `PT${recipe.prep_time}M`
+  }
+
+  // Add cook time if available (format: PT{minutes}M)
+  if (recipe.cook_time) {
+    jsonLd.cookTime = `PT${recipe.cook_time}M`
+  }
+
+  // Add total time if both prep and cook times are available
+  if (recipe.prep_time && recipe.cook_time) {
+    const totalMinutes = parseInt(recipe.prep_time) + parseInt(recipe.cook_time)
+    jsonLd.totalTime = `PT${totalMinutes}M`
+  }
+
+  // Add author/source if available
+  if (recipe.source) {
+    jsonLd.author = {
+      '@type': 'Person',
+      name: recipe.source
+    }
+  }
+
+  // Add recipe category if available
+  if (recipe.categories?.name) {
+    jsonLd.recipeCategory = recipe.categories.name
+  }
+
+  // Remove undefined values
+  return Object.fromEntries(
+    Object.entries(jsonLd).filter(([_, value]) => value !== undefined)
+  )
+}
+
 export default async function RecipePage({ params }) {
   const { id } = await params
   const headersList = await headers()
   const referer = headersList.get('referer') || ''
+  const host = headersList.get('host') || ''
+  const protocol = headersList.get('x-forwarded-proto') || 'https'
   const isFromSearch = referer.includes('/recipe/search')
   
   // First try to find recipe by ID (for backward compatibility)
@@ -66,8 +123,19 @@ export default async function RecipePage({ params }) {
       ? { text: recipe.categories.name, url: `/recipe/categories/${categorySlug}` }
       : { text: 'Search', url: '/recipe/search' }
 
+  // Generate recipe URL for JSON-LD
+  const recipeUrl = host ? `${protocol}://${host}/recipe/recipes/${id}` : undefined
+
+  // Generate JSON-LD structured data
+  const recipeJsonLd = generateRecipeJsonLd(recipe, recipeUrl)
+
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(recipeJsonLd) }}
+      />
+      <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-6 flex items-center justify-between">
           <Link
@@ -150,5 +218,6 @@ export default async function RecipePage({ params }) {
       </div>
     </div>
   </main>
+    </>
   )
 }

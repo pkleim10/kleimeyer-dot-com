@@ -18,6 +18,61 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
       .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
   }
 
+  // Helper function to generate JSON-LD structured data for recipes
+  const generateRecipeJsonLd = (recipe, recipeUrl) => {
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: recipe.name,
+      description: recipe.description || undefined,
+      image: recipe.image || undefined,
+      recipeYield: recipe.servings ? `${recipe.servings}` : undefined,
+      recipeIngredient: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+      recipeInstructions: Array.isArray(recipe.instructions) 
+        ? recipe.instructions.map((instruction, index) => ({
+            '@type': 'HowToStep',
+            position: index + 1,
+            text: instruction
+          }))
+        : [],
+      url: recipeUrl
+    }
+
+    // Add prep time if available (format: PT{minutes}M)
+    if (recipe.prep_time) {
+      jsonLd.prepTime = `PT${recipe.prep_time}M`
+    }
+
+    // Add cook time if available (format: PT{minutes}M)
+    if (recipe.cook_time) {
+      jsonLd.cookTime = `PT${recipe.cook_time}M`
+    }
+
+    // Add total time if both prep and cook times are available
+    if (recipe.prep_time && recipe.cook_time) {
+      const totalMinutes = parseInt(recipe.prep_time) + parseInt(recipe.cook_time)
+      jsonLd.totalTime = `PT${totalMinutes}M`
+    }
+
+    // Add author/source if available
+    if (recipe.source) {
+      jsonLd.author = {
+        '@type': 'Person',
+        name: recipe.source
+      }
+    }
+
+    // Add recipe category if available
+    if (recipe.categories?.name) {
+      jsonLd.recipeCategory = recipe.categories.name
+    }
+
+    // Remove undefined values
+    return Object.fromEntries(
+      Object.entries(jsonLd).filter(([_, value]) => value !== undefined)
+    )
+  }
+
   // Helper function to share recipe
   const handleShareRecipe = async () => {
     if (!recipe) return
@@ -64,6 +119,46 @@ export default function RecipeViewModal({ recipeId, isOpen, onClose }) {
       fetchRecipe()
     }
   }, [isOpen, recipeId, fetchRecipe])
+
+  // Inject/remove JSON-LD into document head based on modal state and recipe
+  useEffect(() => {
+    // Helper function to remove JSON-LD script
+    const removeJsonLd = () => {
+      const existingScript = document.getElementById('recipe-modal-jsonld')
+      if (existingScript) {
+        existingScript.remove()
+      }
+    }
+
+    // If modal is closed or no recipe, remove JSON-LD and exit
+    if (!isOpen || !recipe) {
+      removeJsonLd()
+      return
+    }
+
+    // Modal is open and recipe exists - inject JSON-LD
+    // First, remove any existing JSON-LD (in case recipe changed)
+    removeJsonLd()
+
+    // Generate recipe URL for JSON-LD
+    const slug = generateSlug(recipe.name)
+    const recipeUrl = `${window.location.origin}/recipe/recipes/${slug}`
+
+    // Generate JSON-LD structured data
+    const recipeJsonLd = generateRecipeJsonLd(recipe, recipeUrl)
+
+    // Create and inject new JSON-LD script tag into document head
+    const script = document.createElement('script')
+    script.id = 'recipe-modal-jsonld'
+    script.type = 'application/ld+json'
+    script.textContent = JSON.stringify(recipeJsonLd)
+    document.head.appendChild(script)
+
+    // Cleanup function: always remove JSON-LD when effect re-runs or component unmounts
+    return () => {
+      removeJsonLd()
+    }
+  }, [recipe, isOpen])
 
   const handleClose = () => {
     if (!loading) {
