@@ -60,6 +60,7 @@ function generateRecipeJsonLd(recipe, recipeUrl) {
   // Add recipe category if available
   if (recipe.categories?.name) {
     jsonLd.recipeCategory = recipe.categories.name
+    jsonLd.recipeCuisine = recipe.categories.name
   }
 
   // Remove undefined values
