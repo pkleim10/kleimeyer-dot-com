@@ -115,6 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - See commit history for detailed changes
 
+## [1.11.1] - 2025-11-19
+
+### Fixed
+- See commit history for detailed changes
+
 ## [Unreleased]
 
 ### Added
