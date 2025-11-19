@@ -68,8 +68,10 @@ function generateRecipeJsonLd(recipe, recipeUrl) {
   )
 }
 
-export default async function RecipePage({ params }) {
+export default async function RecipePage({ params, searchParams }) {
   const { id } = await params
+  const resolvedSearchParams = await searchParams
+  const backUrl = resolvedSearchParams?.back ? decodeURIComponent(resolvedSearchParams.back) : null
   const headersList = await headers()
   const referer = headersList.get('referer') || ''
   const host = headersList.get('host') || ''
@@ -117,14 +119,31 @@ export default async function RecipePage({ params }) {
   const categorySlug = recipe.categories ? generateSlug(recipe.categories.name) : null
 
   // Determine back link text and URL
-  const backLink = isFromSearch 
-    ? { text: 'Search', url: '/recipe/search' }
-    : recipe.categories 
-      ? { text: recipe.categories.name, url: `/recipe/categories/${categorySlug}` }
-      : { text: 'Search', url: '/recipe/search' }
+  // Priority: 1. Query parameter (back), 2. Referer detection, 3. Category, 4. Default to search
+  let backLink
+  if (backUrl) {
+    // Extract page name from URL for display
+    if (backUrl.includes('/recipe/search')) {
+      backLink = { text: 'Search', url: '/recipe/search' }
+    } else if (backUrl.includes('/recipe/categories/')) {
+      const categoryName = recipe.categories?.name || 'Category'
+      backLink = { text: categoryName, url: backUrl }
+    } else if (backUrl.includes('/recipe')) {
+      backLink = { text: 'Recipes', url: '/recipe' }
+    } else {
+      backLink = { text: 'Back', url: backUrl }
+    }
+  } else if (isFromSearch) {
+    backLink = { text: 'Search', url: '/recipe/search' }
+  } else if (recipe.categories) {
+    backLink = { text: recipe.categories.name, url: `/recipe/categories/${categorySlug}` }
+  } else {
+    backLink = { text: 'Recipes', url: '/recipe' }
+  }
 
-  // Generate recipe URL for JSON-LD
-  const recipeUrl = host ? `${protocol}://${host}/recipe/recipes/${id}` : undefined
+  // Generate recipe URL for JSON-LD (use slug for better SEO)
+  const recipeSlug = generateSlug(recipe.name)
+  const recipeUrl = host ? `${protocol}://${host}/recipe/recipes/${recipeSlug}` : undefined
 
   // Generate JSON-LD structured data
   const recipeJsonLd = generateRecipeJsonLd(recipe, recipeUrl)

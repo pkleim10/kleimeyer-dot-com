@@ -2,6 +2,14 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import RecipeCard from '../RecipeCard'
 
+// Mock next/navigation
+const mockPush = jest.fn()
+const mockPathname = '/recipe/search'
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+  usePathname: () => mockPathname
+}))
+
 // Mock the useAuth hook
 jest.mock('@/contexts/AuthContext', () => ({
   ...jest.requireActual('@/contexts/AuthContext'),
@@ -179,10 +187,17 @@ describe('RecipeCard', () => {
     expect(mockOnRecipeDelete).toHaveBeenCalledWith('1')
   })
 
-  it('should be clickable to open recipe view modal', () => {
+  it('should navigate to recipe page when card is clicked', () => {
+    mockPush.mockClear()
     renderWithAuth(<RecipeCard recipe={mockRecipe} categories={mockCategories} />, null)
     
     const card = screen.getByText('Test Recipe').closest('div[class*="cursor-pointer"]')
     expect(card).toBeInTheDocument()
+    
+    fireEvent.click(card)
+    
+    // Should navigate to recipe page with slug and back parameter
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/recipe/recipes/test-recipe'))
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('back='))
   })
 })

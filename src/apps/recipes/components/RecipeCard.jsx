@@ -1,18 +1,28 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import RecipeEditModal from './RecipeEditModal'
 import RecipeDeleteModal from './RecipeDeleteModal'
-import RecipeViewModal from './RecipeViewModal'
+
+// Helper function to generate slug from name
+function generateSlug(name) {
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
 
 export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecipeDelete, currentCategoryId }) {
   const { user } = useAuth()
   const { canEditRecipe, canDeleteRecipe } = usePermissions()
+  const router = useRouter()
+  const pathname = usePathname()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
 
   const handleEditClick = (e) => {
     e.preventDefault()
@@ -27,9 +37,17 @@ export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecip
   }
 
   const handleCardClick = (e) => {
+    // Don't navigate if clicking edit/delete buttons
+    if (e.target.closest('button')) {
+      return
+    }
+    
     e.preventDefault()
-    e.stopPropagation()
-    setIsViewModalOpen(true)
+    const slug = generateSlug(recipe.name)
+    // Pass current pathname as query parameter for back link and recipe name for breadcrumb
+    const backUrl = encodeURIComponent(pathname)
+    const recipeName = encodeURIComponent(recipe.name)
+    router.push(`/recipe/recipes/${slug}?back=${backUrl}&name=${recipeName}`)
   }
 
   const handleRecipeUpdate = (updatedRecipe) => {
@@ -124,13 +142,6 @@ export default function RecipeCard({ recipe, categories, onRecipeUpdate, onRecip
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onDelete={handleRecipeDelete}
-      />
-
-      {/* View Modal */}
-      <RecipeViewModal
-        recipeId={recipe.id}
-        isOpen={isViewModalOpen}
-        onClose={() => setIsViewModalOpen(false)}
       />
     </>
   )

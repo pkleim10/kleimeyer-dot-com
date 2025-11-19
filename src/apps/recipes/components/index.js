@@ -2,7 +2,6 @@
 export { default as RecipeCard } from './RecipeCard.jsx'
 export { default as RecipeEditModal } from './RecipeEditModal.jsx'
 export { default as RecipeDeleteModal } from './RecipeDeleteModal.jsx'
-export { default as RecipeViewModal } from './RecipeViewModal.jsx'
 export { default as RecipesGrid } from './RecipesGrid.jsx'
 
 // Category Components

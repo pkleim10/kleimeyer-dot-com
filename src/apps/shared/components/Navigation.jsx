@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 // Navigation context detection
 const getNavigationContext = (pathname) => {
@@ -42,8 +42,22 @@ const extractCategoryName = (pathname) => {
   return null
 }
 
+// Helper function to extract category name from back URL
+const extractCategoryFromBackUrl = (backUrl) => {
+  if (!backUrl) return null
+  if (backUrl.includes('/recipe/categories/')) {
+    const slug = backUrl.replace('/recipe/categories/', '').split('?')[0]
+    // Convert slug back to readable name (e.g., "holiday-favorites" -> "Holiday Favorites")
+    return slug
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+  return null
+}
+
 // Breadcrumb generation
-const generateBreadcrumbs = (pathname) => {
+const generateBreadcrumbs = (pathname, searchParams) => {
   const context = getNavigationContext(pathname)
   const breadcrumbs = [{ name: 'Home', href: '/', current: pathname === '/' }]
 
@@ -58,8 +72,21 @@ const generateBreadcrumbs = (pathname) => {
         const categoryName = extractCategoryName(pathname)
         breadcrumbs.push({ name: categoryName || 'Category', href: pathname, current: true })
       } else if (context.section === 'recipes') {
-        breadcrumbs.push({ name: 'Search', href: '/recipe/search', current: false })
-        breadcrumbs.push({ name: 'Recipe', href: pathname, current: true })
+        // Recipe detail page - check if we came from a category page
+        const backUrlParam = searchParams?.get('back')
+        const recipeName = searchParams?.get('name')
+        const backUrl = backUrlParam ? decodeURIComponent(backUrlParam) : null
+        const categoryName = extractCategoryFromBackUrl(backUrl)
+        
+        if (categoryName) {
+          // Build breadcrumb: Home > Recipes > Categories > Category Name > Recipe Name
+          breadcrumbs.push({ name: 'Categories', href: '/recipe/categories', current: false })
+          breadcrumbs.push({ name: categoryName, href: backUrl || `/recipe/categories/${categoryName.toLowerCase().replace(/\s+/g, '-')}`, current: false })
+        } else if (backUrl?.includes('/recipe/search')) {
+          breadcrumbs.push({ name: 'Search', href: '/recipe/search', current: false })
+        }
+        // Use recipe name from query param if available, otherwise default to "Recipe"
+        breadcrumbs.push({ name: recipeName ? decodeURIComponent(recipeName) : 'Recipe', href: pathname, current: true })
       }
       break
     case 'family':
@@ -134,9 +161,10 @@ export default function Navigation() {
   const { canManageUsers } = usePermissions()
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const context = getNavigationContext(pathname)
-  const breadcrumbs = generateBreadcrumbs(pathname)
+  const breadcrumbs = generateBreadcrumbs(pathname, searchParams)
   const appNavigation = getAppNavigation(context, user, canManageUsers)
 
   const handleSignOut = async () => {
