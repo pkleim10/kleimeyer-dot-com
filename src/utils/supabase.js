@@ -21,10 +21,13 @@ export async function uploadImage(file, path) {
     const cleanFileName = fileName.replace(/^\/+|\/+$/g, '')
     const filePath = cleanPath ? `${cleanPath}/${cleanFileName}` : cleanFileName
 
-    console.log('Uploading file:', { fileName, filePath, fileSize: file.size })
+    // Determine storage bucket based on path
+    const bucket = path?.includes('just-for-me') ? 'recipe-images' : 'recipe-images'
+
+    console.log('Uploading file:', { fileName, filePath, fileSize: file.size, bucket })
 
     const { error: uploadError, data } = await supabase.storage
-      .from('recipe-images')
+      .from(bucket)
       .upload(filePath, file)
 
     if (uploadError) {
@@ -33,7 +36,7 @@ export async function uploadImage(file, path) {
     }
 
     const { data: { publicUrl } } = supabase.storage
-      .from('recipe-images')
+      .from(bucket)
       .getPublicUrl(filePath)
 
     console.log('Upload successful, public URL:', publicUrl)

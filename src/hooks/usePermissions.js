@@ -145,6 +145,26 @@ export const usePermissions = () => {
     'recipe:manage_categories'
   ])
 
+  const canCreateSharedMedicationGroups = hasAnyPermission([
+    'admin:full_access',
+    'medication:create_shared_groups'
+  ])
+
+  const canViewSharedMedicationGroups = hasAnyPermission([
+    'admin:full_access',
+    'medication:view_shared_groups'
+  ])
+
+  const canEditSharedMedicationGroups = hasAnyPermission([
+    'admin:full_access',
+    'medication:edit_shared_groups'
+  ])
+
+  const canDeleteSharedMedicationGroups = hasAnyPermission([
+    'admin:full_access',
+    'medication:delete_shared_groups'
+  ])
+
   const canManageUsers = hasAnyPermission([
     'admin:full_access',
     'admin:manage_users'
@@ -205,6 +225,10 @@ export const usePermissions = () => {
     canManageUsers,
     canManageRoles,
     canViewFamily,
+    canCreateSharedMedicationGroups,
+    canViewSharedMedicationGroups,
+    canEditSharedMedicationGroups,
+    canDeleteSharedMedicationGroups,
     
     // Helper functions for complex permission checks
     hasPermission: (permission) => {

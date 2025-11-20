@@ -121,7 +121,9 @@ export async function POST(request) {
       'family:full_access', 'family:view_bulletins', 'family:create_bulletins', 
       'family:edit_bulletins', 'family:delete_bulletins', 'family:view_contacts', 
       'family:manage_contacts', 'family:view_documents', 'family:upload_documents', 
-      'family:manage_documents', 'recipe:view_recipes', 'recipe:create_recipes', 
+      'family:manage_documents', 'medication:create_shared_groups',
+      'medication:view_shared_groups', 'medication:edit_shared_groups',
+      'medication:delete_shared_groups', 'recipe:view_recipes', 'recipe:create_recipes', 
       'recipe:edit_recipes', 'recipe:delete_recipes', 'recipe:manage_categories',
       'member:basic_access', 'member:view_profile', 'member:edit_profile'
     ]

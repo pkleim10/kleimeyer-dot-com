@@ -176,6 +176,36 @@ export default function HomePage() {
               </div>
             </Link>
           )}
+
+          {/* Just For Me App - Only show if user is logged in */}
+          {user && (
+            <Link href="/just-for-me" className="group w-full max-w-sm">
+              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+                <div className="relative h-48 bg-gradient-to-br from-purple-500 to-pink-600">
+                  <img
+                    src="/just-for-me.jpg"
+                    alt="Just For Me"
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/20" />
+                </div>
+                <div className="p-6 flex-1 flex flex-col">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                    Just For Me
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Personalized apps and features only for you
+                  </p>
+                  <div className="mt-auto flex items-center text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors duration-300">
+                    <span className="text-sm font-medium">Explore</span>
+                    <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
         </div>
       </div>
     </div>

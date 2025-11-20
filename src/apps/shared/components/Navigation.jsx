@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useGroups } from '@/contexts/GroupContext'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import BackgroundSelectModal from './BackgroundSelectModal'
 
 // Navigation context detection
 const getNavigationContext = (pathname) => {
@@ -19,6 +21,9 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/family/documents') return { app: 'family', section: 'documents', page: 'documents' }
   if (pathname === '/photos') return { app: 'photos', section: 'home', page: 'photos-home' }
   if (pathname.startsWith('/photos/album/')) return { app: 'photos', section: 'album', page: 'album-detail' }
+  if (pathname === '/just-for-me') return { app: 'justForMe', section: 'home', page: 'just-for-me' }
+  if (pathname.startsWith('/just-for-me/medication/group/')) return { app: 'justForMe', section: 'medication', page: 'medication-group' }
+  if (pathname.startsWith('/just-for-me/medication')) return { app: 'justForMe', section: 'medication', page: 'medication' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -57,7 +62,7 @@ const extractCategoryFromBackUrl = (backUrl) => {
 }
 
 // Breadcrumb generation
-const generateBreadcrumbs = (pathname, searchParams) => {
+const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
   const context = getNavigationContext(pathname)
   const breadcrumbs = [{ name: 'Home', href: '/', current: pathname === '/' }]
 
@@ -106,6 +111,19 @@ const generateBreadcrumbs = (pathname, searchParams) => {
         breadcrumbs.push({ name: 'Album', href: pathname, current: true })
       }
       break
+    case 'justForMe':
+      breadcrumbs.push({ name: 'Just For Me', href: '/just-for-me', current: context.section === 'home' })
+      if (context.section === 'medication') {
+        if (context.page === 'medication-group') {
+          breadcrumbs.push({ name: 'Medication Management', href: '/just-for-me/medication', current: false })
+          if (selectedGroup) {
+            breadcrumbs.push({ name: selectedGroup.name, href: pathname, current: true })
+          }
+        } else {
+          breadcrumbs.push({ name: 'Medication Management', href: '/just-for-me/medication', current: true })
+        }
+      }
+      break
     case 'admin':
       breadcrumbs.push({ name: 'Admin', href: '/admin', current: true })
       break
@@ -142,6 +160,12 @@ const getAppNavigation = (context, user, canManageUsers) => {
       return [
         { name: 'Photo Albums', href: '/photos', current: context.section === 'home' }
       ]
+    case 'justForMe':
+      return [
+        { name: 'Just For Me', href: '/just-for-me', current: context.section === 'home' },
+        { name: 'Medication Management', href: '/just-for-me/medication', current: context.section === 'medication' },
+        { name: 'Select Background', href: '/just-for-me?action=select-background', current: false, isAction: true }
+      ]
     case 'admin':
       return [
         { name: 'Dashboard', href: '/admin', current: true },
@@ -157,14 +181,16 @@ const getAppNavigation = (context, user, canManageUsers) => {
 export default function Navigation() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState(false)
   const { user, signOut } = useAuth()
   const { canManageUsers } = usePermissions()
+  const { selectedGroup } = useGroups()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   const context = getNavigationContext(pathname)
-  const breadcrumbs = generateBreadcrumbs(pathname, searchParams)
+  const breadcrumbs = generateBreadcrumbs(pathname, searchParams, selectedGroup)
   const appNavigation = getAppNavigation(context, user, canManageUsers)
 
   const handleSignOut = async () => {
@@ -199,17 +225,32 @@ export default function Navigation() {
               {appNavigation.length > 0 && (
                 <div className="hidden sm:ml-8 sm:flex sm:space-x-8">
                   {appNavigation.map((item) => (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                        item.current
-                          ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
-                          : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
-                    >
-                      {item.name}
-                    </Link>
+                    item.isAction ? (
+                      <button
+                        key={item.name}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (item.name === 'Select Background') {
+                            setIsBackgroundModalOpen(true)
+                          }
+                        }}
+                        className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-500 dark:hover:text-gray-400"
+                      >
+                        {item.name}
+                      </button>
+                    ) : (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                          item.current
+                            ? 'border-indigo-500 text-gray-900 dark:text-gray-100'
+                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    )
                   ))}
                 </div>
               )}
@@ -317,22 +358,38 @@ export default function Navigation() {
           <div className="sm:hidden relative z-50">
             <div className="pt-2 pb-3 space-y-1 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg">
               {appNavigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-colors ${
-                    item.current
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-400 dark:text-indigo-300'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    console.log('Mobile menu link clicked:', item.name, item.href)
-                    setIsMobileMenuOpen(false)
-                  }}
-                >
-                  {item.name}
-                </Link>
+                item.isAction ? (
+                  <button
+                    key={item.name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (item.name === 'Select Background') {
+                        setIsBackgroundModalOpen(true)
+                      }
+                      setIsMobileMenuOpen(false)
+                    }}
+                    className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors w-full text-left"
+                  >
+                    {item.name}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-colors ${
+                      item.current
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-400 dark:text-indigo-300'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      console.log('Mobile menu link clicked:', item.name, item.href)
+                      setIsMobileMenuOpen(false)
+                    }}
+                  >
+                    {item.name}
+                  </Link>
+                )
               ))}
             </div>
           </div>
@@ -383,6 +440,12 @@ export default function Navigation() {
           }}
         />
       )}
+
+      {/* Background Select Modal */}
+      <BackgroundSelectModal
+        isOpen={isBackgroundModalOpen}
+        onClose={() => setIsBackgroundModalOpen(false)}
+      />
     </>
   )
 } 

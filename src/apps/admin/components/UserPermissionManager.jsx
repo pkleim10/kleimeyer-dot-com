@@ -23,6 +23,12 @@ const PERMISSION_CATEGORIES = {
     { id: 'family:upload_documents', label: 'Upload Documents', description: 'Upload new documents' },
     { id: 'family:manage_documents', label: 'Manage Documents', description: 'Full document management' }
   ],
+  'Medication': [
+    { id: 'medication:create_shared_groups', label: 'Create Shared Medication Groups', description: 'Create new shared medication groups' },
+    { id: 'medication:view_shared_groups', label: 'View Shared Medication Groups', description: 'View shared medication groups' },
+    { id: 'medication:edit_shared_groups', label: 'Edit Shared Medication Groups', description: 'Edit shared medication groups' },
+    { id: 'medication:delete_shared_groups', label: 'Delete Shared Medication Groups', description: 'Delete shared medication groups' }
+  ],
   'Recipe': [
     { id: 'recipe:view_recipes', label: 'View Recipes', description: 'View recipe collection' },
     { id: 'recipe:create_recipes', label: 'Create Recipes', description: 'Add new recipes' },
