@@ -197,13 +197,12 @@ export default function Navigation() {
     try {
       await signOut()
       
-      // Smart redirect: stay on public pages, go home from private pages
-      const isPrivatePage = ['/admin', '/profile', '/signup', '/login'].includes(pathname)
-      const redirectPath = isPrivatePage ? '/' : pathname
-      router.push(redirectPath)
+      // Always redirect to sign-in page to prevent errors on unauthorized pages
+      router.push('/login')
     } catch (error) {
       console.error('Error signing out:', error)
-      router.push('/')
+      // Even on error, redirect to sign-in page
+      router.push('/login')
     }
   }
 

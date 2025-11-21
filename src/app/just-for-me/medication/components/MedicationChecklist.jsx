@@ -21,8 +21,13 @@ export default function MedicationChecklist() {
   // Get checklist data
   const checklistData = getChecklistData(medications, logs, startDate, endDate)
 
-  const handleToggle = (medicationId, scheduledDate, scheduledTime, timeNumber) => {
-    toggleLogTaken(medicationId, scheduledDate, scheduledTime, timeNumber)
+  const handleToggle = async (medicationId, scheduledDate, scheduledTime, timeNumber) => {
+    try {
+      await toggleLogTaken(medicationId, scheduledDate, scheduledTime, timeNumber)
+    } catch (error) {
+      console.error('Failed to toggle log:', error)
+      alert('Failed to update medication log: ' + error.message)
+    }
   }
 
   const isTaken = (medicationId, scheduledDate, scheduledTime, timeNumber) => {

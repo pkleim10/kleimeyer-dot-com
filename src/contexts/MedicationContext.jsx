@@ -3,16 +3,14 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext'
 import { useGroups } from './GroupContext'
+import { supabase } from '@/utils/supabase'
 
 const MedicationContext = createContext({})
 
 export const useMedications = () => useContext(MedicationContext)
 
-const STORAGE_KEY = 'medications_data'
-const LOGS_STORAGE_KEY = 'medication_logs_data'
-
 export function MedicationProvider({ children }) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { selectedGroupId, groups, loading: groupsLoading } = useGroups()
   const [allMedications, setAllMedications] = useState([])
   const [logs, setLogs] = useState([])
@@ -23,148 +21,332 @@ export function MedicationProvider({ children }) {
     ? allMedications.filter(med => med.groupId === selectedGroupId)
     : []
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    if (user && !groupsLoading) {
-      loadData()
-    } else if (!user) {
-      setAllMedications([])
-      setLogs([])
-      setLoading(false)
-    }
-  }, [user, groupsLoading])
-
-  const loadData = useCallback(() => {
-    try {
-      const storedMedications = localStorage.getItem(STORAGE_KEY)
-      const storedLogs = localStorage.getItem(LOGS_STORAGE_KEY)
-      
-      let parsedMedications = []
-      if (storedMedications) {
-        parsedMedications = JSON.parse(storedMedications)
+  const getAuthHeaders = useCallback(async () => {
+    // Retry logic to handle session not being ready
+    let retries = 0
+    const maxRetries = 3
+    while (retries < maxRetries) {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        retries++
+        if (retries >= maxRetries) {
+          throw new Error('Failed to get session')
+        }
+        await new Promise(resolve => setTimeout(resolve, 500 * retries))
+        continue
       }
-      
-      // Migration: Assign medications without groupId to default group
-      if (groups.length > 0 && parsedMedications.length > 0) {
-        const defaultGroup = groups[0] // First group is default
-        let needsMigration = false
-        
-        const migratedMedications = parsedMedications.map(med => {
-          if (!med.groupId) {
-            needsMigration = true
-            return { ...med, groupId: defaultGroup.id }
-          }
-          return med
-        })
-        
-        if (needsMigration) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(migratedMedications))
-          parsedMedications = migratedMedications
+      if (session && session.access_token) {
+        return {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
         }
       }
+      retries++
+      if (retries >= maxRetries) {
+        throw new Error('No session')
+      }
+      await new Promise(resolve => setTimeout(resolve, 500 * retries))
+    }
+    throw new Error('No session')
+  }, [])
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true)
+
+      const headers = await getAuthHeaders()
+
+      // Fetch medications - fetch all, filtering happens client-side by selectedGroupId
+      const medResponse = await fetch('/api/just-for-me/medication/medications', {
+        headers
+      })
+
+      if (!medResponse.ok) {
+        const errorData = await medResponse.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Failed to fetch medications:', medResponse.status, errorData)
+        throw new Error(errorData.error || 'Failed to fetch medications')
+      }
+
+      const { medications: fetchedMedications } = await medResponse.json()
       
-      setAllMedications(parsedMedications)
+      // Normalize field names from snake_case to camelCase
+      const normalizedMedications = (fetchedMedications || []).map(med => ({
+        id: med.id,
+        groupId: med.group_id,
+        name: med.name,
+        dosage: med.dosage,
+        frequencyType: med.frequency_type,
+        timesPerDay: med.times_per_day,
+        specificTimes: med.specific_times,
+        frequencyPattern: med.frequency_pattern,
+        everyXDays: med.every_x_days,
+        specificDays: med.specific_days,
+        withFood: med.with_food,
+        startDate: med.start_date,
+        endDate: med.end_date,
+        notes: med.notes,
+        numberToTake: med.number_to_take,
+        format: med.format,
+        indication: med.indication,
+        createdAt: med.created_at,
+        updatedAt: med.updated_at
+      }))
       
-      if (storedLogs) {
-        setLogs(JSON.parse(storedLogs))
+      setAllMedications(normalizedMedications)
+
+      // Fetch logs
+      const logsResponse = await fetch('/api/just-for-me/medication/logs', {
+        headers
+      })
+
+      if (logsResponse.ok) {
+        const { logs: fetchedLogs } = await logsResponse.json()
+        // Normalize field names from snake_case to camelCase
+        const normalizedLogs = (fetchedLogs || []).map(log => ({
+          id: log.id,
+          medicationId: log.medication_id,
+          scheduledDate: log.scheduled_date,
+          scheduledTime: log.scheduled_time,
+          timeNumber: log.time_number,
+          takenAt: log.taken_at
+        }))
+        setLogs(normalizedLogs)
       }
     } catch (error) {
       console.error('Error loading medication data:', error)
     } finally {
       setLoading(false)
     }
-  }, [groups])
+  }, [getAuthHeaders])
 
-  const saveMedications = useCallback((newMedications) => {
+  // Load data from Supabase on mount
+  useEffect(() => {
+    if (authLoading) {
+      return
+    }
+    
+    if (user && !groupsLoading && groups.length > 0) {
+      // Load medications when groups are available, regardless of selectedGroupId
+      loadData()
+    } else if (!user) {
+      setAllMedications([])
+      setLogs([])
+      setLoading(false)
+    }
+  }, [user, authLoading, groupsLoading, groups.length, loadData])
+
+  const addMedication = useCallback(async (medicationData) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newMedications))
-      setAllMedications(newMedications)
-    } catch (error) {
-      console.error('Error saving medications:', error)
-    }
-  }, [])
+      const headers = await getAuthHeaders()
 
-  const saveLogs = useCallback((newLogs) => {
-    try {
-      localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(newLogs))
-      setLogs(newLogs)
-    } catch (error) {
-      console.error('Error saving logs:', error)
-    }
-  }, [])
+      const response = await fetch('/api/just-for-me/medication/medications', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          groupId: selectedGroupId || medicationData.groupId,
+          name: medicationData.name,
+          dosage: medicationData.dosage,
+          frequencyType: medicationData.frequencyType,
+          timesPerDay: medicationData.timesPerDay,
+          specificTimes: medicationData.specificTimes,
+          frequencyPattern: medicationData.frequencyPattern,
+          everyXDays: medicationData.everyXDays,
+          specificDays: medicationData.specificDays,
+          withFood: medicationData.withFood,
+          startDate: medicationData.startDate,
+          endDate: medicationData.endDate,
+          notes: medicationData.notes,
+          numberToTake: medicationData.numberToTake,
+          format: medicationData.format,
+          indication: medicationData.indication
+        })
+      })
 
-  const addMedication = useCallback((medicationData) => {
-    const newMedication = {
-      id: crypto.randomUUID(),
-      ...medicationData,
-      groupId: selectedGroupId || medicationData.groupId, // Auto-assign to selected group
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-    
-    const updatedMedications = [...allMedications, newMedication]
-    saveMedications(updatedMedications)
-    return newMedication
-  }, [allMedications, selectedGroupId, saveMedications])
-
-  const updateMedication = useCallback((id, updates) => {
-    const updatedMedications = allMedications.map(med => 
-      med.id === id 
-        ? { ...med, ...updates, updatedAt: new Date().toISOString() }
-        : med
-    )
-    saveMedications(updatedMedications)
-  }, [allMedications, saveMedications])
-
-  const deleteMedication = useCallback((id) => {
-    const updatedMedications = allMedications.filter(med => med.id !== id)
-    saveMedications(updatedMedications)
-    
-    // Also delete associated logs
-    const updatedLogs = logs.filter(log => log.medicationId !== id)
-    saveLogs(updatedLogs)
-  }, [allMedications, logs, saveMedications, saveLogs])
-
-  const toggleLogTaken = useCallback((medicationId, scheduledDate, scheduledTime, timeNumber) => {
-    // Find existing log
-    const logKey = `${medicationId}-${scheduledDate}-${scheduledTime || timeNumber}`
-    const existingLog = logs.find(log => 
-      log.medicationId === medicationId &&
-      log.scheduledDate === scheduledDate &&
-      (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
-    )
-
-    let updatedLogs
-    
-    if (existingLog && existingLog.takenAt) {
-      // Unmark as taken
-      updatedLogs = logs.map(log => 
-        log.id === existingLog.id 
-          ? { ...log, takenAt: null }
-          : log
-      )
-    } else if (existingLog) {
-      // Mark as taken
-      updatedLogs = logs.map(log => 
-        log.id === existingLog.id 
-          ? { ...log, takenAt: new Date().toISOString() }
-          : log
-      )
-    } else {
-      // Create new log entry
-      const newLog = {
-        id: crypto.randomUUID(),
-        medicationId,
-        scheduledDate,
-        scheduledTime: scheduledTime || null,
-        timeNumber: timeNumber || null,
-        takenAt: new Date().toISOString()
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create medication')
       }
-      updatedLogs = [...logs, newLog]
+
+      const { medication } = await response.json()
+      
+      // Normalize field names
+      const normalizedMedication = {
+        id: medication.id,
+        groupId: medication.group_id,
+        name: medication.name,
+        dosage: medication.dosage,
+        frequencyType: medication.frequency_type,
+        timesPerDay: medication.times_per_day,
+        specificTimes: medication.specific_times,
+        frequencyPattern: medication.frequency_pattern,
+        everyXDays: medication.every_x_days,
+        specificDays: medication.specific_days,
+        withFood: medication.with_food,
+        startDate: medication.start_date,
+        endDate: medication.end_date,
+        notes: medication.notes,
+        numberToTake: medication.number_to_take,
+        format: medication.format,
+        indication: medication.indication,
+        createdAt: medication.created_at,
+        updatedAt: medication.updated_at
+      }
+      
+      // Update local state
+      setAllMedications(prev => [...prev, normalizedMedication])
+      
+      return normalizedMedication
+    } catch (error) {
+      console.error('Error adding medication:', error)
+      throw error
     }
-    
-    saveLogs(updatedLogs)
-  }, [logs, saveLogs])
+  }, [selectedGroupId, getAuthHeaders])
+
+  const updateMedication = useCallback(async (id, updates) => {
+    try {
+      const headers = await getAuthHeaders()
+
+      const response = await fetch(`/api/just-for-me/medication/medications/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          groupId: updates.groupId,
+          name: updates.name,
+          dosage: updates.dosage,
+          frequencyType: updates.frequencyType,
+          timesPerDay: updates.timesPerDay,
+          specificTimes: updates.specificTimes,
+          frequencyPattern: updates.frequencyPattern,
+          everyXDays: updates.everyXDays,
+          specificDays: updates.specificDays,
+          withFood: updates.withFood,
+          startDate: updates.startDate,
+          endDate: updates.endDate,
+          notes: updates.notes,
+          numberToTake: updates.numberToTake,
+          format: updates.format,
+          indication: updates.indication
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update medication')
+      }
+
+      const { medication } = await response.json()
+      
+      // Normalize field names
+      const normalizedMedication = {
+        id: medication.id,
+        groupId: medication.group_id,
+        name: medication.name,
+        dosage: medication.dosage,
+        frequencyType: medication.frequency_type,
+        timesPerDay: medication.times_per_day,
+        specificTimes: medication.specific_times,
+        frequencyPattern: medication.frequency_pattern,
+        everyXDays: medication.every_x_days,
+        specificDays: medication.specific_days,
+        withFood: medication.with_food,
+        startDate: medication.start_date,
+        endDate: medication.end_date,
+        notes: medication.notes,
+        numberToTake: medication.number_to_take,
+        format: medication.format,
+        indication: medication.indication,
+        createdAt: medication.created_at,
+        updatedAt: medication.updated_at
+      }
+      
+      // Update local state
+      setAllMedications(prev => prev.map(med => med.id === id ? normalizedMedication : med))
+      
+      return normalizedMedication
+    } catch (error) {
+      console.error('Error updating medication:', error)
+      throw error
+    }
+  }, [getAuthHeaders])
+
+  const deleteMedication = useCallback(async (id) => {
+    try {
+      const headers = await getAuthHeaders()
+
+      const response = await fetch(`/api/just-for-me/medication/medications/${id}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete medication')
+      }
+
+      // Update local state
+      setAllMedications(prev => prev.filter(med => med.id !== id))
+      
+      // Also remove associated logs
+      setLogs(prev => prev.filter(log => log.medicationId !== id))
+    } catch (error) {
+      console.error('Error deleting medication:', error)
+      throw error
+    }
+  }, [getAuthHeaders])
+
+  const toggleLogTaken = useCallback(async (medicationId, scheduledDate, scheduledTime, timeNumber) => {
+    try {
+      const headers = await getAuthHeaders()
+
+      // Find existing log
+      const existingLog = logs.find(log => 
+        log.medicationId === medicationId &&
+        log.scheduledDate === scheduledDate &&
+        (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
+      )
+
+      const takenAt = existingLog && existingLog.takenAt ? null : new Date().toISOString()
+
+      const response = await fetch('/api/just-for-me/medication/logs', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          medicationId,
+          scheduledDate,
+          scheduledTime: scheduledTime || null,
+          timeNumber: timeNumber || null,
+          takenAt
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update log')
+      }
+
+      const { log: updatedLog } = await response.json()
+      
+      // Normalize field names
+      const normalizedLog = {
+        id: updatedLog.id,
+        medicationId: updatedLog.medication_id,
+        scheduledDate: updatedLog.scheduled_date,
+        scheduledTime: updatedLog.scheduled_time,
+        timeNumber: updatedLog.time_number,
+        takenAt: updatedLog.taken_at
+      }
+
+      // Update local state
+      if (existingLog) {
+        setLogs(prev => prev.map(log => log.id === normalizedLog.id ? normalizedLog : log))
+      } else {
+        setLogs(prev => [...prev, normalizedLog])
+      }
+    } catch (error) {
+      console.error('Error toggling log:', error)
+      throw error
+    }
+  }, [logs, getAuthHeaders])
 
   const getLogsForDateRange = useCallback((startDate, endDate) => {
     const start = new Date(startDate)
@@ -178,6 +360,7 @@ export function MedicationProvider({ children }) {
 
   const value = {
     medications,
+    allMedications,
     logs,
     loading,
     addMedication,
@@ -193,4 +376,3 @@ export function MedicationProvider({ children }) {
     </MedicationContext.Provider>
   )
 }
-

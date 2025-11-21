@@ -10,7 +10,7 @@ import GroupForm from './GroupForm'
 export default function GroupList() {
   const router = useRouter()
   const { groups, deleteGroup } = useGroups()
-  const { medications: allMedications } = useMedications()
+  const { medications: allMedications, loading } = useMedications()
   const { 
     canViewSharedMedicationGroups, 
     canEditSharedMedicationGroups, 
@@ -30,6 +30,7 @@ export default function GroupList() {
   })
 
   const getMedicationCount = (groupId) => {
+    if (loading) return null // or return '...'
     return allMedications.filter(med => med.groupId === groupId).length
   }
 
@@ -61,9 +62,9 @@ export default function GroupList() {
 
     setDeletingGroupId(group.id)
     try {
-      deleteGroup(group.id)
+      await deleteGroup(group.id)
     } catch (error) {
-      alert('Failed to delete group')
+      alert('Failed to delete group: ' + error.message)
     } finally {
       setDeletingGroupId(null)
     }
@@ -157,12 +158,16 @@ export default function GroupList() {
               </span>
             </div>
             
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {medicationCount === 0 
-                ? 'No medications' 
-                : `${medicationCount} medication${medicationCount === 1 ? '' : 's'}`
-              }
-            </div>
+            {loading ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {medicationCount === 0 
+                  ? 'No medications' 
+                  : `${medicationCount} medication${medicationCount === 1 ? '' : 's'}`
+                }
+              </div>
+            )}
           </div>
         )
       })}

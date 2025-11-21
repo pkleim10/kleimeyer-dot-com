@@ -30,20 +30,28 @@ export default function MedicationList() {
     setShowForm(true)
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this medication?')) {
-      deleteMedication(id)
+      try {
+        await deleteMedication(id)
+      } catch (error) {
+        alert('Failed to delete medication: ' + error.message)
+      }
     }
   }
 
-  const handleSave = (medicationData) => {
-    if (editingId) {
-      updateMedication(editingId, medicationData)
-      setEditingId(null)
-    } else {
-      addMedication(medicationData)
+  const handleSave = async (medicationData) => {
+    try {
+      if (editingId) {
+        await updateMedication(editingId, medicationData)
+        setEditingId(null)
+      } else {
+        await addMedication(medicationData)
+      }
+      setShowForm(false)
+    } catch (error) {
+      alert('Failed to save medication: ' + error.message)
     }
-    setShowForm(false)
   }
 
   const handleCancel = () => {

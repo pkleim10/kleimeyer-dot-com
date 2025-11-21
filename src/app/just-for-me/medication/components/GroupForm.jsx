@@ -18,7 +18,7 @@ export default function GroupForm({ group, onSave, onCancel }) {
     }
   }, [group])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -34,9 +34,9 @@ export default function GroupForm({ group, onSave, onCancel }) {
 
     try {
       if (group) {
-        updateGroup(group.id, { name: name.trim(), accessibleBy })
+        await updateGroup(group.id, { name: name.trim(), accessibleBy })
       } else {
-        addGroup({ name: name.trim(), accessibleBy })
+        await addGroup({ name: name.trim(), accessibleBy })
       }
       onSave()
     } catch (err) {
