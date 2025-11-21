@@ -164,8 +164,8 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
     e.preventDefault()
     
     // Validation
-    if (!formData.name.trim() || !formData.dosage.trim()) {
-      alert('Please fill in medication name and dosage')
+    if (!formData.name.trim()) {
+      alert('Please fill in medication name')
       return
     }
 
@@ -193,7 +193,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
     // Prepare data for save
     const medicationData = {
       name: formData.name.trim(),
-      dosage: formData.dosage.trim(),
+      dosage: formData.dosage.trim() || null,
       numberToTake: parseInt(formData.numberToTake) || 1,
       format: formData.format || 'pill',
       indication: formData.indication.trim() || null,
@@ -234,7 +234,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
 
       <div>
         <label htmlFor="dosage" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Dosage *
+          Dosage
         </label>
         <input
           type="text"
@@ -244,7 +244,6 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
           onChange={handleChange}
           placeholder="e.g., 10mg, 1 tablet"
           className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
-          required
         />
       </div>
 
