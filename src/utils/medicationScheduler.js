@@ -197,18 +197,31 @@ export function getChecklistData(medications, logs, startDate, endDate) {
     }
   })
   
-  // Sort time slots: numbered first (#1, #2, etc.), then predefined options, then specific times
+  // Sort time slots: numbered first (#1, #2, etc.), then specific times (HH:mm), then named times (morning, evening, bedtime)
   const sortedTimeSlots = Array.from(timeSlots).sort((a, b) => {
     const aIsNumber = a.startsWith('#')
     const bIsNumber = b.startsWith('#')
     
+    // 1. Numbered times come first (#1, #2, #3, etc.)
     if (aIsNumber && bIsNumber) {
       return parseInt(a.substring(1)) - parseInt(b.substring(1))
     }
     if (aIsNumber) return -1
     if (bIsNumber) return 1
     
-    // Predefined options order: morning, evening, bedtime
+    // 2. Check if either is a specific time (HH:mm format)
+    const aIsSpecificTime = a.match(/^\d{2}:\d{2}$/)
+    const bIsSpecificTime = b.match(/^\d{2}:\d{2}$/)
+    
+    // 3. Specific times come before named times
+    if (aIsSpecificTime && bIsSpecificTime) {
+      // Sort specific times chronologically
+      return a.localeCompare(b)
+    }
+    if (aIsSpecificTime) return -1
+    if (bIsSpecificTime) return 1
+    
+    // 4. Named times (predefined options) come last: morning, evening, bedtime
     const predefinedOrder = { 'morning': 1, 'evening': 2, 'bedtime': 3 }
     const aPredefined = predefinedOrder[a]
     const bPredefined = predefinedOrder[b]
@@ -219,7 +232,7 @@ export function getChecklistData(medications, logs, startDate, endDate) {
     if (aPredefined) return -1
     if (bPredefined) return 1
     
-    // Compare times (HH:mm format) or other strings
+    // Fallback: compare as strings
     return a.localeCompare(b)
   })
   

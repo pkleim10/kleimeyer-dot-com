@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Sunday' },
@@ -32,9 +32,53 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
     specifyEndDate: false,
     notes: ''
   })
+  
+  // Track custom times added during this session - persist in sessionStorage
+  const CUSTOM_TIMES_STORAGE_KEY = 'medication_custom_times'
+  
+  // Load custom times from sessionStorage on mount
+  const loadCustomTimesFromStorage = () => {
+    try {
+      const stored = sessionStorage.getItem(CUSTOM_TIMES_STORAGE_KEY)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch (e) {
+      console.error('Error loading custom times from storage:', e)
+    }
+    return []
+  }
+  
+  const [customTimes, setCustomTimes] = useState(loadCustomTimesFromStorage)
+  // Ref to track latest specificTimes for onBlur handler
+  const specificTimesRef = useRef(formData.specificTimes)
+  
+  // Save custom times to sessionStorage whenever they change
+  const saveCustomTimesToStorage = (times) => {
+    try {
+      sessionStorage.setItem(CUSTOM_TIMES_STORAGE_KEY, JSON.stringify(times))
+    } catch (e) {
+      console.error('Error saving custom times to storage:', e)
+    }
+  }
 
   useEffect(() => {
     if (medication) {
+      // Extract any custom times (HH:MM format) from existing medication
+      const existingCustomTimes = (medication.specificTimes || [])
+        .filter(time => time.match(/^\d{2}:\d{2}$/))
+      
+      // Merge with session custom times and save
+      if (existingCustomTimes.length > 0) {
+        const currentSessionTimes = loadCustomTimesFromStorage()
+        const mergedTimes = [...new Set([...currentSessionTimes, ...existingCustomTimes])].sort()
+        setCustomTimes(mergedTimes)
+        saveCustomTimesToStorage(mergedTimes)
+      }
+      
+      const initialSpecificTimes = medication.specificTimes || ['morning']
+      specificTimesRef.current = initialSpecificTimes
+      
       setFormData({
         name: medication.name || '',
         dosage: medication.dosage || '',
@@ -43,7 +87,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
         indication: medication.indication || '',
         frequencyType: medication.frequencyType || 'times_per_day',
         timesPerDay: medication.timesPerDay || 1,
-        specificTimes: medication.specificTimes || ['morning'],
+        specificTimes: initialSpecificTimes,
         frequencyPattern: medication.frequencyPattern || 'every_day',
         everyXDays: medication.everyXDays || 1,
         specificDays: medication.specificDays || [],
@@ -66,10 +110,28 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
   }
 
   const handleSpecificTimeChange = (index, value) => {
-    const newTimes = [...formData.specificTimes]
-    // Store the value as-is (could be "morning", "evening", "bedtime", or "HH:MM")
-    newTimes[index] = value
-    setFormData(prev => ({ ...prev, specificTimes: newTimes }))
+    setFormData(prev => {
+      const newTimes = [...prev.specificTimes]
+      // Store the value as-is (could be "morning", "evening", "bedtime", or "HH:MM")
+      newTimes[index] = value
+      // Update ref with latest times
+      specificTimesRef.current = newTimes
+      return { ...prev, specificTimes: newTimes }
+    })
+  }
+  
+  const rebuildCustomTimes = (timesArray) => {
+    // Extract all custom times (HH:MM format) from the provided times array
+    const formCustomTimes = timesArray
+      .filter(time => time.match(/^\d{2}:\d{2}$/))
+    
+    // Get current session custom times and merge with new ones from this form
+    // This ensures times from previous medications are preserved
+    const currentSessionTimes = loadCustomTimesFromStorage()
+    const mergedTimes = [...new Set([...currentSessionTimes, ...formCustomTimes])].sort()
+    
+    setCustomTimes(mergedTimes)
+    saveCustomTimesToStorage(mergedTimes)
   }
 
   const addSpecificTime = () => {
@@ -80,10 +142,13 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
   }
 
   const removeSpecificTime = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      specificTimes: prev.specificTimes.filter((_, i) => i !== index)
-    }))
+    setFormData(prev => {
+      const newTimes = prev.specificTimes.filter((_, i) => i !== index)
+      specificTimesRef.current = newTimes
+      // Rebuild custom times after removing
+      rebuildCustomTimes(newTimes)
+      return { ...prev, specificTimes: newTimes }
+    })
   }
 
   const handleDayToggle = (dayValue) => {
@@ -167,36 +232,20 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="dosage" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Dosage *
-          </label>
-          <input
-            type="text"
-            id="dosage"
-            name="dosage"
-            value={formData.dosage}
-            onChange={handleChange}
-            placeholder="e.g., 10mg, 1 tablet"
-            className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="numberToTake" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Number to Take
-          </label>
-          <input
-            type="number"
-            id="numberToTake"
-            name="numberToTake"
-            value={formData.numberToTake}
-            onChange={handleChange}
-            min="1"
-            className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
-          />
-        </div>
+      <div>
+        <label htmlFor="dosage" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Dosage *
+        </label>
+        <input
+          type="text"
+          id="dosage"
+          name="dosage"
+          value={formData.dosage}
+          onChange={handleChange}
+          placeholder="e.g., 10mg, 1 tablet"
+          className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
+          required
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -238,6 +287,34 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
             placeholder="e.g., acid indigestion"
             className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
           />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          Number to Take
+        </label>
+        <div className="flex gap-2 flex-wrap mb-6">
+          {[1, 2, 3, 4, 5, 6].map((num) => (
+            <button
+              key={num}
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, numberToTake: num }))}
+              className={`
+                min-w-[30px] max-w-[50px] aspect-square
+                rounded-lg border-2 font-semibold text-sm
+                transition-all duration-200 transform
+                hover:scale-105 hover:shadow-md
+                ${
+                  formData.numberToTake === num
+                    ? 'bg-emerald-600 text-white border-emerald-700 dark:bg-emerald-500 dark:border-emerald-400 shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                }
+              `}
+            >
+              {num}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -284,20 +361,31 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
 
       {formData.frequencyType === 'times_per_day' && (
         <div>
-          <label htmlFor="timesPerDay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Number of times per day *
           </label>
-          <input
-            type="number"
-            id="timesPerDay"
-            name="timesPerDay"
-            value={formData.timesPerDay}
-            onChange={handleChange}
-            min="1"
-            max="10"
-            className="mt-1 block w-full border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
-            required
-          />
+          <div className="flex gap-2 flex-wrap">
+            {[1, 2, 3, 4, 5, 6].map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, timesPerDay: num }))}
+                className={`
+                  min-w-[30px] max-w-[50px] aspect-square
+                  rounded-lg border-2 font-semibold text-sm
+                  transition-all duration-200 transform
+                  hover:scale-105 hover:shadow-md
+                  ${
+                    formData.timesPerDay === num
+                      ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                      : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                  }
+                `}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -311,6 +399,16 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
             const isSpecificTime = time.match(/^\d{2}:\d{2}$/)
             const displayValue = isSpecificTime ? 'specific' : time
             
+            // Format time for display (convert 24h to 12h with AM/PM)
+            const formatTimeForDisplay = (timeStr) => {
+              if (!timeStr.match(/^\d{2}:\d{2}$/)) return timeStr
+              const [hours, minutes] = timeStr.split(':')
+              const hour24 = parseInt(hours)
+              const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24
+              const ampm = hour24 >= 12 ? 'PM' : 'AM'
+              return `${hour12}:${minutes} ${ampm}`
+            }
+            
             return (
               <div key={index} className="flex items-center gap-2 mb-2">
                 <select
@@ -319,10 +417,11 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
                     const value = e.target.value
                     if (value === 'specific') {
                       // User selected "Specific time" - keep current time or default to 08:00
-                      handleSpecificTimeChange(index, isSpecificTime ? time : '08:00')
+                      // Don't add to customTimes yet - wait for user to actually change the time
+                      handleSpecificTimeChange(index, isSpecificTime ? time : '08:00', false)
                     } else {
-                      // Predefined option selected (morning, evening, bedtime)
-                      handleSpecificTimeChange(index, value)
+                      // Predefined option selected (morning, evening, bedtime) or custom time
+                      handleSpecificTimeChange(index, value, false)
                     }
                   }}
                   className="block border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
@@ -331,13 +430,27 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
                   <option value="morning">In the morning</option>
                   <option value="evening">In the evening</option>
                   <option value="bedtime">Before bedtime</option>
+                  {customTimes.map(customTime => (
+                    <option key={customTime} value={customTime}>
+                      {formatTimeForDisplay(customTime)}
+                    </option>
+                  ))}
                   <option value="specific">Specific time...</option>
                 </select>
                 {isSpecificTime && (
                   <input
                     type="time"
                     value={time}
-                    onChange={(e) => handleSpecificTimeChange(index, e.target.value)}
+                    onChange={(e) => {
+                      const newTime = e.target.value
+                      // Update the value immediately for display
+                      handleSpecificTimeChange(index, newTime)
+                    }}
+                    onBlur={() => {
+                      // Rebuild custom times list from all current specific times
+                      // Use ref to get the latest times immediately
+                      rebuildCustomTimes(specificTimesRef.current)
+                    }}
                     className="block border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors duration-200"
                   />
                 )}

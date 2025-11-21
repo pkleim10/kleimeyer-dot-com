@@ -118,7 +118,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Medication ID and scheduled date are required' }, { status: 400 })
     }
 
-    // Verify medication belongs to user
+    // Verify medication belongs to user (required for security)
     const { data: medication, error: medError } = await supabaseWithAuth
       .from('medications')
       .select('id')
@@ -130,32 +130,32 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Medication not found or access denied' }, { status: 403 })
     }
 
-    // Check if log already exists
+    // Check if log already exists and update/insert in optimized way
     let query = supabaseWithAuth
       .from('medication_logs')
-      .select('*')
+      .select('id, taken_at')
       .eq('medication_id', medicationId)
       .eq('scheduled_date', scheduledDate)
 
     if (scheduledTime) {
       query = query.eq('scheduled_time', scheduledTime)
-    } else if (timeNumber !== undefined) {
+    } else if (timeNumber !== undefined && timeNumber !== null) {
       query = query.eq('time_number', timeNumber)
     }
 
-    const { data: existingLogs } = await query
+    const { data: existingLogs, error: queryError } = await query
+
+    if (queryError) {
+      console.error('Error querying medication logs:', queryError)
+      return NextResponse.json({ error: `Failed to query logs: ${queryError.message}` }, { status: 500 })
+    }
 
     let log
     if (existingLogs && existingLogs.length > 0) {
-      // Update existing log
-      const updateData = {}
-      if (takenAt !== undefined) {
-        updateData.taken_at = takenAt || null
-      }
-
+      // Update existing log - only update taken_at field
       const { data: updatedLog, error: updateError } = await supabaseWithAuth
         .from('medication_logs')
-        .update(updateData)
+        .update({ taken_at: takenAt || null })
         .eq('id', existingLogs[0].id)
         .select()
         .single()
@@ -172,7 +172,7 @@ export async function POST(request) {
         medication_id: medicationId,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime || null,
-        time_number: timeNumber || null,
+        time_number: timeNumber !== undefined && timeNumber !== null ? timeNumber : null,
         taken_at: takenAt || null
       }
 

@@ -94,6 +94,25 @@ export function MedicationProvider({ children }) {
       
       setAllMedications(normalizedMedications)
 
+      // Pre-load custom times from all existing medications into sessionStorage
+      const CUSTOM_TIMES_STORAGE_KEY = 'medication_custom_times'
+      const allCustomTimes = normalizedMedications
+        .filter(med => med.frequencyType === 'specific_times' && med.specificTimes)
+        .flatMap(med => med.specificTimes)
+        .filter(time => time && time.match(/^\d{2}:\d{2}$/))
+      
+      if (allCustomTimes.length > 0) {
+        // Get existing custom times from sessionStorage and merge
+        try {
+          const existing = sessionStorage.getItem(CUSTOM_TIMES_STORAGE_KEY)
+          const existingTimes = existing ? JSON.parse(existing) : []
+          const mergedTimes = [...new Set([...existingTimes, ...allCustomTimes])].sort()
+          sessionStorage.setItem(CUSTOM_TIMES_STORAGE_KEY, JSON.stringify(mergedTimes))
+        } catch (e) {
+          console.error('Error saving custom times to sessionStorage:', e)
+        }
+      }
+
       // Fetch logs
       const logsResponse = await fetch('/api/just-for-me/medication/logs', {
         headers
@@ -295,17 +314,43 @@ export function MedicationProvider({ children }) {
   }, [getAuthHeaders])
 
   const toggleLogTaken = useCallback(async (medicationId, scheduledDate, scheduledTime, timeNumber) => {
-    try {
-      const headers = await getAuthHeaders()
+    // Find existing log
+    const existingLog = logs.find(log => 
+      log.medicationId === medicationId &&
+      log.scheduledDate === scheduledDate &&
+      (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
+    )
 
-      // Find existing log
-      const existingLog = logs.find(log => 
+    const newTakenAt = existingLog && existingLog.takenAt ? null : new Date().toISOString()
+    
+    // Optimistic UI update - update immediately for instant feedback
+    const optimisticLog = existingLog 
+      ? { ...existingLog, takenAt: newTakenAt }
+      : {
+          id: `temp-${Date.now()}`, // Temporary ID
+          medicationId,
+          scheduledDate,
+          scheduledTime: scheduledTime || null,
+          timeNumber: timeNumber || null,
+          takenAt: newTakenAt
+        }
+
+    // Update local state immediately
+    if (existingLog) {
+      setLogs(prev => prev.map(log => 
         log.medicationId === medicationId &&
         log.scheduledDate === scheduledDate &&
         (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
-      )
+          ? optimisticLog
+          : log
+      ))
+    } else {
+      setLogs(prev => [...prev, optimisticLog])
+    }
 
-      const takenAt = existingLog && existingLog.takenAt ? null : new Date().toISOString()
+    // Then sync with server
+    try {
+      const headers = await getAuthHeaders()
 
       const response = await fetch('/api/just-for-me/medication/logs', {
         method: 'POST',
@@ -315,11 +360,23 @@ export function MedicationProvider({ children }) {
           scheduledDate,
           scheduledTime: scheduledTime || null,
           timeNumber: timeNumber || null,
-          takenAt
+          takenAt: newTakenAt
         })
       })
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        if (existingLog) {
+          setLogs(prev => prev.map(log => 
+            log.medicationId === medicationId &&
+            log.scheduledDate === scheduledDate &&
+            (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
+              ? existingLog
+              : log
+          ))
+        } else {
+          setLogs(prev => prev.filter(log => log.id !== optimisticLog.id))
+        }
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to update log')
       }
@@ -336,14 +393,22 @@ export function MedicationProvider({ children }) {
         takenAt: updatedLog.taken_at
       }
 
-      // Update local state
+      // Update with server response (replace optimistic update)
       if (existingLog) {
-        setLogs(prev => prev.map(log => log.id === normalizedLog.id ? normalizedLog : log))
+        setLogs(prev => prev.map(log => 
+          log.medicationId === medicationId &&
+          log.scheduledDate === scheduledDate &&
+          (scheduledTime ? log.scheduledTime === scheduledTime : log.timeNumber === timeNumber)
+            ? normalizedLog
+            : log
+        ))
       } else {
-        setLogs(prev => [...prev, normalizedLog])
+        // Remove temporary log and add real one
+        setLogs(prev => prev.filter(log => log.id !== optimisticLog.id).concat(normalizedLog))
       }
     } catch (error) {
       console.error('Error toggling log:', error)
+      // Error handling already reverts the optimistic update above
       throw error
     }
   }, [logs, getAuthHeaders])

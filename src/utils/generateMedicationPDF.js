@@ -11,6 +11,32 @@ function formatDate(dateString) {
   })
 }
 
+// Helper function to determine if medication is active
+function isActive(medication) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  // Check start date
+  if (medication.startDate) {
+    const start = new Date(medication.startDate)
+    start.setHours(0, 0, 0, 0)
+    if (start > today) {
+      return false // Not started yet
+    }
+  }
+  
+  // Check end date
+  if (medication.endDate) {
+    const end = new Date(medication.endDate)
+    end.setHours(0, 0, 0, 0)
+    if (end < today) {
+      return false // Already ended
+    }
+  }
+  
+  return true // Active (no start date or started, and no end date or not ended)
+}
+
 // Helper function to generate conversational summary
 // Format: "AMOXYCILIN 50mg. Take 1 capsule 3 times per day for tooth infection"
 function generateSummary(medication) {
@@ -111,7 +137,16 @@ function generateSummary(medication) {
     summary += ` for ${medication.indication.trim()}`
   }
   
-  return summary + '.'
+  // Add period after indication (or after frequency if no indication)
+  summary += '.'
+  
+  // NOTES: Add notes if present - NOTES IS OPTIONAL
+  // Add notes immediately following the description on the same line
+  if (medication.notes && medication.notes.trim()) {
+    summary += ` ${medication.notes.trim()}`
+  }
+  
+  return summary
 }
 
 export function generateMedicationPDF(medications, groupName = null) {
@@ -155,15 +190,17 @@ export function generateMedicationPDF(medications, groupName = null) {
   pdf.setTextColor(0, 0, 0)
   
   const colWidths = {
-    summary: (pageWidth - 2 * margin) * 0.6, // 60% for summary
-    startDate: (pageWidth - 2 * margin) * 0.2, // 20% for start date
-    endDate: (pageWidth - 2 * margin) * 0.2     // 20% for end date
+    summary: (pageWidth - 2 * margin) * 0.5, // 50% for summary
+    startDate: (pageWidth - 2 * margin) * 0.15, // 15% for start date
+    endDate: (pageWidth - 2 * margin) * 0.15,   // 15% for end date
+    active: (pageWidth - 2 * margin) * 0.2       // 20% for active
   }
   
   const colX = {
     summary: margin,
     startDate: margin + colWidths.summary,
-    endDate: margin + colWidths.summary + colWidths.startDate
+    endDate: margin + colWidths.summary + colWidths.startDate,
+    active: margin + colWidths.summary + colWidths.startDate + colWidths.endDate
   }
   
   // Draw header row background
@@ -175,6 +212,7 @@ export function generateMedicationPDF(medications, groupName = null) {
   pdf.text('Summary', colX.summary + 2, currentY)
   pdf.text('Start Date', colX.startDate + 2, currentY)
   pdf.text('End Date', colX.endDate + 2, currentY)
+  pdf.text('Active', colX.active + 2, currentY)
   
   currentY += 10
   
@@ -204,6 +242,7 @@ export function generateMedicationPDF(medications, groupName = null) {
       pdf.text('Summary', colX.summary + 2, currentY)
       pdf.text('Start Date', colX.startDate + 2, currentY)
       pdf.text('End Date', colX.endDate + 2, currentY)
+      pdf.text('Active', colX.active + 2, currentY)
       currentY += 10
       pdf.setDrawColor(200, 200, 200)
       pdf.line(margin, currentY - 2, pageWidth - margin, currentY - 2)
@@ -215,6 +254,7 @@ export function generateMedicationPDF(medications, groupName = null) {
     const summary = generateSummary(medication)
     const startDate = formatDate(medication.startDate) || ''
     const endDate = formatDate(medication.endDate) || ''
+    const active = isActive(medication) ? 'Yes' : 'No'
     
     // Split summary text if too long
     const maxWidth = colWidths.summary - 4
@@ -326,6 +366,16 @@ export function generateMedicationPDF(medications, groupName = null) {
     
     // End Date
     pdf.text(endDate, colX.endDate + 2, currentY)
+    
+    // Active
+    pdf.setFont(undefined, 'bold')
+    if (active === 'Yes') {
+      pdf.setTextColor(16, 185, 129) // green
+    } else {
+      pdf.setTextColor(239, 68, 68) // red
+    }
+    pdf.text(active, colX.active + 2, currentY)
+    pdf.setTextColor(0, 0, 0) // Reset to black
     
     currentY += rowHeight
   })
