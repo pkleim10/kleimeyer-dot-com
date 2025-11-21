@@ -177,6 +177,14 @@ export default function ThanksgivingChecklistPage() {
     }
   }
 
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/family/thanksgiving-checklist')
+      return
+    }
+  }, [authLoading, user, router])
+
   // Redirect if not family member
   useEffect(() => {
     if (!authLoading && !permissionsLoading && user && !canViewFamily) {
@@ -184,13 +192,13 @@ export default function ThanksgivingChecklistPage() {
     }
   }, [authLoading, permissionsLoading, user, canViewFamily, router])
 
-  // Show loading while auth and permissions are being determined
-  if (authLoading || permissionsLoading || loading || (!canViewFamily && !authLoading && !permissionsLoading)) {
+  // Show loading while auth and permissions are being determined, or redirecting
+  if (authLoading || permissionsLoading || loading || !user || (!canViewFamily && !authLoading && !permissionsLoading && user)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-flex items-center px-4 py-2 font-semibold leading-6 text-gray-900 dark:text-gray-100">
-            {authLoading || permissionsLoading ? 'Loading...' : (!canViewFamily && !authLoading && !permissionsLoading) ? 'Redirecting...' : 'Loading checklist...'}
+            {authLoading || permissionsLoading ? 'Loading...' : !user ? 'Redirecting to login...' : (!canViewFamily && !authLoading && !permissionsLoading) ? 'Redirecting...' : 'Loading checklist...'}
           </div>
         </div>
       </div>
