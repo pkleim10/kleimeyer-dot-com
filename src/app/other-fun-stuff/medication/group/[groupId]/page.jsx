@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { MedicationProvider } from '@/contexts/MedicationContext'
 import { useGroups } from '@/contexts/GroupContext'
+import { useAuth } from '@/contexts/AuthContext'
 import MedicationList from '../../components/MedicationList'
 import MedicationChecklist from '../../components/MedicationChecklist'
 
@@ -11,7 +12,18 @@ function GroupDetailContent() {
   const params = useParams()
   const router = useRouter()
   const { groups, setSelectedGroup, selectedGroup } = useGroups()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('medications')
+  
+  // Use single background field for all Other Fun Stuff pages, with fallback to old field names for backward compatibility
+  // Handle case where background might not be set
+  const backgroundUrl = user?.user_metadata?.other_fun_stuff_background || 
+                        user?.user_metadata?.just_for_me_background || 
+                        null
+  const transparency = user?.user_metadata?.other_fun_stuff_background_transparency ?? 
+                       user?.user_metadata?.just_for_me_background_transparency ?? 90
+  const screenColor = user?.user_metadata?.other_fun_stuff_background_color ?? 
+                      user?.user_metadata?.just_for_me_background_color ?? '#f9fafb'
 
   useEffect(() => {
     const groupId = params.groupId
@@ -21,7 +33,7 @@ function GroupDetailContent() {
         setSelectedGroup(groupId)
       } else {
         // Group not found, redirect to main page
-        router.push('/just-for-me/medication')
+        router.push('/other-fun-stuff/medication')
       }
     }
   }, [params.groupId, groups, setSelectedGroup, router])
@@ -37,11 +49,32 @@ function GroupDetailContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <div 
+      className="relative min-h-screen"
+      style={backgroundUrl ? {
+        backgroundImage: `url(${backgroundUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      } : {
+        backgroundColor: '#f9fafb'
+      }}
+    >
+      {/* Overlay for readability */}
+      {backgroundUrl && (
+        <div 
+          className="absolute inset-0" 
+          style={{
+            backgroundColor: screenColor,
+            opacity: transparency / 100
+          }}
+        />
+      )}
+      <div className="relative z-10 min-h-screen bg-gray-50 dark:bg-slate-900 bg-opacity-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => router.push('/just-for-me/medication')}
+            onClick={() => router.push('/other-fun-stuff/medication')}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             title="Back to groups"
           >
@@ -124,6 +157,7 @@ function GroupDetailContent() {
             <MedicationChecklist />
           </div>
         )}
+      </div>
       </div>
     </div>
   )

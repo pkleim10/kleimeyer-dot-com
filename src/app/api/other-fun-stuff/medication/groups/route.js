@@ -61,7 +61,7 @@ export async function GET(request) {
 
     return NextResponse.json({ groups: transformedGroups })
   } catch (error) {
-    console.error('Error in GET /api/just-for-me/medication/groups:', error)
+    console.error('Error in GET /api/other-fun-stuff/medication/groups:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -126,7 +126,7 @@ export async function POST(request) {
 
     return NextResponse.json({ group: transformedGroup }, { status: 201 })
   } catch (error) {
-    console.error('Unexpected POST /api/just-for-me/medication/groups:', error)
+    console.error('Unexpected POST /api/other-fun-stuff/medication/groups:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

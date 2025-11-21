@@ -5,7 +5,7 @@ import { supabase } from '@/utils/supabase'
 import { uploadImage } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function BackgroundSelectModal({ isOpen, onClose }) {
+export default function BackgroundSelectModal({ isOpen, onClose, page = 'other-fun-stuff' }) {
   const { user } = useAuth()
   const [imageFile, setImageFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
@@ -20,14 +20,21 @@ export default function BackgroundSelectModal({ isOpen, onClose }) {
   // Load current background and settings if exists
   useEffect(() => {
     if (isOpen && user?.user_metadata) {
-      if (user.user_metadata.just_for_me_background) {
-        setPreviewUrl(user.user_metadata.just_for_me_background)
+      // Use single background field for all Other Fun Stuff pages, with fallback to old field names
+      const bgUrl = user.user_metadata.other_fun_stuff_background || 
+                    user.user_metadata.just_for_me_background
+      if (bgUrl) {
+        setPreviewUrl(bgUrl)
       }
-      if (user.user_metadata.just_for_me_background_transparency !== undefined) {
-        setTransparency(user.user_metadata.just_for_me_background_transparency)
+      const bgTransparency = user.user_metadata.other_fun_stuff_background_transparency ?? 
+                             user.user_metadata.just_for_me_background_transparency
+      if (bgTransparency !== undefined) {
+        setTransparency(bgTransparency)
       }
-      if (user.user_metadata.just_for_me_background_color) {
-        setScreenColor(user.user_metadata.just_for_me_background_color)
+      const bgColor = user.user_metadata.other_fun_stuff_background_color || 
+                      user.user_metadata.just_for_me_background_color
+      if (bgColor) {
+        setScreenColor(bgColor)
       }
     } else if (isOpen) {
       setPreviewUrl(null)
@@ -90,11 +97,13 @@ export default function BackgroundSelectModal({ isOpen, onClose }) {
     setError(null)
 
     try {
-      let imageUrl = user?.user_metadata?.just_for_me_background
+      // Get existing image URL, with fallback to old field names
+      let imageUrl = user?.user_metadata?.other_fun_stuff_background || 
+                     user?.user_metadata?.just_for_me_background
 
       // Upload new image if one was selected
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile, 'just-for-me-backgrounds')
+        imageUrl = await uploadImage(imageFile, 'other-fun-stuff-backgrounds')
       }
 
       // If no image and no existing image, show error
@@ -302,7 +311,8 @@ export default function BackgroundSelectModal({ isOpen, onClose }) {
                     >
                       Change Image
                     </button>
-                    {user?.user_metadata?.just_for_me_background && (
+                    {(user?.user_metadata?.other_fun_stuff_background || 
+                      user?.user_metadata?.just_for_me_background) && (
                       <button
                         onClick={handleRemove}
                         disabled={loading}

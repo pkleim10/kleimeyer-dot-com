@@ -52,7 +52,7 @@ export function GroupProvider({ children }) {
 
       const headers = await getAuthHeaders()
 
-      const response = await fetch('/api/just-for-me/medication/groups', {
+      const response = await fetch('/api/other-fun-stuff/medication/groups', {
         headers
       })
 
@@ -106,7 +106,7 @@ export function GroupProvider({ children }) {
 
   const createDefaultGroup = useCallback(async (headers) => {
     try {
-      const response = await fetch('/api/just-for-me/medication/groups', {
+      const response = await fetch('/api/other-fun-stuff/medication/groups', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -153,7 +153,7 @@ export function GroupProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch('/api/just-for-me/medication/groups', {
+      const response = await fetch('/api/other-fun-stuff/medication/groups', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -189,7 +189,7 @@ export function GroupProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch(`/api/just-for-me/medication/groups/${id}`, {
+      const response = await fetch(`/api/other-fun-stuff/medication/groups/${id}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
@@ -221,7 +221,7 @@ export function GroupProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch(`/api/just-for-me/medication/groups/${id}`, {
+      const response = await fetch(`/api/other-fun-stuff/medication/groups/${id}`, {
         method: 'DELETE',
         headers
       })

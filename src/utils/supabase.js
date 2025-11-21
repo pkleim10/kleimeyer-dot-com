@@ -22,7 +22,7 @@ export async function uploadImage(file, path) {
     const filePath = cleanPath ? `${cleanPath}/${cleanFileName}` : cleanFileName
 
     // Determine storage bucket based on path
-    const bucket = path?.includes('just-for-me') ? 'recipe-images' : 'recipe-images'
+    const bucket = path?.includes('other-fun-stuff') ? 'recipe-images' : 'recipe-images'
 
     console.log('Uploading file:', { fileName, filePath, fileSize: file.size, bucket })
 

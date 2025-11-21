@@ -57,7 +57,7 @@ export function MedicationProvider({ children }) {
       const headers = await getAuthHeaders()
 
       // Fetch medications - fetch all, filtering happens client-side by selectedGroupId
-      const medResponse = await fetch('/api/just-for-me/medication/medications', {
+      const medResponse = await fetch('/api/other-fun-stuff/medication/medications', {
         headers
       })
 
@@ -115,7 +115,7 @@ export function MedicationProvider({ children }) {
       }
 
       // Fetch logs
-      const logsResponse = await fetch('/api/just-for-me/medication/logs', {
+      const logsResponse = await fetch('/api/other-fun-stuff/medication/logs', {
         headers
       })
 
@@ -159,7 +159,7 @@ export function MedicationProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch('/api/just-for-me/medication/medications', {
+      const response = await fetch('/api/other-fun-stuff/medication/medications', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -228,7 +228,7 @@ export function MedicationProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch(`/api/just-for-me/medication/medications/${id}`, {
+      const response = await fetch(`/api/other-fun-stuff/medication/medications/${id}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
@@ -297,7 +297,7 @@ export function MedicationProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch(`/api/just-for-me/medication/medications/${id}`, {
+      const response = await fetch(`/api/other-fun-stuff/medication/medications/${id}`, {
         method: 'DELETE',
         headers
       })
@@ -357,7 +357,7 @@ export function MedicationProvider({ children }) {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch('/api/just-for-me/medication/logs', {
+      const response = await fetch('/api/other-fun-stuff/medication/logs', {
         method: 'POST',
         headers,
         body: JSON.stringify({

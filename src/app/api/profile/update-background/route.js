@@ -47,19 +47,39 @@ export async function PUT(request) {
     const { backgroundUrl, transparency, screenColor } = body
 
     // Prepare updated metadata
+    // Use single background field for all Other Fun Stuff pages, with fallback to old field names
+    const existingBg = user.user_metadata?.other_fun_stuff_background || 
+                       user.user_metadata?.just_for_me_background
+    const existingTransparency = user.user_metadata?.other_fun_stuff_background_transparency ?? 
+                                 user.user_metadata?.just_for_me_background_transparency
+    const existingColor = user.user_metadata?.other_fun_stuff_background_color || 
+                          user.user_metadata?.just_for_me_background_color
+
     const updatedMetadata = {
       ...user.user_metadata,
-      just_for_me_background: backgroundUrl !== undefined ? backgroundUrl : user.user_metadata?.just_for_me_background
+      // Use single field name for all Other Fun Stuff pages
+      other_fun_stuff_background: backgroundUrl !== undefined ? backgroundUrl : existingBg,
+      other_fun_stuff_background_transparency: transparency !== undefined ? transparency : (existingTransparency ?? 90),
+      other_fun_stuff_background_color: screenColor !== undefined ? screenColor : (existingColor || '#f9fafb')
     }
 
-    // Update transparency if provided
-    if (transparency !== undefined) {
-      updatedMetadata.just_for_me_background_transparency = transparency
+    // Remove old field names if they exist (one-time migration)
+    if (user.user_metadata?.just_for_me_background) {
+      updatedMetadata.just_for_me_background = null
+      updatedMetadata.just_for_me_background_transparency = null
+      updatedMetadata.just_for_me_background_color = null
     }
-
-    // Update screen color if provided
-    if (screenColor !== undefined) {
-      updatedMetadata.just_for_me_background_color = screenColor
+    
+    // Remove page-specific field names if they exist (cleanup from previous implementation)
+    if (user.user_metadata?.other_fun_stuff_home_background) {
+      updatedMetadata.other_fun_stuff_home_background = null
+      updatedMetadata.other_fun_stuff_home_background_transparency = null
+      updatedMetadata.other_fun_stuff_home_background_color = null
+    }
+    if (user.user_metadata?.other_fun_stuff_medication_background) {
+      updatedMetadata.other_fun_stuff_medication_background = null
+      updatedMetadata.other_fun_stuff_medication_background_transparency = null
+      updatedMetadata.other_fun_stuff_medication_background_color = null
     }
 
     // Use the Supabase REST API directly to update user metadata

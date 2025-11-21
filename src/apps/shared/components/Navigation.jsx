@@ -22,9 +22,9 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/family/thanksgiving-checklist') return { app: 'family', section: 'thanksgiving-checklist', page: 'thanksgiving-checklist' }
   if (pathname === '/photos') return { app: 'photos', section: 'home', page: 'photos-home' }
   if (pathname.startsWith('/photos/album/')) return { app: 'photos', section: 'album', page: 'album-detail' }
-  if (pathname === '/just-for-me') return { app: 'justForMe', section: 'home', page: 'just-for-me' }
-  if (pathname.startsWith('/just-for-me/medication/group/')) return { app: 'justForMe', section: 'medication', page: 'medication-group' }
-  if (pathname.startsWith('/just-for-me/medication')) return { app: 'justForMe', section: 'medication', page: 'medication' }
+  if (pathname === '/other-fun-stuff') return { app: 'otherFunStuff', section: 'home', page: 'other-fun-stuff' }
+  if (pathname.startsWith('/other-fun-stuff/medication/group/')) return { app: 'otherFunStuff', section: 'medication', page: 'medication-group' }
+  if (pathname.startsWith('/other-fun-stuff/medication')) return { app: 'otherFunStuff', section: 'medication', page: 'medication' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -114,16 +114,16 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         breadcrumbs.push({ name: 'Album', href: pathname, current: true })
       }
       break
-    case 'justForMe':
-      breadcrumbs.push({ name: 'Just For Me', href: '/just-for-me', current: context.section === 'home' })
+    case 'otherFunStuff':
+      breadcrumbs.push({ name: 'Other Fun Stuff', href: '/other-fun-stuff', current: context.section === 'home' })
       if (context.section === 'medication') {
         if (context.page === 'medication-group') {
-          breadcrumbs.push({ name: 'Medication Management', href: '/just-for-me/medication', current: false })
+          breadcrumbs.push({ name: 'Medication Management', href: '/other-fun-stuff/medication', current: false })
           if (selectedGroup) {
             breadcrumbs.push({ name: selectedGroup.name, href: pathname, current: true })
           }
         } else {
-          breadcrumbs.push({ name: 'Medication Management', href: '/just-for-me/medication', current: true })
+          breadcrumbs.push({ name: 'Medication Management', href: '/other-fun-stuff/medication', current: true })
         }
       }
       break
@@ -164,11 +164,11 @@ const getAppNavigation = (context, user, canManageUsers) => {
       return [
         { name: 'Photo Albums', href: '/photos', current: context.section === 'home' }
       ]
-    case 'justForMe':
+    case 'otherFunStuff':
       return [
-        { name: 'Just For Me', href: '/just-for-me', current: context.section === 'home' },
-        { name: 'Medication Management', href: '/just-for-me/medication', current: context.section === 'medication' },
-        { name: 'Select Background', href: '/just-for-me?action=select-background', current: false, isAction: true }
+        { name: 'Other Fun Stuff', href: '/other-fun-stuff', current: context.section === 'home' },
+        { name: 'Medication Management', href: '/other-fun-stuff/medication', current: context.section === 'medication' },
+        { name: 'Select Background', href: '/other-fun-stuff?action=select-background', current: false, isAction: true }
       ]
     case 'admin':
       return [
@@ -448,6 +448,7 @@ export default function Navigation() {
       <BackgroundSelectModal
         isOpen={isBackgroundModalOpen}
         onClose={() => setIsBackgroundModalOpen(false)}
+        page={context.page}
       />
     </>
   )

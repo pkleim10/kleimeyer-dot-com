@@ -65,7 +65,7 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ group: transformedGroup })
   } catch (error) {
-    console.error('Unexpected GET /api/just-for-me/medication/groups/[id]:', error)
+    console.error('Unexpected GET /api/other-fun-stuff/medication/groups/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -104,7 +104,7 @@ export async function PUT(request, { params }) {
     const body = await request.json()
     const { name, accessibleBy, dayStartTime, dayEndTime } = body
 
-    console.log('PUT /api/just-for-me/medication/groups/[id] - Request received')
+    console.log('PUT /api/other-fun-stuff/medication/groups/[id] - Request received')
     console.log('Group ID from params:', id)
     console.log('User ID:', user.id)
     console.log('Request body:', JSON.stringify(body, null, 2))
@@ -230,7 +230,7 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json({ group: transformedGroup })
   } catch (error) {
-    console.error('Unexpected PUT /api/just-for-me/medication/groups/[id]:', error)
+    console.error('Unexpected PUT /api/other-fun-stuff/medication/groups/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -272,7 +272,7 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Unexpected DELETE /api/just-for-me/medication/groups/[id]:', error)
+    console.error('Unexpected DELETE /api/other-fun-stuff/medication/groups/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

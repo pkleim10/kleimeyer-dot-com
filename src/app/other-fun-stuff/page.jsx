@@ -3,11 +3,17 @@
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function JustForMePage() {
+export default function OtherFunStuffPage() {
   const { user } = useAuth()
-  const backgroundUrl = user?.user_metadata?.just_for_me_background
-  const transparency = user?.user_metadata?.just_for_me_background_transparency ?? 90
-  const screenColor = user?.user_metadata?.just_for_me_background_color ?? '#f9fafb'
+  // Use single background field for all Other Fun Stuff pages, with fallback to old field names for backward compatibility
+  // Handle case where background might not be set
+  const backgroundUrl = user?.user_metadata?.other_fun_stuff_background || 
+                        user?.user_metadata?.just_for_me_background || 
+                        null
+  const transparency = user?.user_metadata?.other_fun_stuff_background_transparency ?? 
+                       user?.user_metadata?.just_for_me_background_transparency ?? 90
+  const screenColor = user?.user_metadata?.other_fun_stuff_background_color ?? 
+                      user?.user_metadata?.just_for_me_background_color ?? '#f9fafb'
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -34,7 +40,7 @@ export default function JustForMePage() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-wrap justify-center gap-8">
           {/* Medication Management App */}
-          <Link href="/just-for-me/medication" className="group w-full max-w-sm">
+          <Link href="/other-fun-stuff/medication" className="group w-full max-w-sm">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
               <div className="relative h-48 bg-gradient-to-br from-blue-500 to-cyan-600">
                 <img

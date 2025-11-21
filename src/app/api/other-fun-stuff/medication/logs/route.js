@@ -77,7 +77,7 @@ export async function GET(request) {
 
     return NextResponse.json({ logs: logs || [] })
   } catch (error) {
-    console.error('Unexpected GET /api/just-for-me/medication/logs:', error)
+    console.error('Unexpected GET /api/other-fun-stuff/medication/logs:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -192,7 +192,7 @@ export async function POST(request) {
 
     return NextResponse.json({ log }, { status: 201 })
   } catch (error) {
-    console.error('Unexpected POST /api/just-for-me/medication/logs:', error)
+    console.error('Unexpected POST /api/other-fun-stuff/medication/logs:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

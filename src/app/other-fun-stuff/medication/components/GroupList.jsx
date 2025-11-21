@@ -35,7 +35,7 @@ export default function GroupList() {
   }
 
   const handleGroupClick = (groupId) => {
-    router.push(`/just-for-me/medication/group/${groupId}`)
+    router.push(`/other-fun-stuff/medication/group/${groupId}`)
   }
 
   const handleEdit = (e, group) => {

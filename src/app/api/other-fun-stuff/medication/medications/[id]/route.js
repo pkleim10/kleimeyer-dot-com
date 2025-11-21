@@ -48,7 +48,7 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ medication })
   } catch (error) {
-    console.error('Unexpected GET /api/just-for-me/medication/medications/[id]:', error)
+    console.error('Unexpected GET /api/other-fun-stuff/medication/medications/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -185,7 +185,7 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json({ medication })
   } catch (error) {
-    console.error('Unexpected PUT /api/just-for-me/medication/medications/[id]:', error)
+    console.error('Unexpected PUT /api/other-fun-stuff/medication/medications/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -227,7 +227,7 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Unexpected DELETE /api/just-for-me/medication/medications/[id]:', error)
+    console.error('Unexpected DELETE /api/other-fun-stuff/medication/medications/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
