@@ -6,6 +6,14 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { supabase } from '@/utils/supabase'
 import { useRouter } from 'next/navigation'
 
+// Helper to handle authentication errors and clear state
+const handleAuthError = async (router, redirectPath = '/family/thanksgiving-checklist') => {
+  // Clear any cached session
+  await supabase.auth.signOut()
+  // Redirect to login
+  router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`)
+}
+
 export default function ThanksgivingChecklistPage() {
   const { user, authLoading } = useAuth()
   const { canViewFamily, permissionsLoading } = usePermissions()
@@ -33,9 +41,21 @@ export default function ThanksgivingChecklistPage() {
       setLoading(true)
       setError(null)
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('No active session')
+      // Get fresh session - don't use cached session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        // Session invalid or expired - clear state and redirect to login
+        await handleAuthError(router)
+        return
+      }
+
+      // Verify session is still valid by checking expiration
+      const expiresAt = session.expires_at * 1000
+      const now = Date.now()
+      if (expiresAt < now) {
+        // Session expired - clear state and redirect to login
+        await handleAuthError(router)
+        return
       }
 
       const response = await fetch('/api/family/thanksgiving-checklist', {
@@ -45,6 +65,11 @@ export default function ThanksgivingChecklistPage() {
       })
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - session invalid, clear state and redirect
+        if (response.status === 401) {
+          await handleAuthError(router)
+          return
+        }
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `Failed to fetch checklist items (${response.status})`)
       }
@@ -53,11 +78,14 @@ export default function ThanksgivingChecklistPage() {
       setItems(data.items || [])
     } catch (err) {
       console.error('Error fetching checklist items:', err)
-      setError(err.message || 'Failed to load checklist items')
+      // Don't set error if we're redirecting
+      if (!err.message?.includes('redirect')) {
+        setError(err.message || 'Failed to load checklist items')
+      }
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, router])
 
   // Initial data fetch
   useEffect(() => {
@@ -89,9 +117,17 @@ export default function ThanksgivingChecklistPage() {
     setError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Not authenticated')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        await handleAuthError(router)
+        return
+      }
+
+      // Verify session is still valid
+      const expiresAt = session.expires_at * 1000
+      const now = Date.now()
+      if (expiresAt < now) {
+        await handleAuthError(router)
         return
       }
 
@@ -105,6 +141,11 @@ export default function ThanksgivingChecklistPage() {
           },
           body: JSON.stringify(formData)
         })
+
+        if (response.status === 401) {
+          await handleAuthError(router)
+          return
+        }
 
         const result = await response.json()
         if (!response.ok) {
@@ -121,6 +162,11 @@ export default function ThanksgivingChecklistPage() {
           body: JSON.stringify(formData)
         })
 
+        if (response.status === 401) {
+          await handleAuthError(router)
+          return
+        }
+
         const result = await response.json()
         if (!response.ok) {
           throw new Error(result.error || 'Failed to create item')
@@ -132,7 +178,9 @@ export default function ThanksgivingChecklistPage() {
       resetForm()
     } catch (err) {
       console.error('Error saving item:', err)
-      setError('Failed to save item: ' + err.message)
+      if (!err.message?.includes('redirect')) {
+        setError('Failed to save item: ' + err.message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -153,9 +201,18 @@ export default function ThanksgivingChecklistPage() {
     if (!confirm('Are you sure you want to delete this item?')) return
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('No active session')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        await handleAuthError(router)
+        return
+      }
+
+      // Verify session is still valid
+      const expiresAt = session.expires_at * 1000
+      const now = Date.now()
+      if (expiresAt < now) {
+        await handleAuthError(router)
+        return
       }
 
       const response = await fetch(`/api/family/thanksgiving-checklist/${itemId}`, {
@@ -165,6 +222,11 @@ export default function ThanksgivingChecklistPage() {
         }
       })
 
+      if (response.status === 401) {
+        await handleAuthError(router)
+        return
+      }
+
       if (!response.ok) {
         throw new Error('Failed to delete item')
       }
@@ -173,16 +235,49 @@ export default function ThanksgivingChecklistPage() {
       await fetchItems()
     } catch (err) {
       console.error('Error deleting item:', err)
-      setError('Failed to delete item: ' + err.message)
+      if (!err.message?.includes('redirect')) {
+        setError('Failed to delete item: ' + err.message)
+      }
     }
   }
 
-  // Redirect if not logged in
+  // Validate session on mount and when user/authLoading changes
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login?redirect=/family/thanksgiving-checklist')
-      return
+    const validateSession = async () => {
+      // Wait for auth to finish loading
+      if (authLoading) return
+
+      // If no user, redirect immediately
+      if (!user) {
+        router.push('/login?redirect=/family/thanksgiving-checklist')
+        return
+      }
+
+      // Validate session is actually valid (not just user state)
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          // Session invalid - clear state and redirect to login
+          await handleAuthError(router)
+          return
+        }
+
+        // Check if session is expired
+        const expiresAt = session.expires_at * 1000
+        const now = Date.now()
+        if (expiresAt < now) {
+          // Session expired - clear state and redirect to login
+          await handleAuthError(router)
+          return
+        }
+      } catch (error) {
+        console.error('Error validating session:', error)
+        await handleAuthError(router)
+      }
     }
+
+    validateSession()
   }, [authLoading, user, router])
 
   // Redirect if not family member
@@ -193,6 +288,7 @@ export default function ThanksgivingChecklistPage() {
   }, [authLoading, permissionsLoading, user, canViewFamily, router])
 
   // Show loading while auth and permissions are being determined, or redirecting
+  // Also show loading if user exists but we haven't validated the session yet
   if (authLoading || permissionsLoading || loading || !user || (!canViewFamily && !authLoading && !permissionsLoading && user)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
@@ -203,6 +299,11 @@ export default function ThanksgivingChecklistPage() {
         </div>
       </div>
     )
+  }
+
+  // Double-check: if we somehow got here without a valid session, don't render
+  if (!user) {
+    return null
   }
 
   return (

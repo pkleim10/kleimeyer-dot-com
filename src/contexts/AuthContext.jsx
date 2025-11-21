@@ -119,6 +119,15 @@ export function AuthProvider({ children }) {
       
       if (DEBUG_AUTH) console.log('Auth state change:', event, session?.user?.id)
       
+      // Handle SIGNED_OUT event explicitly
+      if (event === 'SIGNED_OUT') {
+        if (DEBUG_AUTH) console.log('User signed out, clearing state')
+        setUser(null)
+        setLoading(false)
+        setIsProcessingAuthChange(false)
+        return
+      }
+      
       if (session?.user) {
         // Check if session is expired
         const expiresAt = session.expires_at * 1000
@@ -128,6 +137,7 @@ export function AuthProvider({ children }) {
           console.log('Session expired during auth state change')
           setUser(null)
           setLoading(false)
+          setIsProcessingAuthChange(false)
           return
         }
         
@@ -150,26 +160,22 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
-      // First check if we have a session
-      const { data: { session } } = await supabase.auth.getSession()
+      // Clear user state immediately to prevent race conditions
+      setUser(null)
       
-      // If no session, just clear the user state
-      if (!session) {
-        setUser(null)
-        return
-      }
-
-      // If we have a session, try to sign out
+      // Sign out from Supabase (this will invalidate the session on the server)
       const { error } = await supabase.auth.signOut()
       if (error) {
+        console.error('Error signing out:', error.message)
+        // Even if there's an error, user state is already cleared
         throw error
       }
       
-      setUser(null)
+      // Force a session refresh to ensure it's cleared
+      await supabase.auth.getSession()
     } catch (error) {
       console.error('Error signing out:', error.message)
-      // Even if there's an error, clear the user state
-      setUser(null)
+      // User state is already cleared, just throw the error
       throw error
     }
   }
