@@ -10,7 +10,7 @@ import GroupForm from './GroupForm'
 export default function GroupList() {
   const router = useRouter()
   const { groups, deleteGroup } = useGroups()
-  const { medications: allMedications } = useMedications()
+  const { allMedications } = useMedications()
   const { 
     canViewSharedMedicationGroups, 
     canEditSharedMedicationGroups, 
@@ -30,6 +30,10 @@ export default function GroupList() {
   })
 
   const getMedicationCount = (groupId) => {
+    // allMedications is already filtered by group in MedicationContext, so we need to check all medications
+    // We'll need to get all medications, not just filtered ones
+    // For now, we'll use the medications from context which are already filtered
+    // This will be updated when we refetch all medications
     return allMedications.filter(med => med.groupId === groupId).length
   }
 

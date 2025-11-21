@@ -115,6 +115,13 @@ function generateSummary(medication) {
 }
 
 export function generateMedicationPDF(medications, groupName = null) {
+  // Sort medications alphabetically by name
+  const sortedMedications = [...medications].sort((a, b) => {
+    const nameA = (a.name || '').toUpperCase()
+    const nameB = (b.name || '').toUpperCase()
+    return nameA.localeCompare(nameB)
+  })
+  
   // Create PDF in landscape mode
   const pdf = new jsPDF({
     orientation: 'landscape',
@@ -189,7 +196,7 @@ export function generateMedicationPDF(medications, groupName = null) {
   pdf.setFontSize(10)
   pdf.setFont(undefined, 'normal')
   
-  medications.forEach((medication, index) => {
+  sortedMedications.forEach((medication, index) => {
     // Check if we need a new page
     if (currentY > pageHeight - 20) {
       pdf.addPage()
