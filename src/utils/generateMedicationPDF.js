@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf'
+import { sortTimesByDayBoundary } from './medicationScheduler'
 
 // Helper function to format date
 function formatDate(dateString) {
@@ -11,8 +12,13 @@ function formatDate(dateString) {
   })
 }
 
-// Helper function to determine if medication is active
-function isActive(medication) {
+// Helper function to determine medication status
+function getMedicationStatus(medication) {
+  // Check if discontinued
+  if (medication.discontinued) {
+    return 'Discontinued'
+  }
+  
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
@@ -21,7 +27,7 @@ function isActive(medication) {
     const start = new Date(medication.startDate)
     start.setHours(0, 0, 0, 0)
     if (start > today) {
-      return false // Not started yet
+      return 'No' // Not started yet
     }
   }
   
@@ -30,11 +36,11 @@ function isActive(medication) {
     const end = new Date(medication.endDate)
     end.setHours(0, 0, 0, 0)
     if (end < today) {
-      return false // Already ended
+      return 'No' // Already ended
     }
   }
   
-  return true // Active (no start date or started, and no end date or not ended)
+  return 'Yes' // Active (no start date or started, and no end date or not ended)
 }
 
 // Helper function to generate conversational summary
@@ -47,87 +53,109 @@ function generateSummary(medication) {
     : nameUpper
   
   // FORMAT: Number to take and format type
-  const numberToTake = medication.numberToTake || 1
+  const numberToTake = parseFloat(medication.numberToTake) || 1
   const format = medication.format || 'pill'
   const formatLabel = format.toLowerCase()
   
-  // Build the "Take X format" part - FORMAT IS REQUIRED
-  let takePart = 'Take '
+  // Use "Apply" for patches, "Take" for everything else
+  const actionVerb = format === 'patch' ? 'Apply' : 'Take'
+  
+  // Build the action part - FORMAT IS REQUIRED
+  let takePart = `${actionVerb} `
   if (numberToTake === 1) {
     takePart += `1 ${formatLabel}`
+  } else if (Math.abs(numberToTake % 1 - 0.5) < 0.01) {
+    // Handle fractional values like 1.5, 2.5, etc.
+    const wholePart = Math.floor(numberToTake)
+    if (wholePart === 0) {
+      takePart += `1/2 ${formatLabel}`
+    } else {
+      // Always use plural when total is not exactly 1.0 (e.g., 1.5, 2.5, etc.)
+      takePart += `${wholePart} and 1/2 ${formatLabel}s`
+    }
   } else {
     takePart += `${numberToTake} ${formatLabel}s`
   }
   
-  // FREQUENCY: Times per day or specific times - FREQUENCY IS REQUIRED
-  let frequencyText = ''
+  // INTERVAL: Build interval text based on frequency pattern
+  let intervalText = ''
   if (medication.frequencyType === 'as_needed') {
-    frequencyText = 'as needed'
-  } else if (medication.frequencyType === 'times_per_day') {
-    // TIMES PER DAY IS REQUIRED
-    const times = medication.timesPerDay || 1
-    frequencyText = times === 1 ? 'once per day' : `${times} times per day`
-  } else if (medication.frequencyType === 'specific_times') {
-    const times = medication.specificTimes || []
-    if (times.length === 1) {
-      const time = times[0]
-      // Check if it's a predefined time option
-      if (time === 'morning') {
-        frequencyText = 'in the morning'
-      } else if (time === 'evening') {
-        frequencyText = 'in the evening'
-      } else if (time === 'bedtime') {
-        frequencyText = 'before bedtime'
-      } else if (time.match(/^\d{2}:\d{2}$/)) {
-        // Specific time format HH:MM
-        const [h, m] = time.split(':')
-        const hour = parseInt(h)
-        const ampm = hour >= 12 ? 'PM' : 'AM'
-        const displayHour = hour % 12 || 12
-        frequencyText = `at ${displayHour}:${m} ${ampm}`
-      } else {
-        frequencyText = 'once per day' // fallback
-      }
-    } else if (times.length > 1) {
-      // Multiple times - format them nicely
-      const timeStrings = times.map(time => {
-        if (time === 'morning') return 'morning'
-        if (time === 'evening') return 'evening'
-        if (time === 'bedtime') return 'bedtime'
-        if (time.match(/^\d{2}:\d{2}$/)) {
-          const [h, m] = time.split(':')
-          const hour = parseInt(h)
-          const ampm = hour >= 12 ? 'PM' : 'AM'
-          const displayHour = hour % 12 || 12
-          return `${displayHour}:${m} ${ampm}`
-        }
-        return time
-      })
-      frequencyText = `at ${timeStrings.join(', ')}`
-    } else {
-      frequencyText = 'once per day' // fallback
-    }
+    intervalText = 'as needed'
   } else {
-    // Fallback if frequencyType is missing
-    frequencyText = 'once per day'
-  }
-  
-  // Frequency pattern (only if not as_needed and not every_day)
-  if (medication.frequencyType !== 'as_needed' && medication.frequencyPattern && medication.frequencyPattern !== 'every_day') {
-    if (medication.frequencyPattern === 'every_x_days') {
+    // Build interval based on frequency pattern
+    if (medication.frequencyPattern === 'every_day') {
+      intervalText = 'every day'
+    } else if (medication.frequencyPattern === 'every_x_days') {
       const days = medication.everyXDays || 1
-      frequencyText += ` every ${days} day${days > 1 ? 's' : ''}`
+      intervalText = `every ${days} day${days > 1 ? 's' : ''}`
     } else if (medication.frequencyPattern === 'specific_days') {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      const days = (medication.specificDays || []).map(d => dayNames[d]).join(', ')
-      if (days) {
-        frequencyText += ` on ${days}`
+      const days = (medication.specificDays || []).map(d => dayNames[d])
+      if (days.length > 0) {
+        // Format days with proper grammar: "Sunday, Tuesday and Thursday" or "Sunday and Monday"
+        if (days.length === 1) {
+          intervalText = `every ${days[0]}`
+        } else if (days.length === 2) {
+          intervalText = `every ${days[0]} and ${days[1]}`
+        } else {
+          // Join all but last with commas, then "and" before last
+          const lastDay = days.pop()
+          intervalText = `every ${days.join(', ')} and ${lastDay}`
+        }
+      } else {
+        intervalText = 'every day' // fallback
+      }
+    } else {
+      // Fallback to every day if pattern is missing
+      intervalText = 'every day'
+    }
+    
+    // Add frequency information only if it adds meaningful context
+    // For times_per_day > 1, add it before the interval
+    if (medication.frequencyType === 'times_per_day') {
+      const times = medication.timesPerDay || 1
+      if (times > 1) {
+        intervalText = `${times} times ${intervalText}`
+      }
+    } else if (medication.frequencyType === 'specific_times') {
+      // For specific times, add time information after the interval
+      const times = medication.specificTimes || []
+      if (times.length > 0) {
+        const timeStrings = times.map(time => {
+          if (time === 'morning') return 'morning'
+          if (time === 'evening') return 'evening'
+          if (time === 'bedtime') return 'bedtime'
+          if (time.match(/^\d{2}:\d{2}$/)) {
+            const [h, m] = time.split(':')
+            const hour = parseInt(h)
+            const ampm = hour >= 12 ? 'PM' : 'AM'
+            const displayHour = hour % 12 || 12
+            return `${displayHour}:${m} ${ampm}`
+          }
+          return time
+        })
+        if (times.length === 1) {
+          // Single time: "every day in the morning" or "every day at 8:00 AM"
+          const timeStr = timeStrings[0]
+          if (timeStr.match(/^\d/)) {
+            intervalText = `${intervalText} at ${timeStr}`
+          } else {
+            intervalText = `${intervalText} ${timeStr === 'morning' || timeStr === 'evening' ? 'in the ' : ''}${timeStr}`
+          }
+        } else {
+          intervalText = `${intervalText} at ${timeStrings.join(', ')}`
+        }
       }
     }
   }
   
-  // Combine take instruction with frequency - BOTH ARE REQUIRED
-  takePart += ` ${frequencyText}`
+  // WITH FOOD: Add "with food" if applicable
+  if (medication.withFood) {
+    takePart += ' with food'
+  }
+  
+  // Combine take instruction with interval - BOTH ARE REQUIRED
+  takePart += ` ${intervalText}`
   
   // Add take instruction to summary
   summary += `. ${takePart}`
@@ -149,7 +177,7 @@ function generateSummary(medication) {
   return summary
 }
 
-export function generateMedicationPDF(medications, groupName = null) {
+export function generateMedicationPDF(medications, groupName = null, group = null) {
   // Create PDF in landscape mode
   const pdf = new jsPDF({
     orientation: 'landscape',
@@ -227,7 +255,14 @@ export function generateMedicationPDF(medications, groupName = null) {
   pdf.setFontSize(10)
   pdf.setFont(undefined, 'normal')
   
-  medications.forEach((medication, index) => {
+  // Sort medications by name (case-insensitive)
+  const sortedMedications = [...medications].sort((a, b) => {
+    const nameA = (a.name || '').toLowerCase()
+    const nameB = (b.name || '').toLowerCase()
+    return nameA.localeCompare(nameB)
+  })
+  
+  sortedMedications.forEach((medication, index) => {
     // Check if we need a new page
     if (currentY > pageHeight - 20) {
       pdf.addPage()
@@ -254,7 +289,7 @@ export function generateMedicationPDF(medications, groupName = null) {
     const summary = generateSummary(medication)
     const startDate = formatDate(medication.startDate) || ''
     const endDate = formatDate(medication.endDate) || ''
-    const active = isActive(medication) ? 'Yes' : 'No'
+    const active = getMedicationStatus(medication)
     
     // Split summary text if too long
     const maxWidth = colWidths.summary - 4
@@ -371,6 +406,8 @@ export function generateMedicationPDF(medications, groupName = null) {
     pdf.setFont(undefined, 'bold')
     if (active === 'Yes') {
       pdf.setTextColor(16, 185, 129) // green
+    } else if (active === 'Discontinued') {
+      pdf.setTextColor(156, 163, 175) // gray
     } else {
       pdf.setTextColor(239, 68, 68) // red
     }
@@ -380,8 +417,178 @@ export function generateMedicationPDF(medications, groupName = null) {
     currentY += rowHeight
   })
   
+  // Add new page for time-based listing
+  pdf.addPage()
+  currentY = margin
+  
+  // Title for time-based listing
+  pdf.setFontSize(18)
+  pdf.setFont(undefined, 'bold')
+  const timeBasedTitle = groupName && groupName !== 'My Medications' 
+    ? `Medication Schedule by Time - ${groupName}`
+    : 'Medication Schedule by Time'
+  pdf.text(timeBasedTitle, margin, currentY)
+  currentY += 10
+  
+  // Date generated
+  pdf.setFontSize(10)
+  pdf.setFont(undefined, 'normal')
+  pdf.setTextColor(100, 100, 100)
+  pdf.text(`Generated: ${new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })}`, margin, currentY)
+  currentY += 12
+  
+  // Group medications by time
+  const timeGroups = {}
+  
+  // Filter out discontinued and inactive medications
+  const activeMedications = sortedMedications.filter(med => {
+    if (med.discontinued) return false
+    
+    const medToday = new Date()
+    medToday.setHours(0, 0, 0, 0)
+    
+    if (med.startDate) {
+      const start = new Date(med.startDate)
+      start.setHours(0, 0, 0, 0)
+      if (start > medToday) return false
+    }
+    
+    if (med.endDate) {
+      const end = new Date(med.endDate)
+      end.setHours(0, 0, 0, 0)
+      if (end < medToday) return false
+    }
+    
+    // Only include medications with specific times (not times_per_day or as_needed)
+    return med.frequencyType === 'specific_times' && med.specificTimes && med.specificTimes.length > 0
+  })
+  
+  // Group medications by their specific times
+  activeMedications.forEach(medication => {
+    medication.specificTimes.forEach(time => {
+      if (!timeGroups[time]) {
+        timeGroups[time] = []
+      }
+      
+      // Check if medication already added for this time (avoid duplicates)
+      const exists = timeGroups[time].some(m => m.id === medication.id)
+      if (!exists) {
+        timeGroups[time].push({
+          id: medication.id,
+          name: medication.name,
+          dosage: medication.dosage
+        })
+      }
+    })
+  })
+  
+  // Sort medications within each time group by name
+  Object.keys(timeGroups).forEach(timeKey => {
+    timeGroups[timeKey].sort((a, b) => {
+      const nameA = (a.name || '').toLowerCase()
+      const nameB = (b.name || '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+  })
+  
+  // Get day start/end times from group, or use defaults
+  const dayStartTime = group?.dayStartTime ? group.dayStartTime.substring(0, 5) : '06:00'
+  const dayEndTime = group?.dayEndTime ? group.dayEndTime.substring(0, 5) : '23:59'
+  
+  // Sort time slots using day boundary logic
+  const timeKeys = Object.keys(timeGroups)
+  const sortedTimeSlots = sortTimesByDayBoundary(timeKeys, dayStartTime, dayEndTime)
+  
+  // Format time for display
+  const formatTimeForDisplay = (timeKey) => {
+    if (timeKey.startsWith('#')) {
+      // Numbered times - skip these as they're not meaningful without context
+      return null
+    }
+    
+    if (timeKey.match(/^\d{2}:\d{2}$/)) {
+      // Specific time format HH:MM - convert to 12-hour format (e.g., "12pm", "4pm")
+      const [h, m] = timeKey.split(':')
+      const hour = parseInt(h)
+      const minutes = parseInt(m)
+      const ampm = hour >= 12 ? 'pm' : 'am'
+      const displayHour = hour % 12 || 12
+      
+      // Format: "12pm" or "4pm" (no minutes if :00, otherwise include minutes)
+      if (minutes === 0) {
+        return `${displayHour}${ampm}`
+      } else {
+        return `${displayHour}:${m}${ampm}`
+      }
+    }
+    
+    // Named times
+    if (timeKey === 'morning') return 'In the morning'
+    if (timeKey === 'evening') return 'In the evening'
+    if (timeKey === 'bedtime') return 'At bedtime'
+    
+    return timeKey
+  }
+  
+  // Render time-based listing
+  pdf.setFontSize(12)
+  pdf.setFont(undefined, 'normal')
+  pdf.setTextColor(0, 0, 0)
+  
+  sortedTimeSlots.forEach(timeKey => {
+    const medications = timeGroups[timeKey]
+    if (medications.length === 0) return
+    
+    const timeLabel = formatTimeForDisplay(timeKey)
+    // Skip numbered times as they're not meaningful
+    if (!timeLabel) return
+    
+    // Check if we need a new page
+    if (currentY > pageHeight - 30) {
+      pdf.addPage()
+      currentY = margin
+    }
+    
+    // Time header
+    pdf.setFont(undefined, 'bold')
+    pdf.setFontSize(11)
+    pdf.text(`${timeLabel}:`, margin, currentY)
+    currentY += 7
+    
+    // Medications for this time
+    pdf.setFont(undefined, 'normal')
+    pdf.setFontSize(10)
+    medications.forEach(med => {
+      // Check if we need a new page
+      if (currentY > pageHeight - 15) {
+        pdf.addPage()
+        currentY = margin
+        // Redraw time header if we're on a new page
+        pdf.setFont(undefined, 'bold')
+        pdf.setFontSize(11)
+        pdf.text(`${timeLabel}:`, margin, currentY)
+        currentY += 7
+        pdf.setFont(undefined, 'normal')
+        pdf.setFontSize(10)
+      }
+      
+      const medText = med.dosage 
+        ? `${med.name} ${med.dosage}`
+        : med.name
+      pdf.text(medText, margin + 5, currentY)
+      currentY += 6
+    })
+    
+    currentY += 3 // Extra space between time groups
+  })
+  
   // Save PDF
   const filename = `medication-list-${new Date().toISOString().split('T')[0]}.pdf`
   pdf.save(filename)
 }
+
 

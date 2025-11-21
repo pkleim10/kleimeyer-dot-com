@@ -11,10 +11,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Transform snake_case to camelCase for group data
 function transformGroup(group) {
   if (!group) return null
-  const { accessible_by, created_at, updated_at, ...rest } = group
+  const { accessible_by, day_start_time, day_end_time, created_at, updated_at, ...rest } = group
   return {
     ...rest,
     accessibleBy: accessible_by,
+    dayStartTime: day_start_time,
+    dayEndTime: day_end_time,
     createdAt: created_at,
     updatedAt: updated_at
   }
@@ -88,19 +90,29 @@ export async function POST(request) {
     }
 
     const body = await request.json()
-    const { name, accessibleBy } = body
+    const { name, accessibleBy, dayStartTime, dayEndTime } = body
 
     if (!name || name.trim().length === 0) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
+    const insertData = {
+      user_id: user.id,
+      name: name.trim(),
+      accessible_by: accessibleBy || 'only_me'
+    }
+
+    // Add day times if provided, convert HH:MM to HH:MM:SS format
+    if (dayStartTime) {
+      insertData.day_start_time = dayStartTime.length === 5 ? `${dayStartTime}:00` : dayStartTime
+    }
+    if (dayEndTime) {
+      insertData.day_end_time = dayEndTime.length === 5 ? `${dayEndTime}:00` : dayEndTime
+    }
+
     const { data: group, error } = await supabaseWithAuth
       .from('medication_groups')
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        accessible_by: accessibleBy || 'only_me'
-      })
+      .insert(insertData)
       .select()
       .single()
 

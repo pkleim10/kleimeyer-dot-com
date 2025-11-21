@@ -9,12 +9,23 @@ export default function GroupForm({ group, onSave, onCancel }) {
   const { canCreateSharedMedicationGroups } = usePermissions()
   const [name, setName] = useState('')
   const [accessibleBy, setAccessibleBy] = useState('only_me')
+  const [dayStartTime, setDayStartTime] = useState('06:00')
+  const [dayEndTime, setDayEndTime] = useState('23:59')
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (group) {
       setName(group.name || '')
       setAccessibleBy(group.accessibleBy || 'only_me')
+      // Convert TIME format (HH:MM:SS) to HTML5 time input format (HH:MM)
+      if (group.dayStartTime) {
+        const timeStr = group.dayStartTime.substring(0, 5) // Extract HH:MM from HH:MM:SS
+        setDayStartTime(timeStr)
+      }
+      if (group.dayEndTime) {
+        const timeStr = group.dayEndTime.substring(0, 5) // Extract HH:MM from HH:MM:SS
+        setDayEndTime(timeStr)
+      }
     }
   }, [group])
 
@@ -34,9 +45,24 @@ export default function GroupForm({ group, onSave, onCancel }) {
 
     try {
       if (group) {
-        await updateGroup(group.id, { name: name.trim(), accessibleBy })
+        if (!group.id) {
+          setError('Group ID is missing. Please refresh the page and try again.')
+          return
+        }
+        console.log('Updating group with ID:', group.id)
+        await updateGroup(group.id, { 
+          name: name.trim(), 
+          accessibleBy,
+          dayStartTime: dayStartTime || '06:00',
+          dayEndTime: dayEndTime || '23:59'
+        })
       } else {
-        await addGroup({ name: name.trim(), accessibleBy })
+        await addGroup({ 
+          name: name.trim(), 
+          accessibleBy,
+          dayStartTime: dayStartTime || '06:00',
+          dayEndTime: dayEndTime || '23:59'
+        })
       }
       onSave()
     } catch (err) {
@@ -98,6 +124,39 @@ export default function GroupForm({ group, onSave, onCancel }) {
               )}
             </span>
           </label>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="day-start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Day Start Time
+          </label>
+          <input
+            id="day-start-time"
+            type="time"
+            value={dayStartTime}
+            onChange={(e) => setDayStartTime(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            When the medication day starts (for time sorting)
+          </p>
+        </div>
+        <div>
+          <label htmlFor="day-end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Day End Time
+          </label>
+          <input
+            id="day-end-time"
+            type="time"
+            value={dayEndTime}
+            onChange={(e) => setDayEndTime(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            When the medication day ends (for time sorting)
+          </p>
         </div>
       </div>
 

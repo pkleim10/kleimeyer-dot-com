@@ -158,7 +158,9 @@ export function GroupProvider({ children }) {
         headers,
         body: JSON.stringify({
           name: groupData.name.trim(),
-          accessibleBy: groupData.accessibleBy || 'only_me'
+          accessibleBy: groupData.accessibleBy || 'only_me',
+          dayStartTime: groupData.dayStartTime,
+          dayEndTime: groupData.dayEndTime
         })
       })
 
@@ -192,7 +194,9 @@ export function GroupProvider({ children }) {
         headers,
         body: JSON.stringify({
           name: updates.name?.trim(),
-          accessibleBy: updates.accessibleBy
+          accessibleBy: updates.accessibleBy,
+          dayStartTime: updates.dayStartTime,
+          dayEndTime: updates.dayEndTime
         })
       })
 

@@ -104,6 +104,18 @@ export default function MedicationList() {
   }
 
   const getStatusBadge = (medication) => {
+    // Check if discontinued first
+    if (medication.discontinued) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-gradient-to-r from-red-100 to-red-50 text-red-800 dark:from-red-900 dark:to-red-800 dark:text-red-200 rounded-full border border-red-200 dark:border-red-700">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          Discontinued
+        </span>
+      )
+    }
+    
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
@@ -184,7 +196,7 @@ export default function MedicationList() {
         <div className="flex gap-2">
           {medications.length > 0 && (
             <button
-              onClick={() => generateMedicationPDF(medications, selectedGroup?.name)}
+              onClick={() => generateMedicationPDF(medications, selectedGroup?.name, selectedGroup)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-lg hover:from-green-700 hover:to-emerald-800 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

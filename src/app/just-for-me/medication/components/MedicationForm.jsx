@@ -16,7 +16,8 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
-    numberToTake: 1,
+    wholeNumber: 1,
+    addHalf: false,
     format: 'pill',
     indication: '',
     frequencyType: 'times_per_day',
@@ -26,6 +27,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
     everyXDays: 1,
     specificDays: [],
     withFood: false,
+    discontinued: false,
     startDate: '',
     endDate: '',
     specifyStartDate: false,
@@ -79,10 +81,16 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
       const initialSpecificTimes = medication.specificTimes || ['morning']
       specificTimesRef.current = initialSpecificTimes
       
+      // Parse numberToTake into whole number and addHalf
+      const numberToTake = medication.numberToTake ? parseFloat(medication.numberToTake) : 1.0
+      const wholeNumber = Math.floor(numberToTake)
+      const addHalf = Math.abs(numberToTake % 1 - 0.5) < 0.01
+      
       setFormData({
         name: medication.name || '',
         dosage: medication.dosage || '',
-        numberToTake: medication.numberToTake || 1,
+        wholeNumber: wholeNumber || 1,
+        addHalf: addHalf || false,
         format: medication.format || 'pill',
         indication: medication.indication || '',
         frequencyType: medication.frequencyType || 'times_per_day',
@@ -92,6 +100,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
         everyXDays: medication.everyXDays || 1,
         specificDays: medication.specificDays || [],
         withFood: medication.withFood || false,
+        discontinued: medication.discontinued || false,
         startDate: medication.startDate || '',
         endDate: medication.endDate || '',
         specifyStartDate: !!medication.startDate,
@@ -191,10 +200,13 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
     }
 
     // Prepare data for save
+    // Combine wholeNumber and addHalf into numberToTake
+    const numberToTake = formData.addHalf ? formData.wholeNumber + 0.5 : formData.wholeNumber
+    
     const medicationData = {
       name: formData.name.trim(),
       dosage: formData.dosage.trim() || null,
-      numberToTake: parseInt(formData.numberToTake) || 1,
+      numberToTake: numberToTake,
       format: formData.format || 'pill',
       indication: formData.indication.trim() || null,
       frequencyType: formData.frequencyType,
@@ -204,8 +216,9 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
       everyXDays: formData.frequencyPattern === 'every_x_days' ? parseInt(formData.everyXDays) : null,
       specificDays: formData.frequencyPattern === 'specific_days' ? formData.specificDays : null,
       withFood: formData.withFood,
-      startDate: formData.specifyStartDate ? (formData.startDate || null) : null,
-      endDate: formData.specifyEndDate ? (formData.endDate || null) : null,
+      discontinued: formData.discontinued,
+      startDate: formData.discontinued ? null : (formData.specifyStartDate ? (formData.startDate || null) : null),
+      endDate: formData.discontinued ? null : (formData.specifyEndDate ? (formData.endDate || null) : null),
       notes: formData.notes.trim() || null
     }
 
@@ -253,7 +266,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
             <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
-            Format *
+            Type *
           </label>
           <select
             id="format"
@@ -267,6 +280,7 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
             <option value="capsule">Capsule</option>
             <option value="chewable">Chewable</option>
             <option value="injection">Injection</option>
+            <option value="patch">Patch</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -293,19 +307,19 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
           Number to Take
         </label>
-        <div className="flex gap-2 flex-wrap mb-6">
+        <div className="flex gap-2 flex-wrap items-center mb-6">
           {[1, 2, 3, 4, 5, 6].map((num) => (
             <button
               key={num}
               type="button"
-              onClick={() => setFormData(prev => ({ ...prev, numberToTake: num }))}
+              onClick={() => setFormData(prev => ({ ...prev, wholeNumber: num }))}
               className={`
                 min-w-[30px] max-w-[50px] aspect-square
                 rounded-lg border-2 font-semibold text-sm
                 transition-all duration-200 transform
                 hover:scale-105 hover:shadow-md
                 ${
-                  formData.numberToTake === num
+                  formData.wholeNumber === num
                     ? 'bg-emerald-600 text-white border-emerald-700 dark:bg-emerald-500 dark:border-emerald-400 shadow-lg scale-105'
                     : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
                 }
@@ -314,47 +328,80 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
               {num}
             </button>
           ))}
+          <div className="w-[30px]"></div>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, addHalf: !prev.addHalf }))}
+            className={`
+              min-w-[30px] max-w-[50px] aspect-square
+              rounded-lg border-2 font-semibold text-sm
+              transition-all duration-200 transform
+              hover:scale-105 hover:shadow-md
+              ${
+                formData.addHalf
+                  ? 'bg-emerald-600 text-white border-emerald-700 dark:bg-emerald-500 dark:border-emerald-400 shadow-lg scale-105'
+                  : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+              }
+            `}
+          >
+            +½
+          </button>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
           Frequency Type *
         </label>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="frequencyType"
-              value="times_per_day"
-              checked={formData.frequencyType === 'times_per_day'}
-              onChange={handleChange}
-              className="mr-2"
-            />
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, frequencyType: 'times_per_day' }))}
+            className={`
+              w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+              transition-all duration-200 transform
+              hover:scale-105 hover:shadow-md
+              ${
+                formData.frequencyType === 'times_per_day'
+                  ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                  : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }
+            `}
+          >
             Times per day
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="frequencyType"
-              value="specific_times"
-              checked={formData.frequencyType === 'specific_times'}
-              onChange={handleChange}
-              className="mr-2"
-            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, frequencyType: 'specific_times' }))}
+            className={`
+              w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+              transition-all duration-200 transform
+              hover:scale-105 hover:shadow-md
+              ${
+                formData.frequencyType === 'specific_times'
+                  ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                  : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }
+            `}
+          >
             Specific times
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="frequencyType"
-              value="as_needed"
-              checked={formData.frequencyType === 'as_needed'}
-              onChange={handleChange}
-              className="mr-2"
-            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, frequencyType: 'as_needed' }))}
+            className={`
+              w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+              transition-all duration-200 transform
+              hover:scale-105 hover:shadow-md
+              ${
+                formData.frequencyType === 'as_needed'
+                  ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                  : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+              }
+            `}
+          >
             As-needed
-          </label>
+          </button>
         </div>
       </div>
 
@@ -477,88 +524,119 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
 
       {formData.frequencyType !== 'as_needed' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Frequency Pattern *
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Interval *
           </label>
-          <div className="space-y-2">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="frequencyPattern"
-              value="every_day"
-              checked={formData.frequencyPattern === 'every_day'}
-              onChange={handleChange}
-              className="mr-2"
-            />
-            Every day
-          </label>
-          <div className="flex items-center">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="frequencyPattern"
-                value="every_x_days"
-                checked={formData.frequencyPattern === 'every_x_days'}
-                onChange={handleChange}
-                className="mr-2"
-              />
-              Every
-            </label>
-            {formData.frequencyPattern === 'every_x_days' && (
-              <input
-                type="number"
-                name="everyXDays"
-                value={formData.everyXDays}
-                onChange={handleChange}
-                min="1"
-                className="ml-2 w-20 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            )}
-            <span className="ml-2">days</span>
-          </div>
-          <div>
-            <label className="flex items-center mb-2">
-              <input
-                type="radio"
-                name="frequencyPattern"
-                value="specific_days"
-                checked={formData.frequencyPattern === 'specific_days'}
-                onChange={handleChange}
-                className="mr-2"
-              />
-              Specific days of week
-            </label>
-            {formData.frequencyPattern === 'specific_days' && (
-              <div className="ml-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {DAYS_OF_WEEK.map(day => (
-                  <label key={day.value} className="flex items-center">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, frequencyPattern: 'every_day' }))}
+                className={`
+                  w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+                  transition-all duration-200 transform
+                  hover:scale-105 hover:shadow-md
+                  ${
+                    formData.frequencyPattern === 'every_day'
+                      ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                      : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                  }
+                `}
+              >
+                Every day
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, frequencyPattern: 'every_x_days' }))}
+                  className={`
+                    w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+                    transition-all duration-200 transform
+                    hover:scale-105 hover:shadow-md
+                    ${
+                      formData.frequencyPattern === 'every_x_days'
+                        ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                        : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                    }
+                  `}
+                >
+                  Every
+                </button>
+                {formData.frequencyPattern === 'every_x_days' && (
+                  <>
                     <input
-                      type="checkbox"
-                      checked={formData.specificDays.includes(day.value)}
-                      onChange={() => handleDayToggle(day.value)}
-                      className="mr-2"
+                      type="number"
+                      name="everyXDays"
+                      value={formData.everyXDays}
+                      onChange={handleChange}
+                      min="1"
+                      className="w-20 border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2"
                     />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">days</span>
+                  </>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, frequencyPattern: 'specific_days' }))}
+                className={`
+                  w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+                  transition-all duration-200 transform
+                  hover:scale-105 hover:shadow-md
+                  ${
+                    formData.frequencyPattern === 'specific_days'
+                      ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                      : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                  }
+                `}
+              >
+                Specific days
+              </button>
+            </div>
+            {formData.frequencyPattern === 'specific_days' && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {DAYS_OF_WEEK.map(day => (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => handleDayToggle(day.value)}
+                    className={`
+                      px-3 py-1.5 rounded-lg border-2 font-semibold text-sm
+                      transition-all duration-200 transform
+                      hover:scale-105 hover:shadow-md
+                      ${
+                        formData.specificDays.includes(day.value)
+                          ? 'bg-emerald-600 text-white border-emerald-700 dark:bg-emerald-500 dark:border-emerald-400 shadow-lg scale-105'
+                          : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                      }
+                    `}
+                  >
                     {day.label}
-                  </label>
+                  </button>
                 ))}
               </div>
             )}
           </div>
         </div>
-      </div>
       )}
 
       <div>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            name="withFood"
-            checked={formData.withFood}
-            onChange={handleChange}
-            className="mr-2"
-          />
-          Take with food
-        </label>
+        <button
+          type="button"
+          onClick={() => setFormData(prev => ({ ...prev, withFood: !prev.withFood }))}
+          className={`
+            w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+            transition-all duration-200 transform
+            hover:scale-105 hover:shadow-md
+            ${
+              formData.withFood
+                ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+            }
+          `}
+        >
+          Take with Food
+        </button>
       </div>
 
       <div>
@@ -576,69 +654,107 @@ export default function MedicationForm({ medication, onSave, onCancel }) {
         />
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="flex items-center mb-2">
-            <input
-              type="checkbox"
-              name="specifyStartDate"
-              checked={formData.specifyStartDate}
-              onChange={(e) => {
-                setFormData(prev => ({
-                  ...prev,
-                  specifyStartDate: e.target.checked,
-                  startDate: e.target.checked ? prev.startDate : ''
-                }))
-              }}
-              className="mr-2"
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Specify Start Date
-            </span>
-          </label>
-          {formData.specifyStartDate && (
-            <input
-              type="date"
-              id="startDate"
-              name="startDate"
-              value={formData.startDate}
-              onChange={handleChange}
-              className="mt-1 block w-48 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          )}
-        </div>
-
-        <div>
-          <label className="flex items-center mb-2">
-            <input
-              type="checkbox"
-              name="specifyEndDate"
-              checked={formData.specifyEndDate}
-              onChange={(e) => {
-                setFormData(prev => ({
-                  ...prev,
-                  specifyEndDate: e.target.checked,
-                  endDate: e.target.checked ? prev.endDate : ''
-                }))
-              }}
-              className="mr-2"
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Specify End Date
-            </span>
-          </label>
-          {formData.specifyEndDate && (
-            <input
-              type="date"
-              id="endDate"
-              name="endDate"
-              value={formData.endDate}
-              onChange={handleChange}
-              className="mt-1 block w-48 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          )}
-        </div>
+      <div>
+        <button
+          type="button"
+          onClick={() => {
+            setFormData(prev => ({
+              ...prev,
+              discontinued: !prev.discontinued,
+              specifyStartDate: !prev.discontinued ? false : prev.specifyStartDate,
+              specifyEndDate: !prev.discontinued ? false : prev.specifyEndDate,
+              startDate: !prev.discontinued ? '' : prev.startDate,
+              endDate: !prev.discontinued ? '' : prev.endDate
+            }))
+          }}
+          className={`
+            w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+            transition-all duration-200 transform
+            hover:scale-105 hover:shadow-md
+            ${
+              formData.discontinued
+                ? 'bg-red-600 text-white border-red-700 dark:bg-red-500 dark:border-red-400 shadow-lg scale-105'
+                : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
+            }
+          `}
+        >
+          Discontinued
+        </button>
       </div>
+
+      {!formData.discontinued && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  specifyStartDate: !prev.specifyStartDate,
+                  startDate: !prev.specifyStartDate ? prev.startDate : ''
+                }))
+              }}
+              className={`
+                w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+                transition-all duration-200 transform
+                hover:scale-105 hover:shadow-md
+                ${
+                  formData.specifyStartDate
+                    ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                }
+              `}
+            >
+              Start Date
+            </button>
+            {formData.specifyStartDate && (
+              <input
+                type="date"
+                id="startDate"
+                name="startDate"
+                value={formData.startDate}
+                onChange={handleChange}
+                className="border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2"
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  specifyEndDate: !prev.specifyEndDate,
+                  endDate: !prev.specifyEndDate ? prev.endDate : ''
+                }))
+              }}
+              className={`
+                w-40 px-4 py-2 rounded-lg border-2 font-semibold text-sm
+                transition-all duration-200 transform
+                hover:scale-105 hover:shadow-md
+                ${
+                  formData.specifyEndDate
+                    ? 'bg-indigo-600 text-white border-indigo-700 dark:bg-indigo-500 dark:border-indigo-400 shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                }
+              `}
+            >
+              End Date
+            </button>
+            {formData.specifyEndDate && (
+              <input
+                type="date"
+                id="endDate"
+                name="endDate"
+                value={formData.endDate}
+                onChange={handleChange}
+                className="border-2 border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
         <button

@@ -89,6 +89,7 @@ export async function PUT(request, { params }) {
       everyXDays,
       specificDays,
       withFood,
+      discontinued,
       startDate,
       endDate,
       notes,
@@ -112,6 +113,7 @@ export async function PUT(request, { params }) {
     if (everyXDays !== undefined) updateData.every_x_days = everyXDays || null
     if (specificDays !== undefined) updateData.specific_days = specificDays || null
     if (withFood !== undefined) updateData.with_food = withFood
+    if (discontinued !== undefined) updateData.discontinued = Boolean(discontinued)
     if (startDate !== undefined) updateData.start_date = startDate || null
     if (endDate !== undefined) updateData.end_date = endDate || null
     if (notes !== undefined) updateData.notes = notes?.trim() || null

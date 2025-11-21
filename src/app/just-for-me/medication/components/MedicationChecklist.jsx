@@ -1,10 +1,12 @@
 'use client'
 
 import { useMedications } from '@/contexts/MedicationContext'
+import { useGroups } from '@/contexts/GroupContext'
 import { getChecklistData, formatTimeSlot } from '@/utils/medicationScheduler'
 
 export default function MedicationChecklist() {
   const { medications, logs, toggleLogTaken } = useMedications()
+  const { selectedGroup } = useGroups()
 
   // Calculate date range: 7 days back to 7 days forward
   const today = new Date()
@@ -18,8 +20,8 @@ export default function MedicationChecklist() {
   endDate.setDate(endDate.getDate() + 7)
   endDate.setHours(23, 59, 59, 999)
 
-  // Get checklist data
-  const checklistData = getChecklistData(medications, logs, startDate, endDate)
+  // Get checklist data with group for day boundary sorting
+  const checklistData = getChecklistData(medications, logs, startDate, endDate, selectedGroup)
 
   const handleToggle = async (medicationId, scheduledDate, scheduledTime, timeNumber) => {
     try {
@@ -46,6 +48,22 @@ export default function MedicationChecklist() {
       const slotKey = s.scheduledTime || `#${s.timeNumber}`
       return slotKey === timeSlot
     })
+  }
+
+  const formatNumberToTake = (num) => {
+    const value = parseFloat(num) || 1
+    if (value === 1) {
+      return null // Don't show "1" as it's the default
+    }
+    if (value % 1 === 0.5) {
+      const wholePart = Math.floor(value)
+      if (wholePart === 0) {
+        return '½'
+      } else {
+        return `${wholePart}½`
+      }
+    }
+    return value.toString()
   }
 
   const formatDate = (dateString) => {
@@ -188,9 +206,13 @@ export default function MedicationChecklist() {
                                 <div className="mt-2 text-[10px] sm:text-xs text-center min-w-[60px]">
                                   <div className={`font-semibold break-words ${taken ? 'text-green-700 dark:text-green-400 line-through' : 'text-gray-800 dark:text-gray-200'}`}>
                                     {medication.name}
-                                    {(schedule.numberToTake || medication.numberToTake) > 1 && (
-                                      <span className={`ml-1 ${taken ? 'text-green-600 dark:text-green-500' : 'text-indigo-600 dark:text-indigo-400'}`}> ({(schedule.numberToTake || medication.numberToTake)})</span>
-                                    )}
+                                    {(() => {
+                                      const numToTake = schedule.numberToTake || medication.numberToTake
+                                      const formatted = formatNumberToTake(numToTake)
+                                      return formatted && (
+                                        <span className={`ml-1 ${taken ? 'text-green-600 dark:text-green-500' : 'text-indigo-600 dark:text-indigo-400'}`}> ({formatted})</span>
+                                      )
+                                    })()}
                                   </div>
                                   <div className={`text-[9px] sm:text-xs mt-0.5 ${taken ? 'text-green-600 dark:text-green-500' : 'text-gray-600 dark:text-gray-400'}`}>{medication.dosage}</div>
                                   {medication.withFood && (

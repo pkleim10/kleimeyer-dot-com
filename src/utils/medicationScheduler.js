@@ -153,9 +153,10 @@ function generateDates(startDate, endDate, medication) {
  * @param {Array} logs - Array of medication log objects
  * @param {Date|string} startDate - Start date for checklist (7 days back)
  * @param {Date|string} endDate - End date for checklist (7 days forward)
+ * @param {Object} group - Optional group object with dayStartTime and dayEndTime
  * @returns {Object} Checklist data structure
  */
-export function getChecklistData(medications, logs, startDate, endDate) {
+export function getChecklistData(medications, logs, startDate, endDate, group = null) {
   // Generate all schedules for all medications
   const allSchedules = []
   
@@ -197,44 +198,13 @@ export function getChecklistData(medications, logs, startDate, endDate) {
     }
   })
   
-  // Sort time slots: numbered first (#1, #2, etc.), then specific times (HH:mm), then named times (morning, evening, bedtime)
-  const sortedTimeSlots = Array.from(timeSlots).sort((a, b) => {
-    const aIsNumber = a.startsWith('#')
-    const bIsNumber = b.startsWith('#')
-    
-    // 1. Numbered times come first (#1, #2, #3, etc.)
-    if (aIsNumber && bIsNumber) {
-      return parseInt(a.substring(1)) - parseInt(b.substring(1))
-    }
-    if (aIsNumber) return -1
-    if (bIsNumber) return 1
-    
-    // 2. Check if either is a specific time (HH:mm format)
-    const aIsSpecificTime = a.match(/^\d{2}:\d{2}$/)
-    const bIsSpecificTime = b.match(/^\d{2}:\d{2}$/)
-    
-    // 3. Specific times come before named times
-    if (aIsSpecificTime && bIsSpecificTime) {
-      // Sort specific times chronologically
-      return a.localeCompare(b)
-    }
-    if (aIsSpecificTime) return -1
-    if (bIsSpecificTime) return 1
-    
-    // 4. Named times (predefined options) come last: morning, evening, bedtime
-    const predefinedOrder = { 'morning': 1, 'evening': 2, 'bedtime': 3 }
-    const aPredefined = predefinedOrder[a]
-    const bPredefined = predefinedOrder[b]
-    
-    if (aPredefined && bPredefined) {
-      return aPredefined - bPredefined
-    }
-    if (aPredefined) return -1
-    if (bPredefined) return 1
-    
-    // Fallback: compare as strings
-    return a.localeCompare(b)
-  })
+  // Get day start/end times from group, or use defaults
+  const dayStartTime = group?.dayStartTime ? group.dayStartTime.substring(0, 5) : '06:00'
+  const dayEndTime = group?.dayEndTime ? group.dayEndTime.substring(0, 5) : '23:59'
+  
+  // Sort time slots using day boundary logic
+  const timeSlotsArray = Array.from(timeSlots)
+  const sortedTimeSlots = sortTimesByDayBoundary(timeSlotsArray, dayStartTime, dayEndTime)
   
   // Match logs to schedules
   const logsByKey = {}
@@ -252,6 +222,106 @@ export function getChecklistData(medications, logs, startDate, endDate) {
     schedulesByDate,
     logsByKey
   }
+}
+
+/**
+ * Convert time string to minutes since midnight
+ * @param {string} time - Time in HH:mm format
+ * @returns {number} Minutes since midnight
+ */
+function timeToMinutes(time) {
+  if (!time || !time.match(/^\d{2}:\d{2}/)) return 0
+  const [hours, minutes] = time.substring(0, 5).split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+/**
+ * Map named times to default hours for sorting
+ * @param {string} namedTime - Named time (morning, evening, bedtime)
+ * @returns {string} Time in HH:mm format
+ */
+function mapNamedTimeToHour(namedTime) {
+  const mapping = {
+    'morning': '08:00',
+    'evening': '18:00',
+    'bedtime': '22:00'
+  }
+  return mapping[namedTime] || '12:00'
+}
+
+/**
+ * Sort times by day boundary (supports wraparound days)
+ * @param {Array<string>} times - Array of time strings (HH:mm format or named times)
+ * @param {string} dayStartTime - Day start time in HH:mm format (default: '06:00')
+ * @param {string} dayEndTime - Day end time in HH:mm format (default: '23:59')
+ * @returns {Array<string>} Sorted array of times
+ */
+export function sortTimesByDayBoundary(times, dayStartTime = '06:00', dayEndTime = '23:59') {
+  const dayStartMinutes = timeToMinutes(dayStartTime)
+  const dayEndMinutes = timeToMinutes(dayEndTime)
+  
+  // Separate times into categories
+  const numberedTimes = []
+  const specificTimes = []
+  const namedTimes = []
+  
+  times.forEach(time => {
+    if (time.startsWith('#')) {
+      numberedTimes.push(time)
+    } else if (time.match(/^\d{2}:\d{2}$/)) {
+      specificTimes.push(time)
+    } else if (['morning', 'evening', 'bedtime'].includes(time)) {
+      namedTimes.push(time)
+    } else {
+      // Unknown format, treat as specific time
+      specificTimes.push(time)
+    }
+  })
+  
+  // Sort numbered times
+  numberedTimes.sort((a, b) => {
+    return parseInt(a.substring(1)) - parseInt(b.substring(1))
+  })
+  
+  // Sort specific times by day boundary
+  specificTimes.sort((a, b) => {
+    const aMinutes = timeToMinutes(a)
+    const bMinutes = timeToMinutes(b)
+    
+    // Calculate "minutes since day start" accounting for wraparound
+    const getSortValue = (minutes) => {
+      if (minutes >= dayStartMinutes) {
+        // Time is after day start, calculate normally
+        return minutes - dayStartMinutes
+      } else {
+        // Time is before day start, treat as next day (wraparound)
+        return (24 * 60) - dayStartMinutes + minutes
+      }
+    }
+    
+    return getSortValue(aMinutes) - getSortValue(bMinutes)
+  })
+  
+  // Sort named times by their mapped hours
+  namedTimes.sort((a, b) => {
+    const aHour = mapNamedTimeToHour(a)
+    const bHour = mapNamedTimeToHour(b)
+    const aMinutes = timeToMinutes(aHour)
+    const bMinutes = timeToMinutes(bHour)
+    
+    const getSortValue = (minutes) => {
+      if (minutes >= dayStartMinutes) {
+        return minutes - dayStartMinutes
+      } else {
+        return (24 * 60) - dayStartMinutes + minutes
+      }
+    }
+    
+    return getSortValue(aMinutes) - getSortValue(bMinutes)
+  })
+  
+  // Combine: numbered first, then specific times, then named times
+  return [...numberedTimes, ...specificTimes, ...namedTimes]
 }
 
 /**
