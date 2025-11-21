@@ -119,17 +119,49 @@ export async function PUT(request, { params }) {
     if (format !== undefined) updateData.format = format || null
     if (indication !== undefined) updateData.indication = indication?.trim() || null
     if (groupId !== undefined) {
-      // Verify group belongs to user
+      // Verify group access: user must own the group OR have permission to access shared groups
       const { data: group, error: groupError } = await supabaseWithAuth
         .from('medication_groups')
-        .select('id')
+        .select('id, user_id, accessible_by')
         .eq('id', groupId)
-        .eq('user_id', user.id)
         .single()
 
       if (groupError || !group) {
+        console.error('Error fetching group:', groupError)
         return NextResponse.json({ error: 'Group not found or access denied' }, { status: 403 })
       }
+
+      // Check if user owns the group
+      const ownsGroup = group.user_id === user.id
+
+      // If not owner, check if it's a shared group and user has permissions
+      if (!ownsGroup) {
+        if (group.accessible_by !== 'shared') {
+          return NextResponse.json({ error: 'Group not found or access denied' }, { status: 403 })
+        }
+
+        // Check if user has permission to view/edit shared groups
+        const { data: userPermissions, error: permError } = await supabaseWithAuth
+          .from('user_permissions')
+          .select('permission')
+          .eq('user_id', user.id)
+
+        if (permError) {
+          console.error('Error fetching user permissions:', permError)
+          return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+        }
+
+        const hasPermission = userPermissions?.some(p => 
+          p.permission === 'admin:full_access' || 
+          p.permission === 'medication:view_shared_groups' ||
+          p.permission === 'medication:edit_shared_groups'
+        )
+
+        if (!hasPermission) {
+          return NextResponse.json({ error: 'Group not found or access denied' }, { status: 403 })
+        }
+      }
+      
       updateData.group_id = groupId
     }
 
