@@ -6,16 +6,17 @@ export default function SpotifyRedirect() {
   useEffect(() => {
     // Check if we have OAuth data in the URL hash
     const hash = window.location.hash
+    const baseUrl = `${window.location.origin}/other-fun-stuff/magic-playlists`
 
     if (hash && hash.includes('access_token')) {
-      // Redirect back to localhost with the auth data
-      const localhostUrl = `http://localhost:3000${hash}`
-      console.log('Redirecting to localhost with auth data:', localhostUrl)
-      window.location.href = localhostUrl
+      // Redirect back to Magic Playlists page with the auth data
+      const targetUrl = `${baseUrl}${hash}`
+      console.log('Redirecting to Magic Playlists with auth data:', targetUrl)
+      window.location.href = targetUrl
     } else {
-      // No auth data, just redirect to localhost
-      console.log('No auth data found, redirecting to localhost')
-      window.location.href = 'http://localhost:3000'
+      // No auth data, just redirect to Magic Playlists
+      console.log('No auth data found, redirecting to Magic Playlists')
+      window.location.href = baseUrl
     }
   }, [])
 
