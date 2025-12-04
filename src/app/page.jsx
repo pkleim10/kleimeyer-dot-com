@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -13,7 +13,7 @@ export default function HomePage() {
   const [checkingAnnouncements, setCheckingAnnouncements] = useState(false)
 
   // Check for new announcements since user's last visit to family page
-  const checkForNewAnnouncements = async () => {
+  const checkForNewAnnouncements = useCallback(async () => {
     if (!user || !canViewFamily) return
     
     setCheckingAnnouncements(true)
@@ -40,7 +40,7 @@ export default function HomePage() {
     } finally {
       setCheckingAnnouncements(false)
     }
-  }
+  }, [user, canViewFamily])
 
   // Check for new announcements when user and permissions are loaded
   useEffect(() => {
