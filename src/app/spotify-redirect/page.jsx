@@ -8,48 +8,83 @@ export default function SpotifyRedirect() {
     console.log('[SpotifyRedirect] Hash:', window.location.hash)
     console.log('[SpotifyRedirect] Search:', window.location.search)
     
-    // Check if we have OAuth data in the URL hash
+    // Check for Authorization Code flow (code in query params from Spotify)
+    const searchParams = new URLSearchParams(window.location.search)
+    const code = searchParams.get('code')
+    const error = searchParams.get('error')
+    const state = searchParams.get('state')
+    
+    // Check for tokens in query params (from API callback after code exchange)
+    const accessTokenFromQuery = searchParams.get('access_token')
+    const refreshTokenFromQuery = searchParams.get('refresh_token')
+    
+    // Also check for Implicit Grant flow (tokens in hash) for backwards compatibility
     const hash = window.location.hash
-    const params = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : hash)
-    const accessToken = params.get('access_token')
-    const error = params.get('error')
-    const state = params.get('state') // encoded origin from authorize()
+    const hashParams = hash ? new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : hash) : null
+    const accessTokenFromHash = hashParams?.get('access_token')
     
     console.log('[SpotifyRedirect] Parsed params:', {
-      hasAccessToken: !!accessToken,
+      hasCode: !!code,
+      hasAccessTokenFromQuery: !!accessTokenFromQuery,
+      hasAccessTokenFromHash: !!accessTokenFromHash,
       hasError: !!error,
       error,
       hasState: !!state,
       stateValue: state,
-      allParams: Array.from(params.entries())
+      allSearchParams: Array.from(searchParams.entries()),
+      allHashParams: hashParams ? Array.from(hashParams.entries()) : []
     })
-    
-    // Remove state from what we forward to the app
-    if (state) {
-      params.delete('state')
-    }
-    const remainingHash = params.toString()
 
-    // Default to current origin, but prefer the origin sent in state (so we can bounce from prod -> localhost in dev)
+    // Default to current origin, but prefer the origin sent in state
     const targetOrigin = state ? decodeURIComponent(state) : window.location.origin
-    const baseUrl = `${targetOrigin}/other-fun-stuff/magic-playlists`
 
     if (error) {
       console.error('[SpotifyRedirect] Spotify OAuth error:', error)
       // Redirect back with error in query params so it's visible
-      const errorUrl = `${baseUrl}?spotify_error=${encodeURIComponent(error)}`
+      const errorUrl = `${targetOrigin}/other-fun-stuff/magic-playlists?spotify_error=${encodeURIComponent(error)}`
       window.location.href = errorUrl
       return
-    } else if (accessToken) {
-      // Redirect back to Magic Playlists page with the auth data
-      const targetUrl = remainingHash ? `${baseUrl}#${remainingHash}` : baseUrl
-      console.log('[SpotifyRedirect] Redirecting to Magic Playlists with auth data:', targetUrl)
-      window.location.href = targetUrl
-    } else {
-      // No auth data, just redirect to Magic Playlists
-      console.warn('[SpotifyRedirect] No auth data found, redirecting to Magic Playlists')
-      window.location.href = baseUrl
     }
+
+    // Authorization Code Flow Step 1: forward code to API route for token exchange
+    if (code) {
+      console.log('[SpotifyRedirect] Authorization code received, forwarding to API route')
+      const apiUrl = `${window.location.origin}/api/spotify/callback?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`
+      console.log('[SpotifyRedirect] Redirecting to API callback:', apiUrl)
+      window.location.href = apiUrl
+      return
+    }
+
+    // Authorization Code Flow Step 2: tokens received from API callback, convert to hash and redirect
+    if (accessTokenFromQuery) {
+      console.log('[SpotifyRedirect] Tokens received from API callback, redirecting to Magic Playlists with hash')
+      const hashParams = new URLSearchParams({
+        access_token: accessTokenFromQuery,
+        refresh_token: refreshTokenFromQuery || '',
+        expires_in: searchParams.get('expires_in') || '3600'
+      })
+      const targetUrl = `${targetOrigin}/other-fun-stuff/magic-playlists#${hashParams.toString()}`
+      console.log('[SpotifyRedirect] Redirecting to Magic Playlists with tokens in hash')
+      window.location.href = targetUrl
+      return
+    }
+
+    // Implicit Grant Flow (backwards compatibility): handle tokens directly from hash
+    if (accessTokenFromHash) {
+      console.log('[SpotifyRedirect] Access token in hash (Implicit Grant), redirecting to Magic Playlists')
+      // Remove state from hash params
+      if (state) {
+        hashParams.delete('state')
+      }
+      const remainingHash = hashParams.toString()
+      const targetUrl = remainingHash ? `${targetOrigin}/other-fun-stuff/magic-playlists#${remainingHash}` : `${targetOrigin}/other-fun-stuff/magic-playlists`
+      window.location.href = targetUrl
+      return
+    }
+
+    // No auth data, just redirect to Magic Playlists
+    console.warn('[SpotifyRedirect] No auth data found, redirecting to Magic Playlists')
+    window.location.href = `${targetOrigin}/other-fun-stuff/magic-playlists`
   }, [])
 
   return (
