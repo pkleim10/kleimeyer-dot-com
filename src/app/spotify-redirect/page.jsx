@@ -6,11 +6,22 @@ export default function SpotifyRedirect() {
   useEffect(() => {
     // Check if we have OAuth data in the URL hash
     const hash = window.location.hash
-    const baseUrl = `${window.location.origin}/other-fun-stuff/magic-playlists`
+    const params = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : hash)
+    const accessToken = params.get('access_token')
+    const state = params.get('state') // encoded origin from authorize()
+    // Remove state from what we forward to the app
+    if (state) {
+      params.delete('state')
+    }
+    const remainingHash = params.toString()
 
-    if (hash && hash.includes('access_token')) {
+    // Default to current origin, but prefer the origin sent in state (so we can bounce from prod -> localhost in dev)
+    const targetOrigin = state ? decodeURIComponent(state) : window.location.origin
+    const baseUrl = `${targetOrigin}/other-fun-stuff/magic-playlists`
+
+    if (accessToken) {
       // Redirect back to Magic Playlists page with the auth data
-      const targetUrl = `${baseUrl}${hash}`
+      const targetUrl = remainingHash ? `${baseUrl}#${remainingHash}` : baseUrl
       console.log('Redirecting to Magic Playlists with auth data:', targetUrl)
       window.location.href = targetUrl
     } else {
