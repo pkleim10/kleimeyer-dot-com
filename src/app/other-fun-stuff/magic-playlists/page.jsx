@@ -51,7 +51,7 @@ export default function MagicPlaylistsPage() {
           </div>
 
           <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-            Use AI to create custom playlists in Spotify. Describe your mood, activity, or music style, and we'll generate the perfect playlist for you.
+            Use AI to create custom playlists in Spotify. Describe your mood, activity, or music style, and we&apos;ll generate the perfect playlist for you.
           </p>
 
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-8">

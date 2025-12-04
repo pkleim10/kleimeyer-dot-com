@@ -779,7 +779,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
           <label htmlFor="playlistName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Playlist Name {suggestedPlaylistName && !playlistName.trim() && (
               <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
-                (suggested: "{suggestedPlaylistName}")
+                (suggested: &quot;{suggestedPlaylistName}&quot;)
               </span>
             )}
           </label>
@@ -1023,7 +1023,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
           {playlistResult && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
               <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                ✅ Created playlist "{playlistResult.name}" with {playlistResult.tracksAdded} tracks
+                ✅ Created playlist &quot;{playlistResult.name}&quot; with {playlistResult.tracksAdded} tracks
               </p>
               <a
                 href={playlistResult.url}
