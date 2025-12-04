@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/utils/supabase'
 import { CategoriesGrid } from '@/apps/recipes/components'
 
 export const revalidate = 0 // Add revalidation

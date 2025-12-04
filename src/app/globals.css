@@ -7,3 +7,54 @@
     @apply bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-gray-100;
   }
 }
+
+/* Obscurity Slider Styling */
+.obscurity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.obscurity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--thumb-color, rgb(59, 130, 246));
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s ease;
+}
+
+.obscurity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.obscurity-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--thumb-color, rgb(59, 130, 246));
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s ease;
+}
+
+.obscurity-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.obscurity-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.obscurity-slider:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
+.obscurity-slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+}

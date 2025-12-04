@@ -60,9 +60,22 @@ export async function GET(request) {
 
     const tokenData = await tokenResponse.json()
 
-    // Redirect to spotify-redirect page with tokens in query params
-    // The page will convert them to hash and redirect to Magic Playlists
-    // The state parameter contains the origin to redirect back to
+    // Check if this is a popup request (via fetch) or a redirect request
+    const userAgent = request.headers.get('user-agent') || ''
+    const acceptHeader = request.headers.get('accept') || ''
+    const isPopupRequest = acceptHeader.includes('application/json') || 
+                          request.headers.get('x-requested-with') === 'XMLHttpRequest'
+
+    // If popup request, return JSON instead of redirecting
+    if (isPopupRequest) {
+      return NextResponse.json({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token || '',
+        expires_in: tokenData.expires_in || '3600',
+      })
+    }
+
+    // Otherwise, redirect (backwards compatibility)
     const targetOrigin = state ? decodeURIComponent(state) : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const redirectUrl = `${targetOrigin}/spotify-redirect?` +
       new URLSearchParams({

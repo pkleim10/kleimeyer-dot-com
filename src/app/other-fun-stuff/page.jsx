@@ -67,6 +67,34 @@ export default function OtherFunStuffPage() {
             </div>
           </Link>
 
+          {/* Magic Playlists App */}
+          <Link href="/other-fun-stuff/magic-playlists" className="group w-full max-w-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+              <div className="relative h-48 bg-gradient-to-br from-purple-500 to-pink-600">
+                <div className="absolute inset-0 bg-black/20" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg className="w-24 h-24 text-white opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                  </svg>
+                </div>
+              </div>
+              <div className="p-6 flex-1 flex flex-col">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                  Magic Playlists
+                </h2>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Create custom playlists with AI in Spotify
+                </p>
+                <div className="mt-auto flex items-center text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors duration-300">
+                  <span className="text-sm font-medium">Get Started</span>
+                  <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
+
           {/* Auto Lease Management App */}
           <Link href="#" className="group w-full max-w-sm">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
