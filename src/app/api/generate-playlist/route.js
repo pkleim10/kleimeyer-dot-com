@@ -436,7 +436,7 @@ Do not include any markdown or code fences.`
                 console.log('[Generate Playlist] Aborted during song checking')
                 break
               }
-
+              
               // Skip if we've already checked this exact song (title + artist)
               if (isDuplicate(song, validSuggestions)) {
                 console.log(`⏭️ Skipping duplicate: "${song.title}" by ${song.artist}`)
@@ -445,7 +445,15 @@ Do not include any markdown or code fences.`
 
               send({ type: 'checking', song: { title: song.title, artist: song.artist } })
 
-              const result = await checkSpotifyAvailability(song.title, song.artist)
+              let result
+              try {
+                result = await checkSpotifyAvailability(song.title, song.artist)
+              } catch (spotifyError) {
+                console.error(`[Generate Playlist] Error checking Spotify for "${song.title}" by ${song.artist}:`, spotifyError)
+                // Continue to next song instead of breaking
+                send({ type: 'unavailable', song: { title: song.title, artist: song.artist }, error: spotifyError.message })
+                continue
+              }
               
               if (result.available) {
                 const verifiedSong = {
@@ -479,7 +487,15 @@ Do not include any markdown or code fences.`
                 unavailableSongs.push(song)
                 
                 // Try to find alternative tracks by the same artist
-                const alternatives = await findAlternativeTracks(song.artist, [song.title])
+                let alternatives = []
+                try {
+                  alternatives = await findAlternativeTracks(song.artist, [song.title])
+                } catch (altError) {
+                  console.error(`[Generate Playlist] Error finding alternatives for "${song.title}" by ${song.artist}:`, altError)
+                  // Continue without alternatives - don't break the loop
+                  send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
+                  continue
+                }
                 if (alternatives.length > 0) {
                   // Find first alternative that's not a duplicate
                   let alternative = null
@@ -606,14 +622,25 @@ ${unavailableFeedback}${alternativesFeedback}`
 
           if (!isAborted) {
             console.log(`[Generate Playlist] Final result: ${validSuggestions.length} valid songs out of ${count} requested`)
-            send({ type: 'complete', suggestions: validSuggestions.slice(0, count), totalChecked: allSuggestions.length, validCount: validSuggestions.length })
+            // Always send complete event, even if we didn't reach the full count
+            send({ type: 'complete', suggestions: validSuggestions.slice(0, count), totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count })
           } else {
             console.log('[Generate Playlist] Stream aborted, closing connection')
+            // Send partial results even if aborted
+            if (validSuggestions.length > 0) {
+              send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, aborted: true })
+            }
           }
         } catch (error) {
+          console.error('[Generate Playlist] Error in streaming generation:', error)
+          console.error('[Generate Playlist] Error stack:', error.stack)
           if (!isAborted) {
-            console.error('Error in streaming generation:', error)
-            send({ type: 'error', error: error.message || 'Internal server error' })
+            // Send partial results if we have any, before sending error
+            if (validSuggestions.length > 0) {
+              send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, error: error.message })
+            } else {
+              send({ type: 'error', error: error.message || 'Internal server error' })
+            }
           }
         } finally {
           try {
