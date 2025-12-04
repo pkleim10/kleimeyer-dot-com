@@ -20,8 +20,19 @@ export async function GET(request) {
     const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
     const REDIRECT_URI = process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI
 
-    if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !REDIRECT_URI) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    // Check which environment variables are missing
+    const missingVars = []
+    if (!SPOTIFY_CLIENT_ID) missingVars.push('NEXT_PUBLIC_SPOTIFY_CLIENT_ID')
+    if (!SPOTIFY_CLIENT_SECRET) missingVars.push('SPOTIFY_CLIENT_SECRET')
+    if (!REDIRECT_URI) missingVars.push('NEXT_PUBLIC_SPOTIFY_REDIRECT_URI')
+
+    if (missingVars.length > 0) {
+      console.error('[Spotify Callback] Missing environment variables:', missingVars)
+      return NextResponse.json({ 
+        error: 'Server configuration error',
+        message: `Missing environment variables: ${missingVars.join(', ')}`,
+        missing: missingVars
+      }, { status: 500 })
     }
 
     // Exchange code for tokens
