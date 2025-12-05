@@ -229,14 +229,28 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
 
         // Next line after #EXTINF should be the URI or path
         if (currentTrack && !line.startsWith('#')) {
-          // Check if it's a Spotify URI
+          // Check if it's a Spotify URI (handle both spotify:track: and https://open.spotify.com/track/)
           if (line.startsWith('spotify:track:')) {
-            const trackId = line.replace('spotify:track:', '')
-            currentTrack.spotifyTrack = {
-              uri: line,
-              id: trackId,
-              name: currentTrack.title,
-              artist: currentTrack.artist
+            const trackId = line.replace('spotify:track:', '').trim()
+            if (trackId) {
+              currentTrack.spotifyTrack = {
+                uri: `spotify:track:${trackId}`,
+                id: trackId,
+                name: currentTrack.title,
+                artist: currentTrack.artist
+              }
+            }
+          } else if (line.includes('open.spotify.com/track/')) {
+            // Handle Spotify web URLs
+            const urlMatch = line.match(/track\/([a-zA-Z0-9]+)/)
+            if (urlMatch && urlMatch[1]) {
+              const trackId = urlMatch[1]
+              currentTrack.spotifyTrack = {
+                uri: `spotify:track:${trackId}`,
+                id: trackId,
+                name: currentTrack.title,
+                artist: currentTrack.artist
+              }
             }
           }
           
@@ -319,14 +333,99 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       // Use the playlist name from input, or fallback to suggested name
       const finalPlaylistName = playlistName.trim() || suggestedPlaylistName || 'AI Generated Playlist'
 
-      // Check if songs already have verified Spotify track URIs (from generation)
+      // Check if songs already have verified Spotify track URIs (from generation or import)
       const trackUris = []
       const songsWithUris = songSuggestions.filter(s => s.spotifyTrack?.uri)
+      
+      console.log(`[MagicPlaylists] Creating playlist: ${songSuggestions.length} total songs, ${songsWithUris.length} with Spotify URIs`)
       
       if (songsWithUris.length > 0) {
         // Use pre-verified URIs
         trackUris.push(...songsWithUris.map(s => s.spotifyTrack.uri))
         console.log(`[MagicPlaylists] Using ${trackUris.length} pre-verified Spotify track URIs`)
+        
+        // If we have some URIs but not all songs have them, search for the rest
+        if (songsWithUris.length < songSuggestions.length) {
+          console.log(`[MagicPlaylists] ${songSuggestions.length - songsWithUris.length} songs need to be searched`)
+          const songsNeedingSearch = songSuggestions.filter(s => !s.spotifyTrack?.uri)
+          
+          // Search for remaining tracks
+          const matchedSongs = []
+          const unmatchedSongs = []
+          
+          for (let i = 0; i < Math.min(songsNeedingSearch.length, 20); i++) {
+            const song = songsNeedingSearch[i]
+            try {
+              // Try multiple search strategies
+              let searchResults = []
+              const searchStrategies = [
+                `track:"${song.title}" artist:"${song.artist}"`,
+                `track:${song.title} artist:${song.artist}`,
+                `${song.title} ${song.artist}`,
+                `track:"${song.title}"`,
+                `artist:"${song.artist}"`,
+                song.title,
+              ]
+              
+              for (const query of searchStrategies) {
+                searchResults = await searchTracks(query, 20)
+                if (searchResults && searchResults.length > 0) {
+                  break
+                }
+                await new Promise(resolve => setTimeout(resolve, 50))
+              }
+              
+              if (searchResults && searchResults.length > 0) {
+                let bestMatch = null
+                let bestScore = 0
+                const titleLower = song.title.toLowerCase().trim()
+                const artistLower = song.artist.toLowerCase().trim()
+                
+                for (const track of searchResults) {
+                  const trackTitle = (track.name?.toLowerCase() || '').trim()
+                  const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
+                  
+                  let score = 0
+                  if (trackArtist === artistLower) score += 50
+                  else if (isSimilar(trackArtist, artistLower, 0.85)) score += 40
+                  else if (isSimilar(trackArtist, artistLower, 0.7)) score += 25
+                  else if (isSimilar(trackArtist, artistLower, 0.5)) score += 10
+                  
+                  if (trackTitle === titleLower) score += 50
+                  else if (isSimilar(trackTitle, titleLower, 0.85)) score += 40
+                  else if (isSimilar(trackTitle, titleLower, 0.7)) score += 25
+                  else if (isSimilar(trackTitle, titleLower, 0.5)) score += 10
+                  
+                  if (score >= 50 && (isSimilar(trackArtist, artistLower, 0.7) || isSimilar(trackTitle, titleLower, 0.7))) {
+                    score += 10
+                  }
+                  
+                  if (score > bestScore && score >= 30) {
+                    bestScore = score
+                    bestMatch = track
+                  }
+                }
+                
+                if (bestMatch) {
+                  trackUris.push(bestMatch.uri)
+                  matchedSongs.push(`${song.title} by ${song.artist}`)
+                  console.log(`✅ Matched: "${song.title}" by ${song.artist}`)
+                } else {
+                  unmatchedSongs.push(`${song.title} by ${song.artist}`)
+                  console.warn(`❌ No match: "${song.title}" by ${song.artist}`)
+                }
+              } else {
+                unmatchedSongs.push(`${song.title} by ${song.artist}`)
+                console.warn(`❌ No search results: "${song.title}" by ${song.artist}`)
+              }
+            } catch (err) {
+              unmatchedSongs.push(`${song.title} by ${song.artist}`)
+              console.warn(`Failed to search: ${song.title} by ${song.artist}`, err)
+            }
+          }
+          
+          console.log(`📊 Additional search: ${matchedSongs.length} matched, ${unmatchedSongs.length} unmatched`)
+        }
       } else {
         // Fallback: Search for tracks (for backwards compatibility)
         const matchedSongs = []
@@ -432,10 +531,26 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       }
 
       if (trackUris.length === 0) {
-        throw new Error('No tracks found on Spotify')
+        throw new Error('No tracks found on Spotify. Please check that the tracks exist on Spotify or try importing an M3U file with Spotify URIs.')
       }
 
-      const result = await createPlaylist(finalPlaylistName, trackUris)
+      console.log(`[MagicPlaylists] Creating playlist "${finalPlaylistName}" with ${trackUris.length} tracks`)
+      console.log(`[MagicPlaylists] First few URIs:`, trackUris.slice(0, 3))
+      
+      let result
+      try {
+        result = await createPlaylist(finalPlaylistName, trackUris)
+      } catch (createErr) {
+        console.error('[MagicPlaylists] createPlaylist threw error:', createErr)
+        throw createErr
+      }
+      
+      if (!result) {
+        console.error('[MagicPlaylists] createPlaylist returned null/undefined')
+        throw new Error('Failed to create playlist on Spotify - no result returned')
+      }
+      
+      console.log(`✅ Playlist created successfully:`, result)
       setPlaylistResult(result)
       setStatusMessage(null)
 
@@ -445,8 +560,25 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
         window.localStorage.removeItem(PENDING_ADD_FLAG_KEY)
       }
     } catch (err) {
-      console.error('Error creating playlist:', err)
-      setError('Generated playlist suggestions but failed to create on Spotify')
+      console.error('[MagicPlaylists] Error creating playlist:', err)
+      console.error('[MagicPlaylists] Error details:', {
+        message: err.message,
+        stack: err.stack,
+        songCount: songSuggestions?.length || 0,
+        trackUriCount: trackUris?.length || 0
+      })
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to create playlist on Spotify'
+      if (err.message.includes('No tracks found')) {
+        errorMessage = err.message
+      } else if (err.message.includes('Failed to create')) {
+        errorMessage = err.message
+      } else if (err.message) {
+        errorMessage = `Failed to create playlist: ${err.message}`
+      }
+      
+      setError(errorMessage)
       setStatusMessage(null)
     } finally {
       setIsCreatingPlaylist(false)

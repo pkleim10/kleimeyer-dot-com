@@ -377,27 +377,45 @@ export function SpotifyProvider({ children }) {
         }
       )
 
-      if (!createResponse.ok) throw new Error('Failed to create playlist')
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json().catch(() => ({}))
+        console.error('[SpotifyContext] Failed to create playlist:', createResponse.status, errorData)
+        throw new Error(`Failed to create playlist: ${errorData.error?.message || createResponse.statusText || 'Unknown error'}`)
+      }
 
       const playlist = await createResponse.json()
 
       // Add tracks to playlist
       if (trackUris.length > 0) {
-        const addResponse = await fetch(
-          `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              uris: trackUris.slice(0, 100) // Spotify limit is 100 tracks per request
-            })
-          }
-        )
+        // Spotify allows up to 100 tracks per request, handle larger playlists
+        const maxPerRequest = 100
+        let tracksAdded = 0
+        
+        for (let i = 0; i < trackUris.length; i += maxPerRequest) {
+          const batch = trackUris.slice(i, i + maxPerRequest)
+          const addResponse = await fetch(
+            `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                uris: batch
+              })
+            }
+          )
 
-        if (!addResponse.ok) throw new Error('Failed to add tracks to playlist')
+          if (!addResponse.ok) {
+            const errorData = await addResponse.json().catch(() => ({}))
+            console.error('[SpotifyContext] Failed to add tracks:', addResponse.status, errorData)
+            throw new Error(`Failed to add tracks to playlist: ${errorData.error?.message || addResponse.statusText || 'Unknown error'}`)
+          }
+          
+          tracksAdded += batch.length
+          console.log(`[SpotifyContext] Added ${batch.length} tracks (${tracksAdded}/${trackUris.length} total)`)
+        }
       }
 
       return {
