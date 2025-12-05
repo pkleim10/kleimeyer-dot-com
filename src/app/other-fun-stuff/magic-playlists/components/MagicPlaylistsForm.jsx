@@ -154,6 +154,123 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     checkConfidences()
   }, [isAuthorized, suggestions])
 
+  const fileInputRef = useRef(null)
+
+  const handleImportM3U = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Reset file input
+    e.target.value = ''
+
+    if (!file.name.toLowerCase().endsWith('.m3u') && !file.name.toLowerCase().endsWith('.m3u8')) {
+      setError('Please select a valid M3U file (.m3u or .m3u8)')
+      return
+    }
+
+    try {
+      setError(null)
+      setStatusMessage('Reading M3U file...')
+      
+      const text = await file.text()
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+      
+      if (lines.length === 0 || !lines[0].startsWith('#EXTM3U')) {
+        setError('Invalid M3U file format. Expected #EXTM3U header.')
+        setStatusMessage(null)
+        return
+      }
+
+      const importedTracks = []
+      let playlistNameFromFile = null
+      let currentTrack = null
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+
+        // Extract playlist name
+        if (line.startsWith('#PLAYLIST:')) {
+          playlistNameFromFile = line.replace('#PLAYLIST:', '').trim()
+          continue
+        }
+
+        // Parse #EXTINF line: #EXTINF:duration,Artist - Title
+        if (line.startsWith('#EXTINF:')) {
+          const extinfContent = line.replace('#EXTINF:', '')
+          const commaIndex = extinfContent.indexOf(',')
+          const duration = commaIndex > 0 ? extinfContent.substring(0, commaIndex) : '-1'
+          const trackInfo = commaIndex > 0 ? extinfContent.substring(commaIndex + 1) : extinfContent
+          
+          // Parse "Artist - Title" format
+          const dashIndex = trackInfo.lastIndexOf(' - ')
+          let artist = ''
+          let title = trackInfo
+          
+          if (dashIndex > 0) {
+            artist = trackInfo.substring(0, dashIndex).trim()
+            title = trackInfo.substring(dashIndex + 3).trim()
+          } else {
+            // Try to parse other formats or use whole string as title
+            title = trackInfo.trim()
+          }
+
+          currentTrack = {
+            title: title || 'Unknown',
+            artist: artist || 'Unknown',
+            year: null,
+            reason: 'Imported from M3U file'
+          }
+          continue
+        }
+
+        // Next line after #EXTINF should be the URI or path
+        if (currentTrack && !line.startsWith('#')) {
+          // Check if it's a Spotify URI
+          if (line.startsWith('spotify:track:')) {
+            const trackId = line.replace('spotify:track:', '')
+            currentTrack.spotifyTrack = {
+              uri: line,
+              id: trackId,
+              name: currentTrack.title,
+              artist: currentTrack.artist
+            }
+          }
+          
+          importedTracks.push(currentTrack)
+          currentTrack = null
+        }
+      }
+
+      if (importedTracks.length === 0) {
+        setError('No tracks found in M3U file. Please check the file format.')
+        setStatusMessage(null)
+        return
+      }
+
+      // Set playlist name if found in file
+      if (playlistNameFromFile && !playlistName.trim()) {
+        setPlaylistName(playlistNameFromFile)
+      }
+
+      // Set the imported tracks as suggestions
+      setSuggestions(importedTracks)
+      setStatusMessage(`Imported ${importedTracks.length} tracks from M3U file`)
+      
+      // Clear status message after a moment
+      setTimeout(() => setStatusMessage(null), 3000)
+
+      console.log(`✅ Imported ${importedTracks.length} tracks from M3U file`)
+    } catch (err) {
+      console.error('Error importing M3U file:', err)
+      setError(`Failed to import M3U file: ${err.message}`)
+      setStatusMessage(null)
+    }
+  }
+
   const handleExportM3U = () => {
     if (!suggestions || suggestions.length === 0) {
       setError('No playlist to export')
@@ -832,6 +949,28 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
               <span>Hidden gems</span>
             </div>
           </div>
+        </div>
+
+        {/* Import M3U Button */}
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".m3u,.m3u8"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={handleImportM3U}
+            disabled={isLoading}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-300 flex items-center justify-center space-x-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span>Import M3U</span>
+          </button>
         </div>
 
         {/* Generate Button - Full Width */}
