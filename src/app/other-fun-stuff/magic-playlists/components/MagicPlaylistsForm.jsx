@@ -431,9 +431,32 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       console.log('API response status:', response.status, response.statusText)
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
-        console.error('API error response:', errorData)
-        throw new Error(errorData.error || `Failed to generate playlist (${response.status})`)
+        // Try to get error message from response body
+        let errorMessage = `Failed to generate playlist (${response.status})`
+        try {
+          const errorText = await response.text()
+          if (errorText) {
+            try {
+              const errorData = JSON.parse(errorText)
+              errorMessage = errorData.error || errorMessage
+            } catch {
+              // If not JSON, use the text as error message
+              errorMessage = errorText || errorMessage
+            }
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse error response:', parseErr)
+          // Use default error message based on status code
+          if (response.status === 401) {
+            errorMessage = 'Authentication failed. Please refresh the page and try again.'
+          } else if (response.status === 500) {
+            errorMessage = 'Server error. Please try again later.'
+          } else if (response.status === 502) {
+            errorMessage = 'Service temporarily unavailable. Please try again.'
+          }
+        }
+        console.error('API error response:', { status: response.status, message: errorMessage })
+        throw new Error(errorMessage)
       }
 
       // Handle streaming response
