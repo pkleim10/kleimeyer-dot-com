@@ -4,208 +4,142 @@ import { supabase } from '@/utils/supabase'
 
 export const usePermissions = () => {
   const { user } = useAuth()
-  const [permissions, setPermissions] = useState([])
+  const [role, setRole] = useState(null) // 'member', 'family', 'admin', or null (unauthenticated)
   const [loading, setLoading] = useState(true)
 
-  // Fetch user permissions from the new system
+  // Fetch user role from user_roles table
   useEffect(() => {
     if (!user) {
-      setPermissions([])
+      setRole(null) // Unauthenticated
       setLoading(false)
       return
     }
 
-    const fetchPermissions = async () => {
+    const fetchRole = async () => {
       try {
         const { data, error } = await supabase
-          .from('user_permissions')
-          .select('permission')
+          .from('user_roles')
+          .select('role')
           .eq('user_id', user.id)
+          .single()
 
         if (error) {
-          console.error('Error fetching permissions:', error)
-          setPermissions([])
+          // If no role found, default to 'member'
+          if (error.code === 'PGRST116') {
+            setRole('member')
+          } else {
+            console.error('Error fetching role:', error)
+            setRole('member') // Default to member on error
+          }
         } else {
-          setPermissions(data?.map(p => p.permission) || [])
+          setRole(data?.role || 'member')
         }
       } catch (err) {
-        console.error('Error fetching permissions:', err)
-        setPermissions([])
+        console.error('Error fetching role:', err)
+        setRole('member') // Default to member on error
       } finally {
         setLoading(false)
       }
     }
 
-    fetchPermissions()
+    fetchRole()
   }, [user])
 
+  // Role checking functions
+  const isAuthenticated = !!user
+  const isMember = role === 'member'
+  const isFamily = role === 'family'
+  const isAdmin = role === 'admin'
 
-  // Permission checking functions
+  // Specific permission checks based on roles
+  // Recipes: View - All users (authenticated and unauthenticated)
+  const canViewRecipes = true // Everyone can view recipes
+
+  // Recipes: Add/Edit/Delete - Family or Admin
+  const canCreateRecipe = isFamily || isAdmin
+  const canEditRecipe = isFamily || isAdmin
+  const canDeleteRecipe = isFamily || isAdmin
+
+  // Recipe Categories: View - All users
+  const canViewCategories = true // Everyone can view categories
+
+  // Recipe Categories: Add/Edit/Delete - Family or Admin
+  const canManageCategories = isFamily || isAdmin
+
+  // Family Business: All operations - Family or Admin (authenticated only)
+  const canViewFamily = (isFamily || isAdmin) && isAuthenticated
+  const canCreateAnnouncement = (isFamily || isAdmin) && isAuthenticated
+  const canEditAnnouncement = (isFamily || isAdmin) && isAuthenticated
+  const canDeleteAnnouncement = (isFamily || isAdmin) && isAuthenticated
+  const canViewAnnouncements = (isFamily || isAdmin) && isAuthenticated
+
+  const canCreateContact = (isFamily || isAdmin) && isAuthenticated
+  const canEditContact = (isFamily || isAdmin) && isAuthenticated
+  const canDeleteContact = (isFamily || isAdmin) && isAuthenticated
+  const canViewContacts = (isFamily || isAdmin) && isAuthenticated
+
+  const canUploadDocuments = (isFamily || isAdmin) && isAuthenticated
+  const canManageDocuments = (isFamily || isAdmin) && isAuthenticated
+  const canViewDocuments = (isFamily || isAdmin) && isAuthenticated
+
+  // Photo Albums: All operations - Family or Admin (authenticated only)
+  const canViewPhotos = (isFamily || isAdmin) && isAuthenticated
+
+  // Shared Medications: All operations - Family or Admin (authenticated only)
+  const canCreateSharedMedicationGroups = (isFamily || isAdmin) && isAuthenticated
+  const canViewSharedMedicationGroups = (isFamily || isAdmin) && isAuthenticated
+  const canEditSharedMedicationGroups = (isFamily || isAdmin) && isAuthenticated
+  const canDeleteSharedMedicationGroups = (isFamily || isAdmin) && isAuthenticated
+
+  // Admin: Admin only (authenticated only)
+  const canManageUsers = isAdmin && isAuthenticated
+  const canManageRoles = isAdmin && isAuthenticated
+
+  // Backward compatibility: hasPermission function for legacy code
   const hasPermission = (permission) => {
-    return permissions.includes(permission)
+    const permissionMap = {
+      'create:recipe': canCreateRecipe,
+      'edit:recipe': canEditRecipe,
+      'delete:recipe': canDeleteRecipe,
+      'create:category': canManageCategories,
+      'edit:category': canManageCategories,
+      'delete:category': canManageCategories,
+      'access:documents': canViewDocuments,
+      'upload:documents': canUploadDocuments,
+      'edit:documents': canManageDocuments,
+      'delete:documents': canManageDocuments,
+      'manage:categories': canManageCategories,
+      'create:announcement': canCreateAnnouncement,
+      'edit:announcement': canEditAnnouncement,
+      'delete:announcement': canDeleteAnnouncement,
+      'create:contact': canCreateContact,
+      'edit:contact': canEditContact,
+      'delete:contact': canDeleteContact,
+      'manage:users': canManageUsers,
+    }
+    return permissionMap[permission] || false
   }
-
-  const hasAnyPermission = (permissionList) => {
-    return permissionList.some(permission => permissions.includes(permission))
-  }
-
-  const hasAllPermissions = (permissionList) => {
-    return permissionList.every(permission => permissions.includes(permission))
-  }
-
-  // Specific permission checks
-  const canCreateAnnouncement = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:create_bulletins'
-  ])
-
-  const canEditAnnouncement = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:edit_bulletins'
-  ])
-
-  const canDeleteAnnouncement = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:delete_bulletins'
-  ])
-
-  const canViewAnnouncements = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:view_bulletins'
-  ])
-
-  const canCreateContact = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:manage_contacts'
-  ])
-
-  const canEditContact = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:manage_contacts'
-  ])
-
-  const canDeleteContact = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:manage_contacts'
-  ])
-
-  const canViewContacts = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:view_contacts'
-  ])
-
-  const canUploadDocuments = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:upload_documents'
-  ])
-
-  const canManageDocuments = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:manage_documents'
-  ])
-
-  const canViewDocuments = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:view_documents'
-  ])
-
-  const canCreateRecipe = hasAnyPermission([
-    'admin:full_access',
-    'recipe:create_recipes'
-  ])
-
-  const canEditRecipe = hasAnyPermission([
-    'admin:full_access',
-    'recipe:edit_recipes'
-  ])
-
-  const canDeleteRecipe = hasAnyPermission([
-    'admin:full_access',
-    'recipe:delete_recipes'
-  ])
-
-  const canViewRecipes = hasAnyPermission([
-    'admin:full_access',
-    'recipe:view_recipes'
-  ])
-
-  const canManageCategories = hasAnyPermission([
-    'admin:full_access',
-    'recipe:manage_categories'
-  ])
-
-  const canCreateSharedMedicationGroups = hasAnyPermission([
-    'admin:full_access',
-    'medication:create_shared_groups'
-  ])
-
-  const canViewSharedMedicationGroups = hasAnyPermission([
-    'admin:full_access',
-    'medication:view_shared_groups'
-  ])
-
-  const canEditSharedMedicationGroups = hasAnyPermission([
-    'admin:full_access',
-    'medication:edit_shared_groups'
-  ])
-
-  const canDeleteSharedMedicationGroups = hasAnyPermission([
-    'admin:full_access',
-    'medication:delete_shared_groups'
-  ])
-
-  const canManageUsers = hasAnyPermission([
-    'admin:full_access',
-    'admin:manage_users'
-  ])
-
-  const canManageRoles = hasAnyPermission([
-    'admin:full_access',
-    'admin:manage_roles'
-  ])
-
-  const canViewFamily = hasAnyPermission([
-    'admin:full_access',
-    'family:full_access',
-    'family:view_bulletins',
-    'family:create_bulletins',
-    'family:edit_bulletins',
-    'family:delete_bulletins',
-    'family:view_contacts',
-    'family:create_contacts',
-    'family:edit_contacts',
-    'family:delete_contacts',
-    'family:view_documents',
-    'family:upload_documents',
-    'family:manage_documents'
-  ])
-
-
 
   return {
     // Basic authentication
-    isAuthenticated: !!user,
+    isAuthenticated,
     loading,
     permissionsLoading: loading,
     
-    // Permission system
-    permissions,
-    hasPermission,
-    hasAnyPermission,
-    hasAllPermissions,
+    // Role system
+    role, // 'member', 'family', 'admin', or null
+    isMember,
+    isFamily,
+    isAdmin,
     
     // Specific permissions
+    canViewRecipes,
+    canCreateRecipe,
+    canEditRecipe,
+    canDeleteRecipe,
+    canViewCategories,
+    canManageCategories,
+    canViewFamily,
     canCreateAnnouncement,
     canEditAnnouncement,
     canDeleteAnnouncement,
@@ -217,42 +151,19 @@ export const usePermissions = () => {
     canUploadDocuments,
     canManageDocuments,
     canViewDocuments,
-    canCreateRecipe,
-    canEditRecipe,
-    canDeleteRecipe,
-    canViewRecipes,
-    canManageCategories,
+    canViewPhotos,
     canManageUsers,
     canManageRoles,
-    canViewFamily,
     canCreateSharedMedicationGroups,
     canViewSharedMedicationGroups,
     canEditSharedMedicationGroups,
     canDeleteSharedMedicationGroups,
     
-    // Helper functions for complex permission checks
-    hasPermission: (permission) => {
-      const permissions = {
-        'create:recipe': canCreateRecipe,
-        'edit:recipe': canEditRecipe,
-        'delete:recipe': canDeleteRecipe,
-        'create:category': canManageCategories,
-        'edit:category': canManageCategories,
-        'delete:category': canManageCategories,
-        'access:documents': canViewDocuments,
-        'upload:documents': canUploadDocuments,
-        'edit:documents': canManageDocuments,
-        'delete:documents': canManageDocuments,
-        'manage:categories': canManageCategories,
-        'create:announcement': canCreateAnnouncement,
-        'edit:announcement': canEditAnnouncement,
-        'delete:announcement': canDeleteAnnouncement,
-        'create:contact': canCreateContact,
-        'edit:contact': canEditContact,
-        'delete:contact': canDeleteContact,
-        'manage:users': canManageUsers,
-      }
-      return permissions[permission] || false
-    }
+    // Backward compatibility
+    hasPermission,
+    // Legacy: permissions array (empty for role-based system)
+    permissions: [],
+    hasAnyPermission: () => false,
+    hasAllPermissions: () => false,
   }
 }

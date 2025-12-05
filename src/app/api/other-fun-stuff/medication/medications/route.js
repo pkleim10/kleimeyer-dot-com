@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -116,30 +117,14 @@ export async function POST(request) {
     // Check if user owns the group
     const ownsGroup = group.user_id === user.id
 
-    // If not owner, check if it's a shared group and user has permissions
+    // If not owner, check if it's a shared group and user is Family or Admin
     if (!ownsGroup) {
       if (group.accessible_by !== 'shared') {
         return NextResponse.json({ error: 'Group not found or access denied' }, { status: 403 })
       }
 
-      // Check if user has permission to view/edit shared groups
-      const { data: userPermissions, error: permError } = await supabaseWithAuth
-        .from('user_permissions')
-        .select('permission')
-        .eq('user_id', user.id)
-
-      if (permError) {
-        console.error('Error fetching user permissions:', permError)
-        return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-      }
-
-      const hasPermission = userPermissions?.some(p => 
-        p.permission === 'admin:full_access' || 
-        p.permission === 'medication:view_shared_groups' ||
-        p.permission === 'medication:edit_shared_groups'
-      )
-
-      if (!hasPermission) {
+      // Check if user is Family or Admin (for shared groups)
+      if (!(await isFamilyOrAdmin(token))) {
         return NextResponse.json({ error: 'Group not found or access denied' }, { status: 403 })
       }
     }

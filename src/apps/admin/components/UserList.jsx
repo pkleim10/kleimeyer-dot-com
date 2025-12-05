@@ -69,27 +69,14 @@ export default function UserList({ users, onUpdate, currentUserId }) {
     }
   }
 
-  const getPermissionSummary = (user) => {
-    if (!user.permissions || user.permissions.length === 0) {
-      return 'No permissions'
-    }
-
-    const permissionCount = user.permissions.length
-    const hasAdmin = user.permissions.some(p => p.permission.startsWith('admin:'))
-    const hasFamily = user.permissions.some(p => p.permission.startsWith('family:'))
-    const hasRecipe = user.permissions.some(p => p.permission.startsWith('recipe:'))
-
-    if (hasAdmin) return 'Admin Access'
-    if (hasFamily) return 'Family Access'
-    if (hasRecipe) return 'Recipe Access'
-    return `${permissionCount} permission${permissionCount > 1 ? 's' : ''}`
+  const getUserRole = (userData) => {
+    return userData.role || 'member'
   }
 
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
       case 'family': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-      case 'contributor': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
       case 'member': return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
     }
@@ -124,8 +111,8 @@ export default function UserList({ users, onUpdate, currentUserId }) {
                           {user?.email}
                         </p>
                         <div className="mt-1 flex items-center space-x-2">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {getPermissionSummary(userData)}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(getUserRole(userData))}`}>
+                            {getUserRole(userData).charAt(0).toUpperCase() + getUserRole(userData).slice(1)}
                           </span>
                         </div>
                       </div>
@@ -140,7 +127,7 @@ export default function UserList({ users, onUpdate, currentUserId }) {
                       disabled={isCurrentUser}
                       className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Manage Permissions
+                      Manage Role
                     </button>
                     <button
                       onClick={() => openDeleteModal(user)}
@@ -216,7 +203,7 @@ export default function UserList({ users, onUpdate, currentUserId }) {
                   </h4>
                   <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1">
                     <li>• User account and authentication data</li>
-                    <li>• All user permissions and roles</li>
+                    <li>• User role</li>
                     <li>• User profile information</li>
                     <li>• Any content created by this user</li>
                   </ul>

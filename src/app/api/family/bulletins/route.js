@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -21,20 +22,18 @@ export async function GET(request) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
+    }
+
+    const { supabaseWithAuth } = authResult
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
@@ -96,41 +95,18 @@ export async function POST(request) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to create bulletins
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:create_bulletins'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Forbidden - Family access required' }, { status: 403 })
-    }
+    const { supabaseWithAuth } = authResult
 
     // Get request body
     const body = await request.json()

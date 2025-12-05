@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -25,32 +26,18 @@ export async function DELETE(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to manage users
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError || !userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || p.permission === 'admin:manage_users'
-    )) {
+    // Check if user is admin
+    if (!(await isAdmin(token))) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
+
+    const { user } = authResult
 
     // Prevent self-deletion
     if (user.id === userId) {
@@ -68,18 +55,19 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Delete user permissions first (cascade should handle this, but being explicit)
-    const { error: permDeleteError } = await supabaseWithAuth
-      .from('user_permissions')
+    // Delete user role first (cascade should handle this, but being explicit)
+    const { supabaseWithAuth } = authResult
+    const { error: roleDeleteError } = await supabaseWithAuth
+      .from('user_roles')
       .delete()
       .eq('user_id', userId)
 
-    if (permDeleteError) {
-      console.error('Error deleting user permissions:', permDeleteError)
-      // Continue with user deletion even if permission cleanup fails
+    if (roleDeleteError) {
+      console.error('Error deleting user role:', roleDeleteError)
+      // Continue with user deletion even if role cleanup fails
     }
 
-    // User permissions will be automatically deleted due to CASCADE constraint
+    // User role will be automatically deleted due to CASCADE constraint
 
     // Delete user from auth.users using admin client
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)

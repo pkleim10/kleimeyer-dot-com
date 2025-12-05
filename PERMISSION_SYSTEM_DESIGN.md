@@ -1,8 +1,16 @@
-# Multi-Role Permission System Design
+# Multi-Role Permission System Design (DEPRECATED)
 
-## Overview
+## ⚠️ ARCHIVED - This system has been replaced
 
-This document outlines the transition from a hierarchical single-role system to a flexible multi-role permission system.
+**This document is archived for historical reference only.**
+
+The system has been simplified to a 3-role system (Member, Family, Admin). See `ROLE_SYSTEM.md` for the current system documentation.
+
+---
+
+## Overview (Historical)
+
+This document outlined the transition from a hierarchical single-role system to a flexible multi-role permission system.
 
 ## Current System Issues
 

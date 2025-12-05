@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -16,44 +17,16 @@ export async function GET(request) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to view documents
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
-
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:view_documents'
-    )
-
-    if (!hasPermission) {
-      console.log('Access denied - no document view permission for user:', user.id)
-      return NextResponse.json({ error: 'Access denied - family access required' }, { status: 403 })
-    }
-
-    console.log('User has document view permission')
 
     // Create admin client for database operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
@@ -169,41 +142,18 @@ export async function POST(request) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to upload documents
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:upload_documents'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - upload permission required' }, { status: 403 })
-    }
+    const { user, supabaseWithAuth } = authResult
 
     // Parse form data
     const formData = await request.formData()

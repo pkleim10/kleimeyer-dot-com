@@ -19,7 +19,6 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/family/announcements') return { app: 'family', section: 'announcements', page: 'announcements' }
   if (pathname === '/family/announcements/calendar') return { app: 'family', section: 'calendar', page: 'calendar' }
   if (pathname === '/family/documents') return { app: 'family', section: 'documents', page: 'documents' }
-  if (pathname === '/family/thanksgiving-checklist') return { app: 'family', section: 'thanksgiving-checklist', page: 'thanksgiving-checklist' }
   if (pathname === '/photos') return { app: 'photos', section: 'home', page: 'photos-home' }
   if (pathname.startsWith('/photos/album/')) return { app: 'photos', section: 'album', page: 'album-detail' }
   if (pathname === '/other-fun-stuff') return { app: 'otherFunStuff', section: 'home', page: 'other-fun-stuff' }
@@ -104,8 +103,6 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         breadcrumbs.push({ name: 'Calendar', href: '/family/announcements/calendar', current: true })
       } else if (context.section === 'documents') {
         breadcrumbs.push({ name: 'Documents', href: '/family/documents', current: true })
-      } else if (context.section === 'thanksgiving-checklist') {
-        breadcrumbs.push({ name: 'Thanksgiving Checklist', href: '/family/thanksgiving-checklist', current: true })
       }
       break
     case 'photos':
@@ -157,8 +154,7 @@ const getAppNavigation = (context, user, canManageUsers) => {
         { name: 'Dashboard', href: '/family', current: context.section === 'home' },
         { name: 'Announcements', href: '/family/announcements', current: context.section === 'announcements' },
         { name: 'Calendar', href: '/family/announcements/calendar', current: context.section === 'calendar' },
-        { name: 'Documents', href: '/family/documents', current: context.section === 'documents' },
-        { name: 'Thanksgiving Checklist', href: '/family/thanksgiving-checklist', current: context.section === 'thanksgiving-checklist' }
+        { name: 'Documents', href: '/family/documents', current: context.section === 'documents' }
       ]
     case 'photos':
       return [

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -23,40 +24,15 @@ export async function PUT(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to edit contacts
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-    }
-
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:edit_contacts'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - edit permission required' }, { status: 403 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
     // Get request body
@@ -114,40 +90,15 @@ export async function DELETE(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to delete contacts
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-    }
-
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:delete_contacts'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - delete permission required' }, { status: 403 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
     // Delete contact using service role to bypass RLS

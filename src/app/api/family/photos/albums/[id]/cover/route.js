@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -18,19 +19,26 @@ export async function PUT(request, { params }) {
       return Response.json({ error: 'Image ID is required' }, { status: 400 })
     }
 
-    // Get the current user
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: request.headers.get('Authorization') || ''
-        }
-      }
-    })
-
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Get authorization header
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Verify authentication and check role
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return Response.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
+    }
+
+    const { user } = authResult
 
     // Create admin client to bypass RLS
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)

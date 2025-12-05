@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -25,41 +26,15 @@ export async function GET(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to view or manage documents
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-    }
-
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:view_documents' ||
-      p.permission === 'family:manage_documents'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
     // Use admin client for storage and DB reads to bypass RLS, while keeping permission checks above
@@ -132,41 +107,18 @@ export async function PUT(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to manage documents
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:manage_documents'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
-    }
+    const { user } = authResult
 
     // Get request body
     const body = await request.json()
@@ -226,41 +178,18 @@ export async function DELETE(request, { params }) {
 
     const token = authHeader.replace('Bearer ', '')
     
-    // Set the auth token for this request
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has permission to manage documents
-    const { data: userPermissions, error: permError } = await supabaseWithAuth
-      .from('user_permissions')
-      .select('permission')
-      .eq('user_id', user.id)
-
-    if (permError) {
-      console.error('Error fetching user permissions:', permError)
-      return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
     }
 
-    const hasPermission = userPermissions?.some(p => 
-      p.permission === 'admin:full_access' || 
-      p.permission === 'family:full_access' || 
-      p.permission === 'family:manage_documents'
-    )
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Access denied - manage permission required' }, { status: 403 })
-    }
+    const { user } = authResult
 
     // Create admin client for storage and database operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)

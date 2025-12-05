@@ -1,223 +1,146 @@
-# Administrator Guide - Multi-Role Permission System
+# Administrator Guide - Role-Based Access Control
 
 ## Overview
 
-The new multi-role permission system provides granular control over user access. Instead of rigid hierarchical roles, administrators can now grant specific permissions to users, allowing for more flexible and precise access control.
+The system uses a simple 3-role structure for access control. All access is role-based with no CRUD-level permissions. Administrators can assign roles to users through the admin panel.
 
 ## Accessing the Admin Panel
 
 1. **Navigate to Admin Panel**: Go to `/admin` in your browser
-2. **Authentication Required**: You must have `admin:full_access` or `admin:manage_users` permission
-3. **User Management**: The admin panel shows all users with their current permissions
+2. **Authentication Required**: You must have the `admin` role
+3. **User Management**: The admin panel shows all users with their current roles
 
 ## User Management Interface
 
 ### User List View
 - **User Information**: Name, email, and join date
-- **Legacy Role**: Shows the old role system for reference
-- **Permission Summary**: Displays a summary of current permissions
-- **Manage Permissions Button**: Opens the detailed permission editor
+- **Role Badge**: Displays the user's current role (Member, Family, or Admin)
+- **Manage Role Button**: Opens the role assignment modal
+- **Delete Account Button**: Permanently removes a user account
 
-### Permission Management Modal
+### Role Management Modal
 
-#### Quick Presets
-Use these buttons to quickly apply common permission sets:
+#### Available Roles
 
-- **Admin**: Full system access (all permissions)
-- **Family**: Family features + basic recipe access
-- **Contributor**: Recipe management only
-- **Member**: Basic access only
+**Member** (Default)
+- Basic authenticated access
+- View recipes
+- Profile management
+- Personal medication lists (own lists only)
 
-#### Granular Permissions
+**Family**
+- All Member access
+- Recipe Add/Edit/Delete
+- Recipe Categories Add/Edit/Delete
+- Family Business (announcements, contacts, documents, calendar)
+- Photo Albums
+- Shared medication lists
 
-##### Admin Permissions
-- **Full Admin Access**: Complete system control
-- **Manage Users**: Add, edit, and remove users
-- **Manage Permissions**: Grant and revoke permissions
-- **System Settings**: Configure system settings
+**Admin**
+- All Family access
+- Admin panel (user role management)
+- Document Categories management
 
-##### Family Permissions
-- **Full Family Access**: All family features
-- **View Announcements**: Read family announcements
-- **Create Announcements**: Add new announcements
-- **Edit Announcements**: Modify existing announcements
-- **Delete Announcements**: Remove announcements
-- **View Contacts**: See family contacts
-- **Manage Contacts**: Add, edit, and delete contacts
-- **View Documents**: Access family documents
-- **Upload Documents**: Add new documents
-- **Manage Documents**: Full document control
+#### Assigning Roles
 
-##### Recipe Permissions
-- **View Recipes**: Access recipe collection
-- **Create Recipes**: Add new recipes
-- **Edit Recipes**: Modify existing recipes
-- **Delete Recipes**: Remove recipes
-- **Manage Categories**: Organize recipe categories
-
-##### Member Permissions
-- **Basic Access**: Authenticated user access
-- **View Profile**: See own profile
-- **Edit Profile**: Update own information
+1. Click "Manage Role" next to a user
+2. Select the desired role (Member, Family, or Admin)
+3. Click "Save Role"
+4. The user's access will be updated immediately
 
 ## Best Practices
 
-### Permission Assignment Strategy
+### Role Assignment Strategy
 
-#### 1. Start with Presets
-- Use the preset buttons for common roles
-- Customize individual permissions as needed
+#### 1. Default to Member
+- New users automatically get the `member` role
+- Only promote to Family or Admin when needed
 
 #### 2. Principle of Least Privilege
-- Grant only the permissions users need
-- Regularly review and audit permissions
-- Remove unused permissions
+- Grant only the access level users need
+- Regularly review user roles
+- Demote users who no longer need elevated access
 
-#### 3. Common Permission Combinations
+#### 3. Common Role Assignments
 
-**Read-Only Family Member:**
-```
-family:view_bulletins
-family:view_contacts
-family:view_documents
-member:basic_access
-member:view_profile
-member:edit_profile
-```
+**Family Members:**
+- Assign `family` role for access to family features
+- Allows recipe editing and family business access
 
-**Recipe Contributor:**
-```
-recipe:view_recipes
-recipe:create_recipes
-recipe:edit_recipes
-member:basic_access
-member:view_profile
-member:edit_profile
-```
+**Administrators:**
+- Assign `admin` role for full system access
+- Use sparingly - only for trusted users who need system management
 
-**Document Manager:**
-```
-family:view_documents
-family:upload_documents
-family:manage_documents
-member:basic_access
-member:view_profile
-member:edit_profile
-```
+**Regular Users:**
+- Keep as `member` for basic access
+- Can view recipes and manage their own profile
 
-**Limited Family Access:**
-```
-family:view_bulletins
-family:create_bulletins
-family:view_contacts
-member:basic_access
-member:view_profile
-member:edit_profile
-```
+## Access Control Summary
 
-### Security Considerations
+### Unauthenticated Users
+- Can view recipes
+- Can view recipe categories
+- No other access
 
-#### 1. Admin Access
-- Only grant `admin:full_access` to trusted users
-- Consider using specific admin permissions instead of full access
-- Regularly audit admin permissions
+### Member Role
+- All unauthenticated access
+- Profile management
+- Personal medication lists
 
-#### 2. Permission Inheritance
-- `admin:full_access` includes all other permissions
-- `family:full_access` includes all family permissions
-- Use specific permissions when full access isn't needed
+### Family Role
+- All Member access
+- Recipe editing
+- Family Business features
+- Photo Albums
+- Shared medication lists
 
-#### 3. User Self-Management
-- Users cannot modify their own permissions
-- Users can only view their own permissions
-- All permission changes require admin access
-
-## Migration from Legacy Roles
-
-### Current State
-- Legacy roles are still visible for reference
-- New permissions are active and take precedence
-- Both systems work together during transition
-
-### Migration Process
-1. **Review Current Users**: Check existing role assignments
-2. **Apply New Permissions**: Use presets or custom permissions
-3. **Test Access**: Verify users can access expected features
-4. **Monitor Usage**: Watch for permission-related issues
-
-### Legacy Role Mapping
-- **Admin** → `admin:full_access` + all other permissions
-- **Family** → `family:full_access` + recipe + member permissions
-- **Contributor** → `recipe:*` + member permissions
-- **Member** → `member:*` permissions only
+### Admin Role
+- All Family access
+- User role management
+- Document Categories management
 
 ## Troubleshooting
 
-### Common Issues
+### User Cannot Access Feature
+1. Check their role in the admin panel
+2. Verify the feature requires Family or Admin access
+3. Update their role if needed
 
-#### 1. User Can't Access Features
-- Check if user has required permissions
-- Verify permission names are correct
-- Check for typos in permission assignments
+### User Has Too Much Access
+1. Review their current role
+2. Demote to appropriate role (Member or Family)
+3. Changes take effect immediately
 
-#### 2. Permission Changes Not Taking Effect
-- Refresh the page after making changes
-- Check if user is logged out and back in
-- Verify API calls are successful
+### Cannot Access Admin Panel
+- You must have the `admin` role
+- Contact an existing admin to assign the role
+- Or use SQL to set role directly in database
 
-#### 3. Admin Panel Access Denied
-- Ensure you have `admin:full_access` or `admin:manage_users`
-- Check if your session is valid
-- Verify you're using the correct account
+## Technical Details
 
-### Debugging Steps
-1. **Check User Permissions**: Use the permission summary in user list
-2. **Review API Logs**: Check browser console for errors
-3. **Test with Presets**: Try applying a preset to isolate issues
-4. **Verify Database**: Check `user_permissions` table directly
+### Database Structure
+- Roles are stored in the `user_roles` table
+- Each user has exactly one role
+- Default role is `member` if not specified
 
-## API Reference
+### Role Assignment via SQL
+```sql
+-- Assign admin role
+INSERT INTO user_roles (user_id, role)
+VALUES ('USER_ID_HERE', 'admin')
+ON CONFLICT (user_id) DO UPDATE SET role = 'admin';
 
-### Permission Management Endpoints
+-- Assign family role
+INSERT INTO user_roles (user_id, role)
+VALUES ('USER_ID_HERE', 'family')
+ON CONFLICT (user_id) DO UPDATE SET role = 'family';
 
-#### Get User Permissions
-```
-GET /api/admin/permissions?userId={userId}
-Authorization: Bearer {token}
-```
-
-#### Grant Permission
-```
-POST /api/admin/permissions
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "userId": "user-uuid",
-  "permission": "permission:name"
-}
+-- Assign member role (or remove elevated access)
+INSERT INTO user_roles (user_id, role)
+VALUES ('USER_ID_HERE', 'member')
+ON CONFLICT (user_id) DO UPDATE SET role = 'member';
 ```
 
-#### Revoke Permission
-```
-DELETE /api/admin/permissions?userId={userId}&permission={permission}
-Authorization: Bearer {token}
-```
+## Migration Notes
 
-### Permission Names
-All permissions follow the pattern: `category:action`
-
-- **Admin**: `admin:full_access`, `admin:manage_users`, `admin:manage_roles`, `admin:system_settings`
-- **Family**: `family:full_access`, `family:view_bulletins`, `family:create_bulletins`, etc.
-- **Recipe**: `recipe:view_recipes`, `recipe:create_recipes`, `recipe:edit_recipes`, etc.
-- **Member**: `member:basic_access`, `member:view_profile`, `member:edit_profile`
-
-## Support
-
-For issues or questions about the permission system:
-1. Check this guide first
-2. Review the permission system design document
-3. Test with the admin panel interface
-4. Contact system administrator if needed
-
-The new permission system provides much more flexibility than the old role system while maintaining security and ease of use.
+The system was migrated from a granular permission-based system to this simple role-based system. The old `user_permissions` table is kept for backward compatibility but is no longer used for access control.

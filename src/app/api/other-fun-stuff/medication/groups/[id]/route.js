@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -157,7 +158,7 @@ export async function PUT(request, { params }) {
     // Check if user owns the group
     const ownsGroup = groupData.user_id === user.id
 
-    // If not owner, check if it's a shared group and user has edit permissions
+    // If not owner, check if it's a shared group and user is Family or Admin
     if (!ownsGroup) {
       if (groupData.accessible_by !== 'shared') {
         return NextResponse.json({ 
@@ -165,23 +166,8 @@ export async function PUT(request, { params }) {
         }, { status: 403 })
       }
 
-      // Check if user has permission to edit shared groups
-      const { data: userPermissions, error: permError } = await supabaseWithAuth
-        .from('user_permissions')
-        .select('permission')
-        .eq('user_id', user.id)
-
-      if (permError) {
-        console.error('Error fetching user permissions:', permError)
-        return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-      }
-
-      const hasPermission = userPermissions?.some(p => 
-        p.permission === 'admin:full_access' || 
-        p.permission === 'medication:edit_shared_groups'
-      )
-
-      if (!hasPermission) {
+      // Check if user is Family or Admin (for shared groups)
+      if (!(await isFamilyOrAdmin(token))) {
         return NextResponse.json({ 
           error: 'You do not have permission to edit shared medication groups' 
         }, { status: 403 })

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isFamilyOrAdmin, verifyAuth } from '@/utils/roleChecks'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -18,15 +19,16 @@ export async function GET(request) {
       global: { headers: { Authorization: `Bearer ${token}` } }
     })
 
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    const { data: perms, error: permError } = await supabaseWithAuth
-      .from('user_permissions').select('permission').eq('user_id', user.id)
-    if (permError) return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
-
-    const allowed = perms?.some(p => p.permission === 'admin:full_access' || p.permission === 'family:full_access' || p.permission === 'family:view_documents')
-    if (!allowed) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, { auth: { autoRefreshToken: false, persistSession: false } })
     
@@ -126,15 +128,18 @@ export async function POST(request) {
     const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } }
     })
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verify authentication
+    const authResult = await verifyAuth(token)
+    if (!authResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    const { data: perms, error: permError } = await supabaseWithAuth
-      .from('user_permissions').select('permission').eq('user_id', user.id)
-    if (permError) return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 })
+    // Check if user is Family or Admin
+    if (!(await isFamilyOrAdmin(token))) {
+      return NextResponse.json({ error: 'Forbidden - Family or Admin access required' }, { status: 403 })
+    }
 
-    const allowed = perms?.some(p => p.permission === 'admin:full_access' || p.permission === 'family:full_access' || p.permission === 'family:upload_documents' || p.permission === 'family:manage_documents')
-    if (!allowed) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    const { user } = authResult
 
     const body = await request.json()
     const { name, description } = body
