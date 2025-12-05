@@ -498,8 +498,10 @@ Do not include any markdown or code fences.`
                 result = await checkSpotifyAvailability(song.title, song.artist)
               } catch (spotifyError) {
                 console.error(`[Generate Playlist] Error checking Spotify for "${song.title}" by ${song.artist}:`, spotifyError)
+                console.error(`[Generate Playlist] Error stack:`, spotifyError.stack)
                 // Continue to next song instead of breaking
                 send({ type: 'unavailable', song: { title: song.title, artist: song.artist }, error: spotifyError.message })
+                // Don't break - continue to next song
                 continue
               }
               
@@ -595,10 +597,10 @@ Do not include any markdown or code fences.`
             }
 
             // If we don't have enough, ask AI for more suggestions
-            if (validSuggestions.length < count && iteration < maxIterations) {
+            if (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
               const needed = count - validSuggestions.length
-              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more...`)
-              send({ type: 'status', message: `Need ${needed} more songs, asking AI...` })
+              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count})`)
+              send({ type: 'status', message: `Need ${needed} more songs, asking AI... (${validSuggestions.length}/${count} found)` })
 
               // Build feedback message about unavailable songs
               const unavailableFeedback = unavailableSongs.length > 0 
@@ -659,18 +661,30 @@ ${unavailableFeedback}${alternativesFeedback}`
                   console.log(`[Generate Playlist] AI provided ${newSuggestions.length} additional suggestions`)
                 } catch (parseErr) {
                   console.error('Failed to parse additional AI suggestions:', parseErr)
-                  break // Stop if we can't parse
+                  console.error('Raw content:', additionalContent)
+                  // Don't break - continue with what we have
+                  send({ type: 'status', message: `Warning: Could not parse additional suggestions, continuing with ${validSuggestions.length} songs...` })
+                  // Break only if we have no valid suggestions at all
+                  if (validSuggestions.length === 0) {
+                    break
+                  }
                 }
               } else {
-                console.warn('Failed to get additional suggestions from AI')
-                break // Stop if AI call fails
+                const errorText = await additionalResponse.text().catch(() => 'Unknown error')
+                console.warn('Failed to get additional suggestions from AI:', additionalResponse.status, errorText)
+                // Don't break - continue with what we have
+                send({ type: 'status', message: `Warning: Could not get additional suggestions, continuing with ${validSuggestions.length} songs...` })
+                // Break only if we have no valid suggestions at all
+                if (validSuggestions.length === 0) {
+                  break
+                }
               }
             }
           }
 
+          // Always send complete event, even if we didn't reach the full count
           if (!isAborted) {
-            console.log(`[Generate Playlist] Final result: ${validSuggestions.length} valid songs out of ${count} requested`)
-            // Always send complete event, even if we didn't reach the full count
+            console.log(`[Generate Playlist] Final result: ${validSuggestions.length} valid songs out of ${count} requested (iterations: ${iteration}/${maxIterations})`)
             send({ type: 'complete', suggestions: validSuggestions.slice(0, count), totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count })
           } else {
             console.log('[Generate Playlist] Stream aborted, closing connection')
@@ -678,6 +692,15 @@ ${unavailableFeedback}${alternativesFeedback}`
             if (validSuggestions.length > 0) {
               send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, aborted: true })
             }
+          }
+          
+          // Log if we didn't reach the target count
+          if (validSuggestions.length < count && !isAborted) {
+            console.warn(`[Generate Playlist] WARNING: Only found ${validSuggestions.length} out of ${count} requested songs. This may be due to:`)
+            console.warn(`  - Songs not available on Spotify`)
+            console.warn(`  - Rate limiting from Spotify API`)
+            console.warn(`  - AI not generating enough unique suggestions`)
+            console.warn(`  - Iteration limit reached (${iteration}/${maxIterations})`)
           }
         } catch (error) {
           console.error('[Generate Playlist] Error in streaming generation:', error)
