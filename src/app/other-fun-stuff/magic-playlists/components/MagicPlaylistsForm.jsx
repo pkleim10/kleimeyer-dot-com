@@ -368,12 +368,6 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     e.preventDefault()
     if (!prompt.trim()) return
 
-    // Require Spotify authorization before generating
-    if (!isAuthorized || !spotifyAccessToken) {
-      setError('Please connect to Spotify first. The playlist generator needs to verify songs are available on Spotify.')
-      return
-    }
-
     setIsLoading(true)
     setError(null)
     setSuggestions([]) // Initialize as empty array for progressive updates
@@ -414,18 +408,6 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       console.log('Making streaming API request to /api/generate-playlist')
       console.log('Access token present:', !!accessToken, 'Length:', accessToken?.length)
       
-      // Ensure Spotify token is fresh before making API call
-      let freshSpotifyToken = spotifyAccessToken
-      if (ensureFreshToken) {
-        try {
-          freshSpotifyToken = await ensureFreshToken() || spotifyAccessToken
-          console.log('Spotify token refreshed:', !!freshSpotifyToken, 'Length:', freshSpotifyToken?.length)
-        } catch (err) {
-          console.warn('Failed to refresh Spotify token:', err)
-        }
-      }
-      console.log('Spotify access token present:', !!freshSpotifyToken)
-      
       // Create AbortController to cancel request if component unmounts
       abortControllerRef.current = new AbortController()
       
@@ -441,7 +423,6 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
         body: JSON.stringify({
           prompt: prompt.trim(),
           count: 20,
-          spotifyAccessToken: freshSpotifyToken,
           obscurityLevel: obscurityLevel
         }),
         signal: abortControllerRef.current.signal
@@ -695,30 +676,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
 
   return (
     <div className="space-y-6">
-      {/* Spotify Authorization Notice */}
-      {!isAuthorized && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <div className="ml-3 flex-1">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                <strong>Spotify authorization required:</strong> The playlist generator verifies that all songs are available on Spotify in real-time. Please connect to Spotify first.
-              </p>
-              <button
-                type="button"
-                onClick={authorize}
-                className="mt-2 text-sm text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 font-medium underline"
-              >
-                Connect to Spotify →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reconnect to Spotify Button - Always visible when authorized */}
+      {/* Connected to Spotify - Always visible when authorized */}
       {isAuthorized && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-between">
@@ -731,19 +689,6 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem('spotify_access_token')
-                  localStorage.removeItem('spotify_refresh_token')
-                  localStorage.removeItem('spotify_token_timestamp')
-                  window.location.reload()
-                }}
-                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium underline"
-                title="Test: Invalidate token"
-              >
-                (Test: Clear Token)
-              </button>
               <button
                 type="button"
                 onClick={authorize}
@@ -769,7 +714,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
             placeholder="e.g., 'chill lo-fi beats for late night coding' or 'upbeat indie rock like Arctic Monkeys'"
             className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none"
             rows={3}
-            disabled={isLoading || !isAuthorized}
+            disabled={isLoading}
             required
           />
         </div>
@@ -790,7 +735,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
             onChange={(e) => setPlaylistName(e.target.value)}
             placeholder={suggestedPlaylistName || "Leave empty to use suggested name"}
             className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-            disabled={isLoading || !isAuthorized}
+            disabled={isLoading}
           />
         </div>
 
@@ -838,7 +783,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
                   value={obscurityLevel}
                   onChange={(e) => setObscurityLevel(parseInt(e.target.value))}
                   className="w-full h-2 rounded-lg appearance-none cursor-pointer obscurity-slider"
-                  disabled={isLoading || !isAuthorized}
+                  disabled={isLoading}
                   style={{
                     background: 'linear-gradient(to right, rgb(6, 182, 212) 0%, rgb(168, 85, 247) 50%, rgb(236, 72, 153) 100%)',
                     ['--thumb-color']: thumbColor
@@ -856,7 +801,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
         {/* Generate Button - Full Width */}
         <button
           type="submit"
-          disabled={isLoading || !prompt.trim() || !isAuthorized}
+          disabled={isLoading || !prompt.trim()}
           className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
         >
           {isLoading ? (

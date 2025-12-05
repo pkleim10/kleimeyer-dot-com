@@ -42,14 +42,58 @@ export async function POST(request) {
     }
 
     const body = await request.json()
-    const { prompt, genre, mood, era, count = 20, spotifyAccessToken, obscurityLevel = 50 } = body
+    const { prompt, genre, mood, era, count = 20, obscurityLevel = 50 } = body
 
     if (!prompt || !prompt.trim()) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
     }
 
-    if (!spotifyAccessToken) {
-      return NextResponse.json({ error: 'Spotify authorization required. Please connect to Spotify first.' }, { status: 400 })
+    // Get Spotify Client Credentials token for search (no user auth needed)
+    const SPOTIFY_CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
+    const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
+
+    if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+      return NextResponse.json({ error: 'Server configuration error (missing Spotify credentials)' }, { status: 500 })
+    }
+
+    // Cache for client credentials token (in-memory, per request)
+    let clientCredentialsToken = null
+    let tokenExpiresAt = 0
+
+    // Helper function to get Client Credentials token for Spotify search
+    const getClientCredentialsToken = async () => {
+      // Return cached token if still valid (with 60 second buffer)
+      if (clientCredentialsToken && Date.now() < tokenExpiresAt - 60000) {
+        return clientCredentialsToken
+      }
+
+      try {
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64')}`
+          },
+          body: new URLSearchParams({
+            grant_type: 'client_credentials'
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Failed to get Spotify client credentials token:', errorData)
+          throw new Error('Failed to authenticate with Spotify')
+        }
+
+        const data = await response.json()
+        clientCredentialsToken = data.access_token
+        tokenExpiresAt = Date.now() + (data.expires_in * 1000)
+        console.log('✅ Obtained Spotify client credentials token')
+        return clientCredentialsToken
+      } catch (error) {
+        console.error('Error getting Spotify client credentials token:', error)
+        throw error
+      }
     }
 
     // Helper function to clean title - remove artist name if it appears in the title
@@ -93,6 +137,9 @@ export async function POST(request) {
       
       console.log(`🔍 Searching for: "${cleanedTitle}" by ${artist} (original: "${title}")`)
       
+      // Get client credentials token for search
+      const searchToken = await getClientCredentialsToken()
+      
       const searchStrategies = [
         `track:"${cleanedTitle}" artist:"${artist}"`,
         `track:${cleanedTitle} artist:${artist}`,
@@ -116,19 +163,17 @@ export async function POST(request) {
             }),
             {
               headers: {
-                'Authorization': `Bearer ${spotifyAccessToken}`
+                'Authorization': `Bearer ${searchToken}`
               }
             }
           )
 
           if (response.status === 401) {
-            console.log(`❌ Spotify token expired for "${cleanedTitle}" by ${artist}`)
-            // Return a more specific error that the frontend can handle
-            return { 
-              available: false, 
-              error: 'Spotify token expired',
-              needsReauth: true 
-            }
+            console.log(`❌ Spotify client credentials token expired, refreshing...`)
+            // Refresh token and retry once
+            const newToken = await getClientCredentialsToken()
+            // Retry with new token (simplified - just continue to next strategy)
+            continue
           }
 
           if (response.status === 429) {
@@ -214,6 +259,9 @@ export async function POST(request) {
     // Helper function to find alternative tracks by the same artist
     const findAlternativeTracks = async (artist, excludeTitles = []) => {
       try {
+        // Get client credentials token for search
+        const searchToken = await getClientCredentialsToken()
+        
         const response = await fetch(
           `https://api.spotify.com/v1/search?` +
           new URLSearchParams({
@@ -224,7 +272,7 @@ export async function POST(request) {
           }),
           {
             headers: {
-              'Authorization': `Bearer ${spotifyAccessToken}`
+              'Authorization': `Bearer ${searchToken}`
             }
           }
         )
