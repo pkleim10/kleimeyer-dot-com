@@ -13,7 +13,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth()
-  const { permissions, loading: permissionsLoading } = usePermissions()
+  const { role, loading: permissionsLoading } = usePermissions()
   const router = useRouter()
   const [formData, setFormData] = useState({
     firstName: '',
@@ -23,24 +23,6 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [pageLoading, setPageLoading] = useState(true)
-
-  // Function to determine role from permissions
-  const getUserRole = () => {
-    if (!permissions || permissions.length === 0) return 'member'
-    
-    // permissions is already an array of strings from usePermissions hook
-    const permissionList = permissions
-    
-    if (permissionList.includes('admin:full_access')) {
-      return 'admin'
-    } else if (permissionList.includes('family:full_access')) {
-      return 'family'
-    } else if (permissionList.some(p => p && p.startsWith('recipe:'))) {
-      return 'contributor'
-    }
-    
-    return 'member'
-  }
 
   useEffect(() => {
     // Wait for auth and permissions to be ready
@@ -212,7 +194,7 @@ export default function ProfilePage() {
           {/* User Role Display */}
           <div>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-black bg-orange-200 dark:text-black dark:bg-orange-300">
-              {formatRole(getUserRole())}
+              {formatRole(role || 'member')}
             </span>
           </div>
 
