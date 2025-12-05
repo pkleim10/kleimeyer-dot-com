@@ -1,18 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
-  },
+  // Move serverComponentsExternalPackages to top level (Next.js 15)
+  serverExternalPackages: ['@supabase/supabase-js'],
   // Increase body size limit for file uploads
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-  // Alternative approach for API routes
-  serverRuntimeConfig: {
-    maxFileSize: '10mb',
-  },
+  // Note: In Next.js 15, body size limits are handled in API routes via request/response config
+  // The api.bodyParser config is no longer needed
 };
 
 export default nextConfig;
