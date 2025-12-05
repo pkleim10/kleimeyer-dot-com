@@ -381,48 +381,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     }
 
     try {
-      // Get the current session using the same Supabase client as AuthContext
-      console.log('[MagicPlaylists] Getting session...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      console.log('[MagicPlaylists] Session result:', {
-        hasSession: !!session,
-        hasAccessToken: !!session?.access_token,
-        sessionError: sessionError?.message
-      })
-
-      // Try alternative methods if session is not available
-      let accessToken = session?.access_token
-
-      if (!accessToken) {
-        console.log('[MagicPlaylists] No access token in session, trying getUser...')
-        // Try to get user directly
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-        if (user && !userError) {
-          console.log('[MagicPlaylists] User found, attempting to refresh session...')
-          // If we have a user but no session, try to refresh the session
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-
-          if (refreshData?.session?.access_token) {
-            accessToken = refreshData.session.access_token
-            console.log('[MagicPlaylists] Got access token after refresh')
-          } else {
-            console.error('[MagicPlaylists] Refresh failed:', refreshError?.message)
-          }
-        } else {
-          console.error('[MagicPlaylists] getUser failed:', userError?.message)
-        }
-      }
-
-      if (!accessToken) {
-        console.error('[MagicPlaylists] No access token available after all attempts')
-        throw new Error('Your session has expired. Please refresh the page and log in again.')
-      }
-
       console.log('[MagicPlaylists] Making streaming API request to /api/generate-playlist')
-      console.log('[MagicPlaylists] Access token present:', !!accessToken, 'Length:', accessToken?.length)
-      console.log('[MagicPlaylists] Token preview:', accessToken.substring(0, 20) + '...')
       
       // Create AbortController to cancel request if component unmounts
       abortControllerRef.current = new AbortController()
@@ -433,7 +392,6 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

@@ -18,43 +18,6 @@ export async function POST(request) {
     if (!GROQ_API_KEY) {
       return NextResponse.json({ error: 'Server configuration error (missing GROQ_API_KEY)' }, { status: 500 })
     }
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization')
-    console.log('[generate-playlist] Auth header present:', !!authHeader)
-    console.log('[generate-playlist] Auth header starts with Bearer:', authHeader?.startsWith('Bearer '))
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('[generate-playlist] Missing or invalid authorization header')
-      return NextResponse.json({ error: 'Unauthorized - Missing or invalid authorization header' }, { status: 401 })
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    console.log('[generate-playlist] Token length:', token.length)
-    console.log('[generate-playlist] Token preview:', token.substring(0, 20) + '...')
-    
-    // Create a client with the user's token
-    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    })
-
-    // Verify the user's session
-    const { data: { user }, error: authError } = await supabaseWithAuth.auth.getUser()
-    
-    if (authError) {
-      console.error('[generate-playlist] Auth error:', authError.message, authError.status)
-      return NextResponse.json({ error: `Unauthorized - ${authError.message}` }, { status: 401 })
-    }
-    
-    if (!user) {
-      console.error('[generate-playlist] No user found after auth verification')
-      return NextResponse.json({ error: 'Unauthorized - User session not found' }, { status: 401 })
-    }
-    
-    console.log('[generate-playlist] User authenticated:', user.id)
 
     const body = await request.json()
     const { prompt, genre, mood, era, count = 20, obscurityLevel = 50 } = body
