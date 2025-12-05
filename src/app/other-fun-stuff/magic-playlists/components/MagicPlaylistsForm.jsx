@@ -154,6 +154,45 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     checkConfidences()
   }, [isAuthorized, suggestions])
 
+  const handleExportM3U = () => {
+    if (!suggestions || suggestions.length === 0) {
+      setError('No playlist to export')
+      return
+    }
+
+    // Generate M3U file content
+    const exportName = playlistName.trim() || suggestedPlaylistName || 'AI Generated Playlist'
+    let m3uContent = '#EXTM3U\n'
+    m3uContent += `#PLAYLIST:${exportName}\n\n`
+
+    suggestions.forEach((song) => {
+      // Format: #EXTINF:duration,Artist - Title
+      // Use -1 for duration (unknown)
+      const trackInfo = `${song.artist} - ${song.title}`
+      m3uContent += `#EXTINF:-1,${trackInfo}\n`
+      
+      // Use Spotify URI if available, otherwise just the track info
+      if (song.spotifyTrack?.uri) {
+        m3uContent += `${song.spotifyTrack.uri}\n`
+      } else {
+        // Fallback: use track name (some players can search for it)
+        m3uContent += `${trackInfo}\n`
+      }
+      m3uContent += '\n'
+    })
+
+    // Create blob and download
+    const blob = new Blob([m3uContent], { type: 'audio/x-mpegurl' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${exportName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.m3u`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const handleCreatePlaylist = async (songSuggestions) => {
     if (!isAuthorized) return
 
@@ -930,17 +969,33 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
               </div>
             </div>
 
-            {/* Spotify Integration */}
-            <button
-              onClick={handleAddToSpotify}
-              disabled={spotifyLoading || isCreatingPlaylist}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-300 flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.6-.12-.421.18-.78.6-.899 4.56-1.051 8.49-.669 11.64 1.299.42.18.48.84.24 1.101zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.56-11.939-1.38-.479.16-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.24 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.781-.18-.601.18-1.2.78-1.381 4.5-1.411 11.82-1.051 16.62 1.24.45.21.66 1.02.3 1.86-.18.451-.96.63-1.41.33z"/>
-              </svg>
-              <span>{isAuthorized ? 'Add to Spotify' : 'Connect & Add to Spotify'}</span>
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Export M3U Button */}
+              <button
+                onClick={handleExportM3U}
+                disabled={isLoading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-300 flex items-center space-x-2"
+                title="Export playlist as M3U file"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Export M3U</span>
+              </button>
+
+              {/* Spotify Integration */}
+              <button
+                onClick={handleAddToSpotify}
+                disabled={spotifyLoading || isCreatingPlaylist}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-300 flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.6-.12-.421.18-.78.6-.899 4.56-1.051 8.49-.669 11.64 1.299.42.18.48.84.24 1.101zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.56-11.939-1.38-.479.16-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.24 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.781-.18-.601.18-1.2.78-1.381 4.5-1.411 11.82-1.051 16.62 1.24.45.21.66 1.02.3 1.86-.18.451-.96.63-1.41.33z"/>
+                </svg>
+                <span>{isAuthorized ? 'Add to Spotify' : 'Connect & Add to Spotify'}</span>
+              </button>
+            </div>
 
             {isCreatingPlaylist && (
               <div className="flex items-center text-blue-600 dark:text-blue-400">
