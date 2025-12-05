@@ -24,6 +24,7 @@ const getNavigationContext = (pathname) => {
   if (pathname === '/other-fun-stuff') return { app: 'otherFunStuff', section: 'home', page: 'other-fun-stuff' }
   if (pathname.startsWith('/other-fun-stuff/medication/group/')) return { app: 'otherFunStuff', section: 'medication', page: 'medication-group' }
   if (pathname.startsWith('/other-fun-stuff/medication')) return { app: 'otherFunStuff', section: 'medication', page: 'medication' }
+  if (pathname.startsWith('/other-fun-stuff/magic-playlists')) return { app: 'otherFunStuff', section: 'magic-playlists', page: 'magic-playlists' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -122,6 +123,8 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         } else {
           breadcrumbs.push({ name: 'Medication Management', href: '/other-fun-stuff/medication', current: true })
         }
+      } else if (context.section === 'magic-playlists') {
+        breadcrumbs.push({ name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: true })
       }
       break
     case 'admin':
@@ -164,6 +167,7 @@ const getAppNavigation = (context, user, canManageUsers) => {
       return [
         { name: 'Other Fun Stuff', href: '/other-fun-stuff', current: context.section === 'home' },
         { name: 'Medication Management', href: '/other-fun-stuff/medication', current: context.section === 'medication' },
+        { name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: context.section === 'magic-playlists' },
         { name: 'Select Background', href: '/other-fun-stuff?action=select-background', current: false, isAction: true }
       ]
     case 'admin':
