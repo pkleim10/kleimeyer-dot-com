@@ -55,6 +55,9 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     if (!isAuthorized || !searchTracks) return null
 
     try {
+      // Ensure token is fresh before searching
+      await ensureFreshToken()
+      
       let searchResults = []
       const searchStrategies = [
         // Strategy 1: Exact match with quotes (most specific)
@@ -73,9 +76,23 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       
       // Try each strategy until we get results
       for (const query of searchStrategies) {
-        searchResults = await searchTracks(query, 20) // Get more results for better matching
-        if (searchResults && searchResults.length > 0) {
-          break
+        try {
+          searchResults = await searchTracks(query, 20) // Get more results for better matching
+          if (searchResults && searchResults.length > 0) {
+            break
+          }
+        } catch (searchErr) {
+          // If authentication expired, rethrow to be handled by caller
+          if (searchErr.message?.includes('Authentication expired') || searchErr.message?.includes('Not authorized')) {
+            throw searchErr
+          }
+          // If rate limit exceeded, rethrow to be handled by caller
+          if (searchErr.message?.includes('rate limit')) {
+            console.error('Rate limit exceeded during confidence check:', searchErr)
+            throw searchErr
+          }
+          // For other errors, continue to next strategy
+          console.warn(`Search strategy failed for "${query}":`, searchErr.message || searchErr)
         }
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50))
@@ -131,6 +148,10 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       
       return bestScore
     } catch (err) {
+      // Re-throw authentication errors so they can be handled by the caller
+      if (err.message?.includes('Authentication expired') || err.message?.includes('Not authorized')) {
+        throw err
+      }
       console.warn(`Failed to check confidence for: ${song.title} by ${song.artist}`, err)
       return 0
     }
@@ -141,18 +162,44 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     if (!isAuthorized || !suggestions || suggestions.length === 0) return
     
     const checkConfidences = async () => {
+      // Ensure token is fresh before starting
+      try {
+        await ensureFreshToken()
+      } catch (err) {
+        console.warn('Failed to ensure fresh token:', err)
+      }
+      
       const confidences = {}
       for (let i = 0; i < suggestions.length; i++) {
-        const confidence = await checkTrackConfidence(suggestions[i])
-        confidences[i] = confidence
-        setTrackConfidences(prev => ({ ...prev, [i]: confidence }))
+        try {
+          const confidence = await checkTrackConfidence(suggestions[i])
+          confidences[i] = confidence
+          setTrackConfidences(prev => ({ ...prev, [i]: confidence }))
+        } catch (err) {
+          // If authentication expired, stop checking and show error
+          if (err.message?.includes('Authentication expired') || err.message?.includes('Not authorized')) {
+            console.error('Authentication expired while checking confidences')
+            setError('Spotify authentication expired. Please reconnect to Spotify to check track availability.')
+            break
+          }
+          // If rate limit exceeded, stop checking and show error
+          if (err.message?.includes('rate limit')) {
+            console.error('Rate limit exceeded while checking confidences')
+            setError('Spotify rate limit exceeded. Please wait a moment and try again.')
+            break
+          }
+          // For other errors, just log and continue
+          console.warn(`Failed to check confidence for track ${i}:`, err.message || err)
+          confidences[i] = 0
+          setTrackConfidences(prev => ({ ...prev, [i]: 0 }))
+        }
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 100))
       }
     }
     
     checkConfidences()
-  }, [isAuthorized, suggestions])
+  }, [isAuthorized, suggestions, ensureFreshToken])
 
   const fileInputRef = useRef(null)
 
@@ -328,206 +375,100 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
     if (!isAuthorized) return
 
     setIsCreatingPlaylist(true)
+    let trackUris = [] // Declare outside try block so it's accessible in catch
     try {
       setStatusMessage('Creating playlist on Spotify...')
       // Use the playlist name from input, or fallback to suggested name
       const finalPlaylistName = playlistName.trim() || suggestedPlaylistName || 'AI Generated Playlist'
 
-      // Check if songs already have verified Spotify track URIs (from generation or import)
-      const trackUris = []
+      // Always prioritize pre-verified URIs from the API (these are already verified and correct)
+      trackUris = []
       const songsWithUris = songSuggestions.filter(s => s.spotifyTrack?.uri)
       
-      console.log(`[MagicPlaylists] Creating playlist: ${songSuggestions.length} total songs, ${songsWithUris.length} with Spotify URIs`)
+      console.log(`[MagicPlaylists] Creating playlist: ${songSuggestions.length} total songs, ${songsWithUris.length} with pre-verified Spotify URIs`)
       
+      // Use all pre-verified URIs (trust the API's verification)
       if (songsWithUris.length > 0) {
-        // Use pre-verified URIs
         trackUris.push(...songsWithUris.map(s => s.spotifyTrack.uri))
-        console.log(`[MagicPlaylists] Using ${trackUris.length} pre-verified Spotify track URIs`)
+        console.log(`[MagicPlaylists] Using ${trackUris.length} pre-verified Spotify track URIs (no re-searching needed)`)
+      }
+      
+      // Only search for tracks that don't have URIs (e.g., M3U imports without URIs)
+      const songsNeedingSearch = songSuggestions.filter(s => !s.spotifyTrack?.uri)
+      if (songsNeedingSearch.length > 0) {
+        console.log(`[MagicPlaylists] ${songsNeedingSearch.length} tracks need searching (missing URIs, likely from M3U import without Spotify URIs)`)
         
-        // If we have some URIs but not all songs have them, search for the rest
-        if (songsWithUris.length < songSuggestions.length) {
-          console.log(`[MagicPlaylists] ${songSuggestions.length - songsWithUris.length} songs need to be searched`)
-          const songsNeedingSearch = songSuggestions.filter(s => !s.spotifyTrack?.uri)
-          
-          // Search for remaining tracks
-          const matchedSongs = []
-          const unmatchedSongs = []
-          
-          for (let i = 0; i < Math.min(songsNeedingSearch.length, 20); i++) {
-            const song = songsNeedingSearch[i]
-            try {
-              // Try multiple search strategies
-              let searchResults = []
-              const searchStrategies = [
-                `track:"${song.title}" artist:"${song.artist}"`,
-                `track:${song.title} artist:${song.artist}`,
-                `${song.title} ${song.artist}`,
-                `track:"${song.title}"`,
-                `artist:"${song.artist}"`,
-                song.title,
-              ]
-              
-              for (const query of searchStrategies) {
-                searchResults = await searchTracks(query, 20)
-                if (searchResults && searchResults.length > 0) {
-                  break
-                }
-                await new Promise(resolve => setTimeout(resolve, 50))
-              }
-              
-              if (searchResults && searchResults.length > 0) {
-                let bestMatch = null
-                let bestScore = 0
-                const titleLower = song.title.toLowerCase().trim()
-                const artistLower = song.artist.toLowerCase().trim()
-                
-                for (const track of searchResults) {
-                  const trackTitle = (track.name?.toLowerCase() || '').trim()
-                  const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
-                  
-                  let score = 0
-                  if (trackArtist === artistLower) score += 50
-                  else if (isSimilar(trackArtist, artistLower, 0.85)) score += 40
-                  else if (isSimilar(trackArtist, artistLower, 0.7)) score += 25
-                  else if (isSimilar(trackArtist, artistLower, 0.5)) score += 10
-                  
-                  if (trackTitle === titleLower) score += 50
-                  else if (isSimilar(trackTitle, titleLower, 0.85)) score += 40
-                  else if (isSimilar(trackTitle, titleLower, 0.7)) score += 25
-                  else if (isSimilar(trackTitle, titleLower, 0.5)) score += 10
-                  
-                  if (score >= 50 && (isSimilar(trackArtist, artistLower, 0.7) || isSimilar(trackTitle, titleLower, 0.7))) {
-                    score += 10
-                  }
-                  
-                  if (score > bestScore && score >= 30) {
-                    bestScore = score
-                    bestMatch = track
-                  }
-                }
-                
-                if (bestMatch) {
-                  trackUris.push(bestMatch.uri)
-                  matchedSongs.push(`${song.title} by ${song.artist}`)
-                  console.log(`✅ Matched: "${song.title}" by ${song.artist}`)
-                } else {
-                  unmatchedSongs.push(`${song.title} by ${song.artist}`)
-                  console.warn(`❌ No match: "${song.title}" by ${song.artist}`)
-                }
-              } else {
-                unmatchedSongs.push(`${song.title} by ${song.artist}`)
-                console.warn(`❌ No search results: "${song.title}" by ${song.artist}`)
-              }
-            } catch (err) {
-              unmatchedSongs.push(`${song.title} by ${song.artist}`)
-              console.warn(`Failed to search: ${song.title} by ${song.artist}`, err)
-            }
-          }
-          
-          console.log(`📊 Additional search: ${matchedSongs.length} matched, ${unmatchedSongs.length} unmatched`)
-        }
-      } else {
-        // Fallback: Search for tracks (for backwards compatibility)
         const matchedSongs = []
         const unmatchedSongs = []
         
-        for (let i = 0; i < Math.min(songSuggestions.length, 20); i++) { // Limit to 20 songs for speed
-          const song = songSuggestions[i]
+        for (let i = 0; i < Math.min(songsNeedingSearch.length, 20); i++) {
+          const song = songsNeedingSearch[i]
           try {
-          // Try multiple search strategies (same as confidence checking)
-          let searchResults = []
-          const searchStrategies = [
-            `track:"${song.title}" artist:"${song.artist}"`,
-            `track:${song.title} artist:${song.artist}`,
-            `${song.title} ${song.artist}`,
-            `track:"${song.title}"`,
-            `artist:"${song.artist}"`,
-            song.title,
-          ]
-          
-          // Try each strategy until we get results
-          for (const query of searchStrategies) {
-            searchResults = await searchTracks(query, 20)
+            // Try multiple search strategies, prioritizing exact matches
+            let searchResults = []
+            const searchStrategies = [
+              `track:"${song.title}" artist:"${song.artist}"`,  // Most specific
+              `track:${song.title} artist:${song.artist}`,    // Without quotes
+              `${song.title} ${song.artist}`,                  // Combined
+            ]
+            // Removed overly broad searches (track-only, artist-only, title-only)
+            
+            for (const query of searchStrategies) {
+              searchResults = await searchTracks(query, 10) // Limit to 10 for better relevance
+              if (searchResults && searchResults.length > 0) {
+                break
+              }
+              await new Promise(resolve => setTimeout(resolve, 50))
+            }
+            
             if (searchResults && searchResults.length > 0) {
-              break
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-          }
-          
-          if (searchResults && searchResults.length > 0) {
-            // Find the best match with improved scoring
-            let bestMatch = null
-            let bestScore = 0
-            const titleLower = song.title.toLowerCase().trim()
-            const artistLower = song.artist.toLowerCase().trim()
-            
-            for (const track of searchResults) {
-              const trackTitle = (track.name?.toLowerCase() || '').trim()
-              const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
+              let bestMatch = null
+              const titleLower = song.title.toLowerCase().trim()
+              const artistLower = song.artist.toLowerCase().trim()
               
-              let score = 0
-              
-              // Artist match (more flexible)
-              if (trackArtist === artistLower) {
-                score += 50
-              } else if (isSimilar(trackArtist, artistLower, 0.85)) {
-                score += 40
-              } else if (isSimilar(trackArtist, artistLower, 0.7)) {
-                score += 25
-              } else if (isSimilar(trackArtist, artistLower, 0.5)) {
-                score += 10
+              for (const track of searchResults) {
+                const trackTitle = (track.name?.toLowerCase() || '').trim()
+                const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
+                
+                // REQUIRE exact artist match (no fuzzy matching for artist)
+                if (trackArtist !== artistLower) {
+                  continue // Skip this track - artist doesn't match exactly
+                }
+                
+                // Allow fuzzy title matching (threshold 0.7)
+                const titleMatches = trackTitle === titleLower || isSimilar(trackTitle, titleLower, 0.7)
+                
+                if (titleMatches) {
+                  bestMatch = track
+                  const matchType = trackTitle === titleLower ? 'exact' : 'fuzzy'
+                  console.log(`✅ Matched: "${song.title}" by ${song.artist} → "${track.name}" by ${track.artists[0]?.name} (exact artist, ${matchType} title)`)
+                  break // Found a match, no need to check more tracks
+                }
               }
               
-              // Title match (more flexible)
-              if (trackTitle === titleLower) {
-                score += 50
-              } else if (isSimilar(trackTitle, titleLower, 0.85)) {
-                score += 40
-              } else if (isSimilar(trackTitle, titleLower, 0.7)) {
-                score += 25
-              } else if (isSimilar(trackTitle, titleLower, 0.5)) {
-                score += 10
+              if (bestMatch) {
+                trackUris.push(bestMatch.uri)
+                matchedSongs.push(`${song.title} by ${song.artist}`)
+              } else {
+                unmatchedSongs.push(`${song.title} by ${song.artist}`)
+                console.warn(`❌ No match: "${song.title}" by ${song.artist} (artist must match exactly, title must match with similarity ≥0.7)`)
               }
-              
-              // Bonus for good overall match
-              if (score >= 50 && (isSimilar(trackArtist, artistLower, 0.7) || isSimilar(trackTitle, titleLower, 0.7))) {
-                score += 10
-              }
-              
-              // Lower threshold to 30 (was 40) to catch more matches
-              if (score > bestScore && score >= 30) {
-                bestScore = score
-                bestMatch = track
-              }
-            }
-            
-            if (bestMatch) {
-              trackUris.push(bestMatch.uri)
-              matchedSongs.push({
-                requested: `${song.title} by ${song.artist}`,
-                found: `${bestMatch.name} by ${bestMatch.artists[0]?.name || 'Unknown'}`,
-                score: bestScore
-              })
-              console.log(`✅ Matched (score: ${bestScore}): "${song.title}" by ${song.artist} → "${bestMatch.name}" by ${bestMatch.artists[0]?.name}`)
             } else {
               unmatchedSongs.push(`${song.title} by ${song.artist}`)
-              console.warn(`❌ No good match found (best score: ${bestScore}): "${song.title}" by ${song.artist}`)
+              console.warn(`❌ No search results: "${song.title}" by ${song.artist}`)
             }
-          } else {
-            unmatchedSongs.push(`${song.title} by ${song.artist}`)
-            console.warn(`❌ No search results: "${song.title}" by ${song.artist}`)
-          }
           } catch (err) {
             unmatchedSongs.push(`${song.title} by ${song.artist}`)
-            console.warn(`Failed to find track: ${song.title} by ${song.artist}`, err)
+            console.warn(`Failed to search: ${song.title} by ${song.artist}`, err)
           }
         }
         
-        // Log summary
-        console.log(`📊 Track matching summary: ${matchedSongs.length} matched, ${unmatchedSongs.length} unmatched`)
+        console.log(`📊 Additional search: ${matchedSongs.length} matched, ${unmatchedSongs.length} unmatched`)
         if (unmatchedSongs.length > 0) {
-          console.log('Unmatched songs:', unmatchedSongs)
+          console.log('Unmatched songs (missing URIs):', unmatchedSongs)
         }
+      } else {
+        console.log(`[MagicPlaylists] All ${songSuggestions.length} tracks have pre-verified URIs, no searching needed`)
       }
 
       if (trackUris.length === 0) {
@@ -560,25 +501,37 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
         window.localStorage.removeItem(PENDING_ADD_FLAG_KEY)
       }
     } catch (err) {
+      // Safely extract error information
+      const errorMessage = err?.message || err?.toString() || 'Unknown error'
+      const errorStack = err?.stack || 'No stack trace available'
+      const errorName = err?.name || 'Error'
+      
       console.error('[MagicPlaylists] Error creating playlist:', err)
       console.error('[MagicPlaylists] Error details:', {
-        message: err.message,
-        stack: err.stack,
+        name: errorName,
+        message: errorMessage,
+        stack: errorStack,
         songCount: songSuggestions?.length || 0,
-        trackUriCount: trackUris?.length || 0
+        trackUriCount: trackUris?.length || 0,
+        errorType: typeof err,
+        errorString: String(err)
       })
       
       // Provide more specific error messages
-      let errorMessage = 'Failed to create playlist on Spotify'
-      if (err.message.includes('No tracks found')) {
-        errorMessage = err.message
-      } else if (err.message.includes('Failed to create')) {
-        errorMessage = err.message
-      } else if (err.message) {
-        errorMessage = `Failed to create playlist: ${err.message}`
+      let userErrorMessage = 'Failed to create playlist on Spotify'
+      if (errorMessage.includes('No tracks found')) {
+        userErrorMessage = errorMessage
+      } else if (errorMessage.includes('Failed to create')) {
+        userErrorMessage = errorMessage
+      } else if (errorMessage.includes('Authentication expired')) {
+        userErrorMessage = 'Spotify authentication expired. Please reconnect to Spotify.'
+      } else if (errorMessage.includes('Not authorized')) {
+        userErrorMessage = 'Not authorized with Spotify. Please connect to Spotify first.'
+      } else if (errorMessage && errorMessage !== 'Unknown error') {
+        userErrorMessage = `Failed to create playlist: ${errorMessage}`
       }
       
-      setError(errorMessage)
+      setError(userErrorMessage)
       setStatusMessage(null)
     } finally {
       setIsCreatingPlaylist(false)
@@ -649,6 +602,30 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       abortControllerRef.current = null
       setIsLoading(false)
       setStatusMessage('Playlist generation cancelled')
+    }
+  }
+
+  const handleDeleteTrack = (indexToDelete) => {
+    if (!suggestions || indexToDelete < 0 || indexToDelete >= suggestions.length) return
+    
+    const updatedSuggestions = suggestions.filter((_, index) => index !== indexToDelete)
+    setSuggestions(updatedSuggestions)
+    console.log(`🗑️ Deleted track at index ${indexToDelete}`)
+    
+    // Also remove confidence score if it exists
+    if (trackConfidences[indexToDelete] !== undefined) {
+      const updatedConfidences = { ...trackConfidences }
+      // Shift all indices after the deleted one
+      const newConfidences = {}
+      Object.keys(updatedConfidences).forEach(key => {
+        const idx = parseInt(key)
+        if (idx < indexToDelete) {
+          newConfidences[idx] = updatedConfidences[idx]
+        } else if (idx > indexToDelete) {
+          newConfidences[idx - 1] = updatedConfidences[idx]
+        }
+      })
+      setTrackConfidences(newConfidences)
     }
   }
 
@@ -750,10 +727,10 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
                 })
                 
                 if (!isDuplicate) {
-                  // Add song immediately to the playlist
+                  // Automatically add track without confirmation
                   streamingSuggestions.push(data.song)
                   setSuggestions([...streamingSuggestions])
-                  console.log(`✅ Added song to playlist: "${data.song.title}" by ${data.song.artist} (${data.total}/${20})`)
+                  console.log(`✅ Added song to playlist: "${data.song.title}" by ${data.song.artist} (${streamingSuggestions.length}/${20})`)
                 } else {
                   console.log(`⏭️ Skipping duplicate in UI: "${data.song.title}" by ${data.song.artist}`)
                 }
@@ -810,27 +787,76 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
   
   // Suggest playlist name when prompt changes (only if name field is empty)
   useEffect(() => {
-    if (prompt.trim() && !playlistName.trim()) {
-      // Create a shortened, cleaned version of the prompt
-      const cleaned = prompt.trim()
-        .replace(/^create\s+a\s+playlist\s+(of|with|for)\s+/i, '') // Remove "create a playlist of/with/for"
-        .replace(/^playlist\s+(of|with|for)\s+/i, '') // Remove "playlist of/with/for"
-        .replace(/\s+/g, ' ') // Normalize whitespace
-        .trim()
-      
-      // Limit to 50 characters, truncate at word boundary if possible
-      let suggested = cleaned
-      if (suggested.length > 50) {
-        const truncated = suggested.substring(0, 50)
-        const lastSpace = truncated.lastIndexOf(' ')
-        suggested = lastSpace > 30 ? truncated.substring(0, lastSpace) : truncated
-        suggested = suggested.trim() + '...'
-      }
-      
-      setSuggestedPlaylistName(suggested || 'AI Generated Playlist')
-    } else if (!prompt.trim()) {
+    if (!prompt.trim()) {
       setSuggestedPlaylistName('')
+      return
     }
+
+    if (playlistName.trim()) {
+      // Don't suggest if user has already entered a name
+      return
+    }
+
+    // Debounce the API call
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/suggest-playlist-name', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt: prompt.trim() })
+        })
+
+        if (!response.ok) {
+          console.warn('Failed to get AI playlist name suggestion, using fallback')
+          // Fallback to simple text manipulation
+          const cleaned = prompt.trim()
+            .replace(/^create\s+a\s+playlist\s+(of|with|for)\s+/i, '')
+            .replace(/^playlist\s+(of|with|for)\s+/i, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+          
+          let suggested = cleaned
+          if (suggested.length > 50) {
+            const truncated = suggested.substring(0, 50)
+            const lastSpace = truncated.lastIndexOf(' ')
+            suggested = lastSpace > 30 ? truncated.substring(0, lastSpace) : truncated
+            suggested = suggested.trim() + '...'
+          }
+          
+          setSuggestedPlaylistName(suggested || 'AI Generated Playlist')
+          return
+        }
+
+        const data = await response.json()
+        if (data.name) {
+          setSuggestedPlaylistName(data.name)
+        } else {
+          setSuggestedPlaylistName('AI Generated Playlist')
+        }
+      } catch (error) {
+        console.error('Error getting AI playlist name suggestion:', error)
+        // Fallback to simple text manipulation
+        const cleaned = prompt.trim()
+          .replace(/^create\s+a\s+playlist\s+(of|with|for)\s+/i, '')
+          .replace(/^playlist\s+(of|with|for)\s+/i, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+        
+        let suggested = cleaned
+        if (suggested.length > 50) {
+          const truncated = suggested.substring(0, 50)
+          const lastSpace = truncated.lastIndexOf(' ')
+          suggested = lastSpace > 30 ? truncated.substring(0, lastSpace) : truncated
+          suggested = suggested.trim() + '...'
+        }
+        
+        setSuggestedPlaylistName(suggested || 'AI Generated Playlist')
+      }
+    }, 1000) // 1 second debounce
+
+    return () => clearTimeout(timeoutId)
   }, [prompt, playlistName])
 
   // Cleanup: abort request if component unmounts
@@ -1177,23 +1203,36 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
             </svg>
             <div className="ml-3 flex-1">
               <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-              {error.includes('session') || error.includes('expired') ? (
+              {(error.includes('session') || error.includes('expired') || error.includes('Authentication expired')) ? (
                 <div className="mt-3 flex space-x-2">
+                  {error.includes('Spotify') || error.includes('Authentication expired') ? (
+                    <button
+                      onClick={async () => {
+                        setError(null)
+                        await authorize()
+                      }}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded transition-colors duration-300"
+                    >
+                      Reconnect to Spotify
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => window.location.reload()}
                     className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded transition-colors duration-300"
                   >
                     Refresh Page
                   </button>
-                  <button
-                    onClick={async () => {
-                      await signOut()
-                      window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
-                    }}
-                    className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded transition-colors duration-300"
-                  >
-                    Re-login
-                  </button>
+                  {error.includes('session') && (
+                    <button
+                      onClick={async () => {
+                        await signOut()
+                        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
+                      }}
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded transition-colors duration-300"
+                    >
+                      Re-login
+                    </button>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1314,13 +1353,13 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
               }
               
               return (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-green-200 dark:border-green-700 last:border-b-0">
+                <div key={index} className="flex items-center justify-between py-2 border-b border-green-200 dark:border-green-700 last:border-b-0 group">
                   <div className="flex-1">
                     <span className="font-medium text-gray-900 dark:text-white">{song.title}</span>
                     <span className="text-gray-600 dark:text-gray-400"> by {song.artist}</span>
                     {song.year && <span className="text-sm text-gray-500 dark:text-gray-500"> ({song.year})</span>}
                   </div>
-                  <div className="flex items-center ml-4">
+                  <div className="flex items-center gap-3 ml-4">
                     {confidence !== null ? (
                       <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden" title={`Confidence: ${confidence}/100`}>
                         <div 
@@ -1333,6 +1372,17 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
                         <div className="h-full bg-gray-300 dark:bg-gray-600 animate-pulse" style={{ width: '50%' }} />
                       </div>
                     )}
+                    <button
+                      onClick={() => handleDeleteTrack(index)}
+                      disabled={isLoading}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Remove track from playlist"
+                      aria-label={`Remove ${song.title} by ${song.artist}`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )
