@@ -605,30 +605,38 @@ Do not include any markdown or code fences.`
           let allSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
           console.log(`[Generate Playlist] Initial AI response: ${allSuggestions.length} suggestions received (requested ${count})`)
           const validSuggestions = []
+          const processedSuggestions = new Set() // Track which suggestions we've already processed
           const maxIterations = 5 // Limit iterations to avoid infinite loops
           let iteration = 0
+
+          // Helper function to check if a song is a duplicate (normalized comparison)
+          const isDuplicate = (song, existingSongs) => {
+            const normalize = (str) => str.toLowerCase().trim()
+            const songKey = `${normalize(song.title)}|${normalize(song.artist)}`
+            return existingSongs.some(existing => {
+              const existingKey = `${normalize(existing.title)}|${normalize(existing.artist)}`
+              return existingKey === songKey
+            })
+          }
+
+          // Helper to get suggestion key for tracking
+          const getSuggestionKey = (song) => {
+            const normalize = (str) => str.toLowerCase().trim()
+            return `${normalize(song.title)}|${normalize(song.artist)}`
+          }
 
           // Keep generating and filtering until we have enough valid songs
           while (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
             iteration++
-            console.log(`[Generate Playlist] Iteration ${iteration}: Checking ${allSuggestions.length} suggestions, ${validSuggestions.length} valid so far (need ${count})`)
-            send({ type: 'status', message: `Checking ${allSuggestions.length} suggestions...`, iteration, validCount: validSuggestions.length })
+            const unprocessedSuggestions = allSuggestions.filter(s => !processedSuggestions.has(getSuggestionKey(s)))
+            console.log(`[Generate Playlist] Iteration ${iteration}: ${unprocessedSuggestions.length} unprocessed suggestions (${allSuggestions.length} total), ${validSuggestions.length} valid so far (need ${count})`)
+            send({ type: 'status', message: `Checking ${unprocessedSuggestions.length} suggestions...`, iteration, validCount: validSuggestions.length })
 
             const unavailableSongs = [] // Track songs that weren't found
             const artistAlternatives = {} // Track alternative tracks found by artist
 
-            // Helper function to check if a song is a duplicate (normalized comparison)
-            const isDuplicate = (song, existingSongs) => {
-              const normalize = (str) => str.toLowerCase().trim()
-              const songKey = `${normalize(song.title)}|${normalize(song.artist)}`
-              return existingSongs.some(existing => {
-                const existingKey = `${normalize(existing.title)}|${normalize(existing.artist)}`
-                return existingKey === songKey
-              })
-            }
-
-            // Check each suggestion against Spotify
-            for (const song of allSuggestions) {
+            // Check each unprocessed suggestion against Spotify
+            for (const song of unprocessedSuggestions) {
               if (validSuggestions.length >= count || isAborted) {
                 console.log(`[Generate Playlist] Stopping loop: count reached (${validSuggestions.length}/${count}) or aborted (${isAborted})`)
                 break
@@ -646,10 +654,15 @@ Do not include any markdown or code fences.`
                 continue
               }
 
+              // Mark as processed immediately to avoid reprocessing
+              processedSuggestions.add(getSuggestionKey(song))
+
               const checkingSent = send({ type: 'checking', song: { title: song.title, artist: song.artist } })
               if (!checkingSent) {
-                console.error(`[Generate Playlist] Stream closed while checking "${song.title}" by ${song.artist} - stopping generation`)
-                break // Stream is closed, stop processing
+                console.error(`[Generate Playlist] Stream closed while checking "${song.title}" by ${song.artist} - continuing with remaining songs`)
+                // Don't break - continue processing remaining songs even if stream is closed
+                // The stream closure will be detected elsewhere
+                continue
               }
 
               let result
@@ -698,9 +711,9 @@ Do not include any markdown or code fences.`
                     }
                   })
                   if (!sent) {
-                    console.error(`[Generate Playlist] Failed to send song event for "${song.title}" by ${song.artist} - stream may be closed`)
-                    // Stream is closed, stop processing
-                    break
+                    console.error(`[Generate Playlist] Failed to send song event for "${song.title}" by ${song.artist} - stream may be closed, continuing`)
+                    // Don't break - continue processing remaining songs
+                    // The song is still added to validSuggestions even if we can't send it
                   }
                 } else {
                   console.log(`⏭️ Skipping duplicate verified song: "${song.title}" by ${song.artist}`)
@@ -781,9 +794,9 @@ Do not include any markdown or code fences.`
                       }
                     })
                     if (!sent) {
-                      console.error(`[Generate Playlist] Failed to send alternative song event for "${alternative.title}" by ${alternative.artist} - stream may be closed`)
-                      // Stream is closed, stop processing
-                      break
+                      console.error(`[Generate Playlist] Failed to send alternative song event for "${alternative.title}" by ${alternative.artist} - stream may be closed, continuing`)
+                      // Don't break - continue processing remaining songs
+                      // The song is still added to validSuggestions even if we can't send it
                     }
                   } else {
                     console.log(`⚠️ All alternatives for ${song.artist} were duplicates`)
@@ -806,8 +819,9 @@ Do not include any markdown or code fences.`
               console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count}, remaining suggestions: ${allSuggestions.length - validSuggestions.length})`)
               const statusSent = send({ type: 'status', message: `Need ${needed} more songs, asking AI... (${validSuggestions.length}/${count} found)` })
               if (!statusSent) {
-                console.error('[Generate Playlist] Stream closed while requesting more suggestions - stopping generation')
-                break // Stream is closed, stop processing
+                console.warn('[Generate Playlist] Stream may be closed, but continuing to request more suggestions')
+                // Don't break - try to get more suggestions even if stream is closed
+                // We'll send them when the stream reopens or at the end
               }
 
               // Build feedback message about unavailable songs
