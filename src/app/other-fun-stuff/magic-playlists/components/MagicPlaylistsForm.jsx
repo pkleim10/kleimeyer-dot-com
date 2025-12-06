@@ -645,144 +645,219 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
       console.log('[MagicPlaylists] Cleared pending add flag for new playlist generation')
     }
 
+    // Create AbortController to cancel request if component unmounts
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
     try {
-      console.log('[MagicPlaylists] Making streaming API request to /api/generate-playlist')
-      
-      // Create AbortController to cancel request if component unmounts
-      abortControllerRef.current = new AbortController()
-      
-      // Use relative path like other API calls in this codebase  
-      const apiUrl = '/api/generate-playlist'
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          count: 20,
-          obscurityLevel: obscurityLevel
-        }),
-        signal: abortControllerRef.current.signal
-      })
+      const validTracks = []
+      const processedSuggestions = new Set() // Track which suggestions we've already processed
+      const allSuggestions = [] // Track all AI suggestions received
+      const unavailableSongs = [] // Track songs that weren't found
+      const maxIterations = 10
+      let iteration = 0
+      const targetCount = 20
 
-      console.log('API response status:', response.status, response.statusText)
-
-      if (!response.ok) {
-        // Try to get error message from response body
-        let errorMessage = `Failed to generate playlist (${response.status})`
-        try {
-          const errorText = await response.text()
-          if (errorText) {
-            try {
-              const errorData = JSON.parse(errorText)
-              errorMessage = errorData.error || errorMessage
-            } catch {
-              // If not JSON, use the text as error message
-              errorMessage = errorText || errorMessage
-            }
-          }
-        } catch (parseErr) {
-          console.error('Failed to parse error response:', parseErr)
-          // Use default error message based on status code
-          if (response.status === 401) {
-            errorMessage = 'Authentication failed. Please refresh the page and try again.'
-          } else if (response.status === 500) {
-            errorMessage = 'Server error. Please try again later.'
-          } else if (response.status === 502) {
-            errorMessage = 'Service temporarily unavailable. Please try again.'
-          }
+      // Helper to check if a song is a duplicate
+      const isDuplicate = (song, existingSongs) => {
+        const normalize = (str) => {
+          if (str == null) return '' // Handle null/undefined
+          return String(str).toLowerCase().trim() // Convert to string first
         }
-        console.error('API error response:', { status: response.status, message: errorMessage })
-        throw new Error(errorMessage)
+        const songKey = `${normalize(song.title)}|${normalize(song.artist)}`
+        return existingSongs.some(existing => {
+          const existingKey = `${normalize(existing.title)}|${normalize(existing.artist)}`
+          return existingKey === songKey
+        })
       }
 
-      // Handle streaming response
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      const streamingSuggestions = []
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              
-              if (data.type === 'song') {
-                // Check for duplicates before adding (normalized comparison)
-                const normalize = (str) => (str || '').toLowerCase().trim()
-                const songKey = `${normalize(data.song.title)}|${normalize(data.song.artist)}`
-                const isDuplicate = streamingSuggestions.some(existing => {
-                  const existingKey = `${normalize(existing.title)}|${normalize(existing.artist)}`
-                  return existingKey === songKey
-                })
-                
-                if (!isDuplicate) {
-                  // Automatically add track without confirmation
-                  streamingSuggestions.push(data.song)
-                  setSuggestions([...streamingSuggestions])
-                  console.log(`✅ Added song to playlist: "${data.song.title}" by ${data.song.artist} (${streamingSuggestions.length}/${20})`)
-                } else {
-                  console.log(`⏭️ Skipping duplicate in UI: "${data.song.title}" by ${data.song.artist}`)
-                }
-                
-                // Update status message with running count
-                setStatusMessage(`✓ ${streamingSuggestions.length} of 20 tracks added`)
-              } else if (data.type === 'status') {
-                setStatusMessage(data.message || `Checking songs... (${data.validCount || 0} found)`)
-              } else if (data.type === 'checking') {
-                setStatusMessage(`Checking "${data.song.title}" by ${data.song.artist}...`)
-              } else if (data.type === 'unavailable') {
-                console.log(`❌ Not available: "${data.song.title}" by ${data.song.artist}`)
-              } else if (data.type === 'complete') {
-                setSuggestions(data.suggestions)
-                setStatusMessage(null)
-                console.log(`✅ Playlist generation complete: ${data.validCount} songs found`)
-              } else if (data.type === 'error') {
-                throw new Error(data.error || 'Unknown error during generation')
-              }
-            } catch (parseErr) {
-              console.warn('Failed to parse stream data:', parseErr, 'Line:', line)
-            }
-          }
+      // Helper to get suggestion key for tracking
+      const getSuggestionKey = (song) => {
+        const normalize = (str) => {
+          if (str == null) return '' // Handle null/undefined
+          return String(str).toLowerCase().trim() // Convert to string first
         }
+        return `${normalize(song.title)}|${normalize(song.artist)}`
       }
 
-      // Final update with all suggestions
-      if (streamingSuggestions.length > 0) {
-        setSuggestions(streamingSuggestions)
-      }
-      setStatusMessage(null)
-
-      // Call the callback if provided
-      if (onPlaylistGenerated && streamingSuggestions.length > 0) {
-        onPlaylistGenerated(streamingSuggestions)
-      }
-      } catch (err) {
-        // Don't show error if request was aborted (user navigated away)
-        if (err.name === 'AbortError') {
-          console.log('Playlist generation aborted by user')
+      while (validTracks.length < targetCount && iteration < maxIterations) {
+        if (signal.aborted) {
+          console.log('[MagicPlaylists] Request aborted by user')
           return
         }
-        console.error('Error generating playlist:', err)
-        if (err.message.includes('expired') || err.message.includes('session')) {
-          setError('Your session has expired. Please refresh the page or log in again.')
-        } else {
-          setError(err.message || 'Failed to generate playlist')
+
+        iteration++
+        const needed = targetCount - validTracks.length
+        console.log(`[MagicPlaylists] Iteration ${iteration}: Need ${needed} more tracks (have ${validTracks.length}/${targetCount})`)
+
+        // Step 1: Get AI suggestions
+        setStatusMessage(`Getting song suggestions from AI... (${validTracks.length} tracks added)`)
+        
+        const suggestionsResponse = await fetch('/api/generate-playlist-suggestions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            count: iteration === 1 ? targetCount : needed,
+            obscurityLevel: obscurityLevel,
+            unavailableSongs: unavailableSongs,
+            existingSuggestions: allSuggestions,
+            existingValidTracks: validTracks
+          }),
+          signal
+        })
+
+        if (!suggestionsResponse.ok) {
+          const errorData = await suggestionsResponse.json().catch(() => ({}))
+          throw new Error(errorData.error || `Failed to get AI suggestions (${suggestionsResponse.status})`)
         }
-      } finally {
-        setIsLoading(false)
-        abortControllerRef.current = null
+
+        const suggestionsData = await suggestionsResponse.json()
+        const newSuggestions = Array.isArray(suggestionsData.suggestions) ? suggestionsData.suggestions : []
+        console.log(`[MagicPlaylists] AI provided ${newSuggestions.length} suggestions`)
+        
+        if (newSuggestions.length === 0) {
+          console.warn('[MagicPlaylists] No suggestions returned from AI')
+          break
+        }
+
+        allSuggestions.push(...newSuggestions)
+
+        // Step 2: Process each suggestion sequentially
+        const unprocessedSuggestions = newSuggestions.filter(s => !processedSuggestions.has(getSuggestionKey(s)))
+        
+        for (let i = 0; i < unprocessedSuggestions.length; i++) {
+          if (signal.aborted) {
+            console.log('[MagicPlaylists] Request aborted during track verification')
+            return
+          }
+
+          if (validTracks.length >= targetCount) {
+            console.log(`[MagicPlaylists] Target count reached (${validTracks.length}/${targetCount})`)
+            break
+          }
+
+          const suggestion = unprocessedSuggestions[i]
+          
+          // Skip if duplicate
+          if (isDuplicate(suggestion, validTracks)) {
+            console.log(`⏭️ Skipping duplicate: "${suggestion.title}" by ${suggestion.artist}`)
+            processedSuggestions.add(getSuggestionKey(suggestion))
+            continue
+          }
+
+          // Mark as processed
+          processedSuggestions.add(getSuggestionKey(suggestion))
+
+          // Update status
+          setStatusMessage(`Verifying "${suggestion.title}" by ${suggestion.artist}... (${validTracks.length} tracks added)`)
+
+          // Step 3: Verify track against Spotify
+          try {
+            const verifyResponse = await fetch('/api/verify-track', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                title: suggestion.title,
+                artist: suggestion.artist,
+                findAlternative: false // Don't search for alternatives automatically (keep it fast)
+              }),
+              signal
+            })
+
+            if (!verifyResponse.ok) {
+              const errorData = await verifyResponse.json().catch(() => ({}))
+              console.warn(`[MagicPlaylists] Failed to verify "${suggestion.title}" by ${suggestion.artist}:`, errorData.error || verifyResponse.status)
+              unavailableSongs.push(suggestion)
+              continue
+            }
+
+            const verifyData = await verifyResponse.json()
+
+            if (verifyData.available && verifyData.track) {
+              // Track found! Add to valid tracks
+              const verifiedTrack = {
+                ...suggestion,
+                spotifyTrack: {
+                  id: verifyData.track.id,
+                  uri: verifyData.track.uri,
+                  name: verifyData.track.name,
+                  artist: verifyData.track.artist
+                }
+              }
+
+              // Double-check for duplicates before adding
+              if (!isDuplicate(verifiedTrack, validTracks)) {
+                validTracks.push(verifiedTrack)
+                setSuggestions([...validTracks])
+                console.log(`✅ Found on Spotify: "${suggestion.title}" by ${suggestion.artist} (${validTracks.length}/${targetCount})`)
+                setStatusMessage(`${validTracks.length} tracks added`)
+              } else {
+                console.log(`⏭️ Skipping duplicate verified track: "${suggestion.title}" by ${suggestion.artist}`)
+              }
+            } else {
+              // Track not found
+              console.log(`❌ Not found on Spotify: "${suggestion.title}" by ${suggestion.artist}`)
+              unavailableSongs.push(suggestion)
+            }
+          } catch (verifyErr) {
+            if (verifyErr.name === 'AbortError') {
+              console.log('[MagicPlaylists] Request aborted during track verification')
+              return
+            }
+            console.error(`[MagicPlaylists] Error verifying "${suggestion.title}" by ${suggestion.artist}:`, verifyErr)
+            unavailableSongs.push(suggestion)
+            // Continue to next track
+          }
+        }
+
+        // If we have enough tracks, break
+        if (validTracks.length >= targetCount) {
+          console.log(`[MagicPlaylists] Target count reached: ${validTracks.length}/${targetCount}`)
+          break
+        }
+
+        // If we've processed all suggestions and still don't have enough, break
+        if (unprocessedSuggestions.length === 0) {
+          console.log(`[MagicPlaylists] No more unprocessed suggestions, stopping with ${validTracks.length}/${targetCount}`)
+          break
+        }
       }
+
+      // Final update
+      setSuggestions(validTracks)
+      setStatusMessage(null)
+
+      if (validTracks.length > 0) {
+        console.log(`✅ Playlist generation complete: ${validTracks.length} songs found`)
+        
+        // Call the callback if provided
+        if (onPlaylistGenerated) {
+          onPlaylistGenerated(validTracks)
+        }
+      } else {
+        setError('No tracks were found on Spotify. Please try a different prompt.')
+      }
+    } catch (err) {
+      // Don't show error if request was aborted (user navigated away)
+      if (err.name === 'AbortError') {
+        console.log('Playlist generation aborted by user')
+        return
+      }
+      console.error('Error generating playlist:', err)
+      if (err.message.includes('expired') || err.message.includes('session')) {
+        setError('Your session has expired. Please refresh the page or log in again.')
+      } else {
+        setError(err.message || 'Failed to generate playlist')
+      }
+    } finally {
+      setIsLoading(false)
+      abortControllerRef.current = null
+    }
   }
   
   // Suggest playlist name when prompt changes (only if name field is empty)
@@ -1268,7 +1343,7 @@ export default function MagicPlaylistsForm({ onPlaylistGenerated }) {
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                    {suggestions.length} of 20 tracks
+                    {suggestions.length} tracks added
                   </span>
                   {isLoading && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200">

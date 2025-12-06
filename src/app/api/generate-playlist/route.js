@@ -311,8 +311,8 @@ export async function POST(request) {
             console.log(`   ⚠️ No tracks returned from Spotify for query: "${query}"`)
           }
 
-          // Small delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100))
+          // No delay in search strategies - we need speed for 10s timeout
+          // Spotify allows bursts for short periods
         } catch (err) {
           console.warn(`Spotify search error for "${cleanedTitle}" by ${artist}:`, err)
           continue
@@ -618,9 +618,11 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
           const maxIterations = 5 // Limit iterations to avoid infinite loops
           let iteration = 0
           
-          // Track start time for timeout detection (Vercel has execution time limits)
+          // Track start time for timeout detection
           const startTime = Date.now()
-          const MAX_EXECUTION_TIME = 25000 // 25 seconds (Vercel Pro allows up to 60s, but leave buffer)
+          // Vercel Hobby has 10s limit in production, but localhost has no limit
+          const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+          const MAX_EXECUTION_TIME = isProduction ? 9000 : 60000 // 9s for Vercel, 60s for localhost
 
           // Helper function to check if a song is a duplicate (normalized comparison)
           const isDuplicate = (song, existingSongs) => {
@@ -638,6 +640,39 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
             return `${normalize(song.title)}|${normalize(song.artist)}`
           }
 
+          // Process Spotify checks in parallel batches for speed
+          const processBatchInParallel = async (songsToCheck, batchSize = 5) => {
+            const results = []
+            // Process in batches to avoid rate limits
+            for (let i = 0; i < songsToCheck.length; i += batchSize) {
+              if (isAborted || validSuggestions.length >= count) break
+              
+              const batch = songsToCheck.slice(i, i + batchSize)
+              const batchStart = Date.now()
+              
+              // Process batch in parallel
+              const batchResults = await Promise.allSettled(
+                batch.map(song => checkSpotifyAvailability(song.title, song.artist))
+              )
+              
+              // Process results
+              for (let j = 0; j < batch.length; j++) {
+                const song = batch[j]
+                const result = batchResults[j]
+                
+                if (result.status === 'fulfilled') {
+                  results.push({ song, result: result.value, error: null })
+                } else {
+                  results.push({ song, result: null, error: result.reason })
+                }
+              }
+              
+              const batchElapsed = Date.now() - batchStart
+              console.log(`[Generate Playlist] Processed batch of ${batch.length} songs in ${batchElapsed}ms`)
+            }
+            return results
+          }
+
           // Keep generating and filtering until we have enough valid songs
           while (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
             // Check for timeout (Vercel execution time limit)
@@ -651,21 +686,24 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
             iteration++
             const unprocessedSuggestions = allSuggestions.filter(s => !processedSuggestions.has(getSuggestionKey(s)))
             console.log(`[Generate Playlist] Iteration ${iteration}: ${unprocessedSuggestions.length} unprocessed suggestions (${allSuggestions.length} total), ${validSuggestions.length} valid so far (need ${count}), elapsed: ${elapsed}ms`)
-            send({ type: 'status', message: `Checking ${unprocessedSuggestions.length} suggestions...`, iteration, validCount: validSuggestions.length })
+            send({ type: 'status', message: `Checking ${unprocessedSuggestions.length} suggestions in parallel...`, iteration, validCount: validSuggestions.length })
 
             const unavailableSongs = [] // Track songs that weren't found
             const artistAlternatives = {} // Track alternative tracks found by artist
 
-            // Check each unprocessed suggestion against Spotify
-            for (const song of unprocessedSuggestions) {
+            // Process all unprocessed suggestions in parallel batches
+            const checkResults = await processBatchInParallel(unprocessedSuggestions, 5)
+            
+            // Process results from parallel checks
+            for (const { song, result, error } of checkResults) {
               if (validSuggestions.length >= count || isAborted) {
-                console.log(`[Generate Playlist] Stopping loop: count reached (${validSuggestions.length}/${count}) or aborted (${isAborted})`)
+                console.log(`[Generate Playlist] Stopping: count reached (${validSuggestions.length}/${count}) or aborted (${isAborted})`)
                 break
               }
               
               // Check if request was aborted
               if (signal.aborted || isAborted) {
-                console.log('[Generate Playlist] Aborted during song checking')
+                console.log('[Generate Playlist] Aborted during result processing')
                 break
               }
               
@@ -680,21 +718,20 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
 
               const checkingSent = send({ type: 'checking', song: { title: song.title, artist: song.artist } })
               if (!checkingSent) {
-                console.error(`[Generate Playlist] Stream closed while checking "${song.title}" by ${song.artist} - continuing with remaining songs`)
-                // Don't break - continue processing remaining songs even if stream is closed
-                // The stream closure will be detected elsewhere
+                console.error(`[Generate Playlist] Stream closed while processing "${song.title}" by ${song.artist} - continuing`)
                 continue
               }
 
-              let result
-              try {
-                result = await checkSpotifyAvailability(song.title, song.artist)
-              } catch (spotifyError) {
-                console.error(`[Generate Playlist] Error checking Spotify for "${song.title}" by ${song.artist}:`, spotifyError)
-                console.error(`[Generate Playlist] Error stack:`, spotifyError.stack)
-                // Continue to next song instead of breaking
-                send({ type: 'unavailable', song: { title: song.title, artist: song.artist }, error: spotifyError.message })
-                // Don't break - continue to next song
+              // Handle errors from parallel processing
+              if (error) {
+                console.error(`[Generate Playlist] Error checking Spotify for "${song.title}" by ${song.artist}:`, error)
+                send({ type: 'unavailable', song: { title: song.title, artist: song.artist }, error: error.message || 'Unknown error' })
+                continue
+              }
+              
+              if (!result) {
+                console.error(`[Generate Playlist] No result for "${song.title}" by ${song.artist}`)
+                send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
                 continue
               }
               
@@ -747,18 +784,28 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
                   return // Stop processing
                 }
                 
-                console.log(`❌ Not found on Spotify: "${song.title}" by ${song.artist}, looking for alternatives...`)
+                console.log(`❌ Not found on Spotify: "${song.title}" by ${song.artist}`)
                 unavailableSongs.push(song)
                 
-                // Try to find alternative tracks by the same artist
+                // Only look for alternatives if we have time (alternatives take extra API calls)
+                const elapsed = Date.now() - startTime
+                const timeRemaining = MAX_EXECUTION_TIME - elapsed
+                const shouldTryAlternatives = timeRemaining > 2000 && validSuggestions.length < count
+                
                 let alternatives = []
-                try {
-                  alternatives = await findAlternativeTracks(song.artist, [song.title])
-                } catch (altError) {
-                  console.error(`[Generate Playlist] Error finding alternatives for "${song.title}" by ${song.artist}:`, altError)
-                  // Continue without alternatives - don't break the loop
+                if (shouldTryAlternatives) {
+                  console.log(`   🔄 Looking for alternatives (${timeRemaining}ms remaining)...`)
+                  try {
+                    alternatives = await findAlternativeTracks(song.artist, [song.title])
+                  } catch (altError) {
+                    console.error(`[Generate Playlist] Error finding alternatives for "${song.title}" by ${song.artist}:`, altError)
+                    // Continue without alternatives - don't break the loop
+                    send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
+                    continue
+                  }
+                } else {
+                  console.log(`   ⏭️ Skipping alternatives (${timeRemaining}ms remaining, need speed)`)
                   send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
-                  continue
                 }
                 if (alternatives.length > 0) {
                   // Find first alternative that's not a duplicate
@@ -829,17 +876,15 @@ IMPORTANT: Your response must contain exactly ${count} songs in the suggestions 
                 }
               }
 
-              // Small delay to avoid rate limiting (reduced for faster processing)
-              await new Promise(resolve => setTimeout(resolve, 100))
             }
 
             // If we don't have enough, ask AI for more suggestions
             elapsed = Date.now() - startTime
             console.log(`[Generate Playlist] After processing: ${validSuggestions.length} valid, ${count} needed, iteration ${iteration}/${maxIterations}, aborted: ${isAborted}, elapsed: ${elapsed}ms`)
             
-            // Don't request more if we're running out of time
-            if (elapsed > MAX_EXECUTION_TIME - 5000) {
-              console.warn(`[Generate Playlist] Not enough time to request more suggestions (${elapsed}ms elapsed), stopping with ${validSuggestions.length} tracks`)
+            // Don't request more if we're running out of time (need at least 3s for AI call + processing)
+            if (elapsed > MAX_EXECUTION_TIME - 3000) {
+              console.warn(`[Generate Playlist] Not enough time to request more suggestions (${elapsed}ms elapsed, need 3s for AI call), stopping with ${validSuggestions.length} tracks`)
               break
             }
             
