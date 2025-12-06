@@ -603,6 +603,7 @@ Do not include any markdown or code fences.`
 
         try {
           let allSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
+          console.log(`[Generate Playlist] Initial AI response: ${allSuggestions.length} suggestions received (requested ${count})`)
           const validSuggestions = []
           const maxIterations = 5 // Limit iterations to avoid infinite loops
           let iteration = 0
@@ -610,7 +611,7 @@ Do not include any markdown or code fences.`
           // Keep generating and filtering until we have enough valid songs
           while (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
             iteration++
-            console.log(`[Generate Playlist] Iteration ${iteration}: Checking ${allSuggestions.length} suggestions, ${validSuggestions.length} valid so far`)
+            console.log(`[Generate Playlist] Iteration ${iteration}: Checking ${allSuggestions.length} suggestions, ${validSuggestions.length} valid so far (need ${count})`)
             send({ type: 'status', message: `Checking ${allSuggestions.length} suggestions...`, iteration, validCount: validSuggestions.length })
 
             const unavailableSongs = [] // Track songs that weren't found
@@ -628,7 +629,10 @@ Do not include any markdown or code fences.`
 
             // Check each suggestion against Spotify
             for (const song of allSuggestions) {
-              if (validSuggestions.length >= count || isAborted) break
+              if (validSuggestions.length >= count || isAborted) {
+                console.log(`[Generate Playlist] Stopping loop: count reached (${validSuggestions.length}/${count}) or aborted (${isAborted})`)
+                break
+              }
               
               // Check if request was aborted
               if (signal.aborted || isAborted) {
@@ -642,7 +646,11 @@ Do not include any markdown or code fences.`
                 continue
               }
 
-              send({ type: 'checking', song: { title: song.title, artist: song.artist } })
+              const checkingSent = send({ type: 'checking', song: { title: song.title, artist: song.artist } })
+              if (!checkingSent) {
+                console.error(`[Generate Playlist] Stream closed while checking "${song.title}" by ${song.artist} - stopping generation`)
+                break // Stream is closed, stop processing
+              }
 
               let result
               try {
@@ -691,7 +699,8 @@ Do not include any markdown or code fences.`
                   })
                   if (!sent) {
                     console.error(`[Generate Playlist] Failed to send song event for "${song.title}" by ${song.artist} - stream may be closed`)
-                    // Don't break - continue processing but log the issue
+                    // Stream is closed, stop processing
+                    break
                   }
                 } else {
                   console.log(`⏭️ Skipping duplicate verified song: "${song.title}" by ${song.artist}`)
@@ -773,7 +782,8 @@ Do not include any markdown or code fences.`
                     })
                     if (!sent) {
                       console.error(`[Generate Playlist] Failed to send alternative song event for "${alternative.title}" by ${alternative.artist} - stream may be closed`)
-                      // Don't break - continue processing but log the issue
+                      // Stream is closed, stop processing
+                      break
                     }
                   } else {
                     console.log(`⚠️ All alternatives for ${song.artist} were duplicates`)
@@ -790,10 +800,15 @@ Do not include any markdown or code fences.`
             }
 
             // If we don't have enough, ask AI for more suggestions
+            console.log(`[Generate Playlist] After processing: ${validSuggestions.length} valid, ${count} needed, iteration ${iteration}/${maxIterations}, aborted: ${isAborted}`)
             if (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
               const needed = count - validSuggestions.length
-              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count})`)
-              send({ type: 'status', message: `Need ${needed} more songs, asking AI... (${validSuggestions.length}/${count} found)` })
+              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count}, remaining suggestions: ${allSuggestions.length - validSuggestions.length})`)
+              const statusSent = send({ type: 'status', message: `Need ${needed} more songs, asking AI... (${validSuggestions.length}/${count} found)` })
+              if (!statusSent) {
+                console.error('[Generate Playlist] Stream closed while requesting more suggestions - stopping generation')
+                break // Stream is closed, stop processing
+              }
 
               // Build feedback message about unavailable songs
               const unavailableFeedback = unavailableSongs.length > 0 
@@ -858,7 +873,8 @@ ${unavailableFeedback}${alternativesFeedback}`
                   const additionalParsed = typeof additionalContent === 'string' ? JSON.parse(additionalContent) : additionalContent
                   const newSuggestions = Array.isArray(additionalParsed?.suggestions) ? additionalParsed.suggestions : []
                   allSuggestions = [...allSuggestions, ...newSuggestions]
-                  console.log(`[Generate Playlist] AI provided ${newSuggestions.length} additional suggestions`)
+                  console.log(`[Generate Playlist] AI provided ${newSuggestions.length} additional suggestions (total now: ${allSuggestions.length})`)
+                  // The while loop will continue automatically to process the new suggestions
                 } catch (parseErr) {
                   console.error('Failed to parse additional AI suggestions:', parseErr)
                   console.error('Raw content:', additionalContent)
@@ -872,13 +888,13 @@ ${unavailableFeedback}${alternativesFeedback}`
               } else {
                 const errorText = await additionalResponse.text().catch(() => 'Unknown error')
                 console.warn('Failed to get additional suggestions from AI:', additionalResponse.status, errorText)
-                // Don't break - continue with what we have
+                // Don't break - continue with what we have, but exit the while loop
                 send({ type: 'status', message: `Warning: Could not get additional suggestions, continuing with ${validSuggestions.length} songs...` })
-                // Break only if we have no valid suggestions at all
-                if (validSuggestions.length === 0) {
-                  break
-                }
+                // Break the while loop if we can't get more suggestions
+                break
               }
+            } else {
+              console.log(`[Generate Playlist] Not requesting more: valid=${validSuggestions.length}, count=${count}, iteration=${iteration}, maxIterations=${maxIterations}, aborted=${isAborted}`)
             }
           }
 
