@@ -575,19 +575,28 @@ Do not include any markdown or code fences.`
     const stream = new ReadableStream({
       async start(controller) {
         const send = (data) => {
-          if (isAborted) return false
+          if (isAborted) {
+            console.warn('[Generate Playlist] Attempted to send data but stream is aborted')
+            return false
+          }
           try {
             const chunk = encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
             controller.enqueue(chunk)
             return true
           } catch (err) {
             // Client disconnected
-            if (err.message?.includes('aborted') || err.name === 'AbortError') {
-              console.log('[Generate Playlist] Client disconnected, stopping stream')
+            if (err.message?.includes('aborted') || err.name === 'AbortError' || err.message?.includes('closed')) {
+              console.log('[Generate Playlist] Client disconnected or stream closed, stopping stream')
               isAborted = true
               return false
             }
-            console.error('Error sending stream data:', err)
+            console.error('[Generate Playlist] Error sending stream data:', err)
+            console.error('[Generate Playlist] Error details:', {
+              name: err.name,
+              message: err.message,
+              stack: err.stack
+            })
+            isAborted = true // Mark as aborted if we can't send
             return false
           }
         }
@@ -661,9 +670,9 @@ Do not include any markdown or code fences.`
                 // Check for duplicate before adding
                 if (!isDuplicate(verifiedSong, validSuggestions)) {
                   validSuggestions.push(verifiedSong)
-                  console.log(`✅ Found on Spotify: "${song.title}" by ${song.artist}`)
+                  console.log(`✅ Found on Spotify: "${song.title}" by ${song.artist} (${validSuggestions.length}/${count})`)
                   // Send verified song with debug info
-                  send({ 
+                  const sent = send({ 
                     type: 'song', 
                     song: verifiedSong, 
                     total: validSuggestions.length,
@@ -680,6 +689,10 @@ Do not include any markdown or code fences.`
                       matchType: result.debug?.matchType || 'unknown'
                     }
                   })
+                  if (!sent) {
+                    console.error(`[Generate Playlist] Failed to send song event for "${song.title}" by ${song.artist} - stream may be closed`)
+                    // Don't break - continue processing but log the issue
+                  }
                 } else {
                   console.log(`⏭️ Skipping duplicate verified song: "${song.title}" by ${song.artist}`)
                 }
@@ -737,9 +750,9 @@ Do not include any markdown or code fences.`
                       requested: song.title,
                       found: alternative.title
                     })
-                    console.log(`✅ Using alternative: "${alternative.title}" by ${alternative.artist} (instead of "${song.title}")`)
+                    console.log(`✅ Using alternative: "${alternative.title}" by ${alternative.artist} (instead of "${song.title}") (${validSuggestions.length}/${count})`)
                     // Send verified alternative with debug info showing original vs alternative
-                    send({ 
+                    const sent = send({ 
                       type: 'song', 
                       song: verifiedSong, 
                       total: validSuggestions.length, 
@@ -758,6 +771,10 @@ Do not include any markdown or code fences.`
                         matchType: 'alternative (original not found)'
                       }
                     })
+                    if (!sent) {
+                      console.error(`[Generate Playlist] Failed to send alternative song event for "${alternative.title}" by ${alternative.artist} - stream may be closed`)
+                      // Don't break - continue processing but log the issue
+                    }
                   } else {
                     console.log(`⚠️ All alternatives for ${song.artist} were duplicates`)
                     send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
@@ -868,12 +885,18 @@ ${unavailableFeedback}${alternativesFeedback}`
           // Always send complete event, even if we didn't reach the full count
           if (!isAborted) {
             console.log(`[Generate Playlist] Final result: ${validSuggestions.length} valid songs out of ${count} requested (iterations: ${iteration}/${maxIterations})`)
-            send({ type: 'complete', suggestions: validSuggestions.slice(0, count), totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count })
+            const sent = send({ type: 'complete', suggestions: validSuggestions.slice(0, count), totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count })
+            if (!sent) {
+              console.error('[Generate Playlist] Failed to send complete event - stream may be closed')
+            }
           } else {
             console.log('[Generate Playlist] Stream aborted, closing connection')
             // Send partial results even if aborted
             if (validSuggestions.length > 0) {
-              send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, aborted: true })
+              const sent = send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, aborted: true })
+              if (!sent) {
+                console.error('[Generate Playlist] Failed to send aborted complete event - stream may be closed')
+              }
             }
           }
           
@@ -888,12 +911,25 @@ ${unavailableFeedback}${alternativesFeedback}`
         } catch (error) {
           console.error('[Generate Playlist] Error in streaming generation:', error)
           console.error('[Generate Playlist] Error stack:', error.stack)
+          console.error('[Generate Playlist] Error details:', {
+            name: error.name,
+            message: error.message,
+            validSuggestionsCount: validSuggestions.length,
+            isAborted,
+            iteration
+          })
           if (!isAborted) {
             // Send partial results if we have any, before sending error
             if (validSuggestions.length > 0) {
-              send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, error: error.message })
+              const sent = send({ type: 'complete', suggestions: validSuggestions, totalChecked: allSuggestions.length, validCount: validSuggestions.length, requestedCount: count, error: error.message })
+              if (!sent) {
+                console.error('[Generate Playlist] Failed to send error complete event - stream may be closed')
+              }
             } else {
-              send({ type: 'error', error: error.message || 'Internal server error' })
+              const sent = send({ type: 'error', error: error.message || 'Internal server error' })
+              if (!sent) {
+                console.error('[Generate Playlist] Failed to send error event - stream may be closed')
+              }
             }
           }
         } finally {
