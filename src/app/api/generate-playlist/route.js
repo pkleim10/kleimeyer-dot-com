@@ -487,18 +487,21 @@ Do not include any markdown or code fences.`
           },
           {
             role: 'user',
-            content: `Create a playlist of ${count} songs: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}
+            content: `Create EXACTLY ${count} songs for this playlist: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}
 
 ⚠️ CRITICAL REQUIREMENTS:
-1. ONLY suggest REAL songs that ACTUALLY EXIST - never make up, invent, or combine song titles
-2. NEVER mix album names with song titles (e.g., "The Dark Side of the Moog" is NOT a real song)
-3. Only suggest songs you are CERTAIN are available on Spotify
-4. If you are unsure about a track's availability or existence, suggest a different REAL track by the same artist that you know exists and is on Spotify
-5. Do not suggest rare or obscure tracks unless you are confident they are REAL and exist on Spotify`
+1. You MUST return EXACTLY ${count} songs - no more, no less. Return exactly ${count} items in the suggestions array.
+2. ONLY suggest REAL songs that ACTUALLY EXIST - never make up, invent, or combine song titles
+3. NEVER mix album names with song titles (e.g., "The Dark Side of the Moog" is NOT a real song)
+4. Only suggest songs you are CERTAIN are available on Spotify
+5. If you are unsure about a track's availability or existence, suggest a different REAL track by the same artist that you know exists and is on Spotify
+6. Do not suggest rare or obscure tracks unless you are confident they are REAL and exist on Spotify
+
+IMPORTANT: Your response must contain exactly ${count} songs in the suggestions array.`
           }
         ],
         temperature: 0.7,
-        max_tokens: 2500,
+        max_tokens: 4000, // Increased to ensure we get all requested songs
         // Ask Groq to return strict JSON
         response_format: { type: 'json_object' }
       }
@@ -604,10 +607,20 @@ Do not include any markdown or code fences.`
         try {
           let allSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
           console.log(`[Generate Playlist] Initial AI response: ${allSuggestions.length} suggestions received (requested ${count})`)
+          
+          // If AI returned fewer than requested, log a warning
+          if (allSuggestions.length < count) {
+            console.warn(`[Generate Playlist] WARNING: AI only returned ${allSuggestions.length} suggestions but ${count} were requested. This may cause incomplete playlists.`)
+          }
+          
           const validSuggestions = []
           const processedSuggestions = new Set() // Track which suggestions we've already processed
           const maxIterations = 5 // Limit iterations to avoid infinite loops
           let iteration = 0
+          
+          // Track start time for timeout detection (Vercel has execution time limits)
+          const startTime = Date.now()
+          const MAX_EXECUTION_TIME = 25000 // 25 seconds (Vercel Pro allows up to 60s, but leave buffer)
 
           // Helper function to check if a song is a duplicate (normalized comparison)
           const isDuplicate = (song, existingSongs) => {
@@ -627,9 +640,17 @@ Do not include any markdown or code fences.`
 
           // Keep generating and filtering until we have enough valid songs
           while (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
+            // Check for timeout (Vercel execution time limit)
+            let elapsed = Date.now() - startTime
+            if (elapsed > MAX_EXECUTION_TIME) {
+              console.warn(`[Generate Playlist] Approaching execution time limit (${elapsed}ms), stopping early with ${validSuggestions.length} tracks`)
+              send({ type: 'status', message: `Time limit approaching, stopping with ${validSuggestions.length} tracks...` })
+              break
+            }
+            
             iteration++
             const unprocessedSuggestions = allSuggestions.filter(s => !processedSuggestions.has(getSuggestionKey(s)))
-            console.log(`[Generate Playlist] Iteration ${iteration}: ${unprocessedSuggestions.length} unprocessed suggestions (${allSuggestions.length} total), ${validSuggestions.length} valid so far (need ${count})`)
+            console.log(`[Generate Playlist] Iteration ${iteration}: ${unprocessedSuggestions.length} unprocessed suggestions (${allSuggestions.length} total), ${validSuggestions.length} valid so far (need ${count}), elapsed: ${elapsed}ms`)
             send({ type: 'status', message: `Checking ${unprocessedSuggestions.length} suggestions...`, iteration, validCount: validSuggestions.length })
 
             const unavailableSongs = [] // Track songs that weren't found
@@ -808,15 +829,23 @@ Do not include any markdown or code fences.`
                 }
               }
 
-              // Small delay to avoid rate limiting
-              await new Promise(resolve => setTimeout(resolve, 150))
+              // Small delay to avoid rate limiting (reduced for faster processing)
+              await new Promise(resolve => setTimeout(resolve, 100))
             }
 
             // If we don't have enough, ask AI for more suggestions
-            console.log(`[Generate Playlist] After processing: ${validSuggestions.length} valid, ${count} needed, iteration ${iteration}/${maxIterations}, aborted: ${isAborted}`)
+            elapsed = Date.now() - startTime
+            console.log(`[Generate Playlist] After processing: ${validSuggestions.length} valid, ${count} needed, iteration ${iteration}/${maxIterations}, aborted: ${isAborted}, elapsed: ${elapsed}ms`)
+            
+            // Don't request more if we're running out of time
+            if (elapsed > MAX_EXECUTION_TIME - 5000) {
+              console.warn(`[Generate Playlist] Not enough time to request more suggestions (${elapsed}ms elapsed), stopping with ${validSuggestions.length} tracks`)
+              break
+            }
+            
             if (validSuggestions.length < count && iteration < maxIterations && !isAborted) {
               const needed = count - validSuggestions.length
-              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count}, remaining suggestions: ${allSuggestions.length - validSuggestions.length})`)
+              console.log(`[Generate Playlist] Need ${needed} more songs, asking AI for more... (Current: ${validSuggestions.length}/${count}, remaining suggestions: ${allSuggestions.length - validSuggestions.length}, elapsed: ${elapsed}ms)`)
               const statusSent = send({ type: 'status', message: `Need ${needed} more songs, asking AI... (${validSuggestions.length}/${count} found)` })
               if (!statusSent) {
                 console.warn('[Generate Playlist] Stream may be closed, but continuing to request more suggestions')
