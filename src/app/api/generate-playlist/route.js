@@ -11,12 +11,23 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-    // Use server-side Groq key so it is not exposed to the client
+    // Support both Groq and xAI Grok APIs
+    // Try xAI Grok first if available (better for factual knowledge), fallback to Groq
+    const XAI_API_KEY = process.env.XAI_API_KEY
     const GROQ_API_KEY = process.env.GROQ_API_KEY
+    
+    const useXAI = !!XAI_API_KEY // Prefer xAI Grok if API key is available
+    
+    const API_URL = useXAI 
+      ? 'https://api.x.ai/v1/chat/completions'
+      : 'https://api.groq.com/openai/v1/chat/completions'
+    
+    const API_KEY = useXAI ? XAI_API_KEY : GROQ_API_KEY
 
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'Server configuration error (missing GROQ_API_KEY)' }, { status: 500 })
+    if (!API_KEY) {
+      return NextResponse.json({ 
+        error: `Server configuration error (missing ${useXAI ? 'XAI_API_KEY' : 'GROQ_API_KEY'})` 
+      }, { status: 500 })
     }
 
     const body = await request.json()
@@ -118,16 +129,19 @@ export async function POST(request) {
       // Get client credentials token for search
       const searchToken = await getClientCredentialsToken()
       
+      // Prioritize exact matches, avoid overly broad searches
       const searchStrategies = [
-        `track:"${cleanedTitle}" artist:"${artist}"`,
-        `track:${cleanedTitle} artist:${artist}`,
-        `${cleanedTitle} ${artist}`,
-        `track:"${cleanedTitle}"`,
-        cleanedTitle,
-        // Also try original title in case cleaning was wrong
-        `track:"${title}" artist:"${artist}"`,
-        title,
+        `track:"${cleanedTitle}" artist:"${artist}"`,  // Most specific: exact title and artist
+        `track:${cleanedTitle} artist:${artist}`,    // Without quotes (still specific)
+        `${cleanedTitle} ${artist}`,                    // Combined search
+        // Only try original title if cleaning changed it
+        ...(cleanedTitle !== title ? [
+          `track:"${title}" artist:"${artist}"`,
+          `track:${title} artist:${artist}`
+        ] : [])
       ]
+      // Removed overly broad searches: track-only, title-only, artist-only
+      // These return too many results and lead to false matches
 
       for (const query of searchStrategies) {
         try {
@@ -190,32 +204,108 @@ export async function POST(request) {
           console.log(`   📊 Spotify search returned ${tracks.length} tracks for query: "${query}"`)
 
           if (tracks.length > 0) {
-            // Check if any track matches reasonably well
-            // Use cleanedTitle for matching, not the original title
+            // Use strict matching: exact artist, better title matching
             const titleLower = cleanedTitle.toLowerCase().trim()
             const artistLower = artist.toLowerCase().trim()
+
+            // First pass: look for exact matches (both title and artist)
+            for (const track of tracks) {
+              const trackTitle = (track.name?.toLowerCase() || '').trim()
+              const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
+
+              // Exact match: both title and artist match exactly
+              if (trackTitle === titleLower && trackArtist === artistLower) {
+                console.log(`   ✅ Exact match found: "${track.name}" by ${track.artists[0]?.name}`)
+                return { 
+                  available: true, 
+                  track,
+                  debug: {
+                    searchQuery: query,
+                    matchType: 'exact',
+                    apiResponse: data
+                  }
+                }
+              }
+            }
+
+            // Second pass: exact artist match, fuzzy title match (similarity ≥0.7)
+            // Helper function for fuzzy matching (similar to frontend)
+            const isSimilar = (str1, str2, threshold = 0.7) => {
+              const normalize = (str) => str.toLowerCase().trim().replace(/[^\w\s]/g, '')
+              const norm1 = normalize(str1)
+              const norm2 = normalize(str2)
+              if (norm1 === norm2) return true
+              
+              // Check if one contains the other (but only if they're reasonably similar in length)
+              // This handles cases like "Song Title" vs "Song Title (Remastered)"
+              if (norm1.includes(norm2) || norm2.includes(norm1)) {
+                const lengthRatio = Math.min(norm1.length, norm2.length) / Math.max(norm1.length, norm2.length)
+                // Only accept if the shorter is at least 70% of the longer (prevents "a" matching "a simple bunny girl")
+                if (lengthRatio >= 0.7) {
+                  console.log(`   🔍 Substring match: "${str1}" contains "${str2}" (or vice versa) - length ratio: ${lengthRatio.toFixed(2)}`)
+                  return true
+                }
+              }
+              
+              // Filter out single-character words and common articles/prepositions
+              const stopWords = new Set(['a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by'])
+              const words1 = norm1.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w))
+              const words2 = norm2.split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w))
+              
+              if (words1.length === 0 || words2.length === 0) {
+                console.log(`   ❌ No meaningful words to compare: "${str1}" vs "${str2}"`)
+                return false
+              }
+              
+              const matchingWords = words1.filter(w => words2.includes(w)).length
+              const similarity = matchingWords / Math.max(words1.length, words2.length)
+              
+              // Log for debugging
+              console.log(`   🔍 Fuzzy match check: "${str1}" vs "${str2}"`)
+              console.log(`      Words1: [${words1.join(', ')}] (${words1.length} words)`)
+              console.log(`      Words2: [${words2.join(', ')}] (${words2.length} words)`)
+              console.log(`      Matching words: ${matchingWords}, Similarity: ${similarity.toFixed(2)} (threshold: ${threshold})`)
+              
+              if (similarity >= threshold) {
+                console.log(`   ✅ Fuzzy match accepted: similarity ${similarity.toFixed(2)} >= ${threshold}`)
+              } else {
+                console.log(`   ❌ Fuzzy match rejected: similarity ${similarity.toFixed(2)} < ${threshold}`)
+              }
+              
+              return similarity >= threshold
+            }
 
             for (const track of tracks) {
               const trackTitle = (track.name?.toLowerCase() || '').trim()
               const trackArtist = (track.artists[0]?.name?.toLowerCase() || '').trim()
 
-              // Simple similarity check - original logic that worked
-              const titleMatch = trackTitle === titleLower || 
-                                trackTitle.includes(titleLower) || 
-                                titleLower.includes(trackTitle)
-              const artistMatch = trackArtist === artistLower || 
-                                  trackArtist.includes(artistLower) || 
-                                  artistLower.includes(trackArtist)
+              // REQUIRE exact artist match (no fuzzy matching for artist)
+              if (trackArtist !== artistLower) {
+                continue // Skip - artist doesn't match exactly
+              }
 
-              if (titleMatch && artistMatch) {
-                console.log(`   ✅ Match found: "${track.name}" by ${track.artists[0]?.name}`)
-                return { available: true, track }
+              // Allow fuzzy title matching (threshold 0.7)
+              const titleMatches = trackTitle === titleLower || isSimilar(trackTitle, titleLower, 0.7)
+
+              if (titleMatches) {
+                const matchType = trackTitle === titleLower ? 'exact' : 'fuzzy'
+                console.log(`   ✅ Match found (${matchType} title, exact artist): "${track.name}" by ${track.artists[0]?.name}`)
+                return { 
+                  available: true, 
+                  track,
+                  debug: {
+                    searchQuery: query,
+                    matchType: `${matchType} title, exact artist`,
+                    apiResponse: data
+                  }
+                }
               }
             }
             
             // Log if we had tracks but no matches
             if (tracks.length > 0) {
-              console.log(`   ⚠️ Found ${tracks.length} tracks but none matched. First track: "${tracks[0].name}" by ${tracks[0].artists[0]?.name}`)
+              console.log(`   ⚠️ Found ${tracks.length} tracks but none matched strict criteria. First track: "${tracks[0].name}" by ${tracks[0].artists[0]?.name}`)
+              console.log(`   ⚠️ Looking for: "${cleanedTitle}" by "${artist}" (exact artist required, title similarity ≥0.7)`)
             }
           } else {
             console.log(`   ⚠️ No tracks returned from Spotify for query: "${query}"`)
@@ -325,9 +415,35 @@ AVOID: Mainstream hits, chart-toppers, widely recognized songs, or anything that
     const systemPrompt = `You are an expert music curator with deep knowledge of music across all genres and eras.
 ${obscurityInstructions}
 
+⚠️ CRITICAL REQUIREMENTS - READ CAREFULLY ⚠️
+
+1. ONLY SUGGEST REAL SONGS THAT ACTUALLY EXIST:
+   - You MUST only suggest songs that are REAL and ACTUALLY EXIST
+   - NEVER make up, invent, or combine song titles
+   - NEVER mix album names with song titles (e.g., "The Dark Side of the Moog" is NOT a real song)
+   - NEVER create fictional song titles or combine words to make up titles
+   - If you are not 100% certain a song exists, DO NOT suggest it
+   - Only suggest songs you KNOW are real from your training data
+
+2. SPOTIFY AVAILABILITY:
+   - ONLY suggest songs that you are CERTAIN exist on Spotify
+   - If you are unsure whether a song is on Spotify, DO NOT suggest it
+   - Prefer well-known tracks that are definitely available on Spotify
+   - If suggesting obscure tracks, only suggest ones you are confident are on Spotify
+   - When in doubt, suggest a more popular track by the same artist that you know is on Spotify
+   - NEVER suggest songs that might not be on Spotify - this will cause the playlist generation to fail
+
+3. ACCURACY REQUIREMENTS:
+   - Use the EXACT song title as it appears on the actual recording
+   - Use the EXACT artist name as it appears on Spotify
+   - Do NOT modify, combine, or invent song titles
+   - Do NOT mix album names with song titles
+   - If you cannot find a suitable REAL track, suggest a different REAL artist or REAL track
+
 IMPORTANT: 
-- If a specific track by an artist is not available on Spotify, suggest a DIFFERENT track by the SAME artist that is available on Spotify.
+- If a specific track by an artist is not available on Spotify, suggest a DIFFERENT REAL track by the SAME artist that is available on Spotify.
 - NEVER repeat the same song (same title + same artist) in your suggestions.
+- If you cannot find a suitable REAL track that you are CERTAIN is on Spotify, suggest a different REAL artist or REAL track.
 
 Given a user's request, suggest songs that match their description.
 Return ONLY a valid JSON object with this exact structure and nothing else:
@@ -338,46 +454,91 @@ Return ONLY a valid JSON object with this exact structure and nothing else:
 }
 Do not include any markdown or code fences.`
 
-    // Call Groq API
-    const requestBody = {
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
+    // Call AI API (xAI Grok or Groq)
+    // xAI Grok models (if using xAI API) - better for factual knowledge
+    const xaiModels = [
+      'grok-4-1-fast-non-reasoning',           
+      'grok-4-fast-non-reasoning'              
+    ]
+    
+    // Groq models (if using Groq API)
+    const groqModels = [
+      'llama-3.3-70b-versatile',  // Latest 70B model, best for factual accuracy
+      'llama-3.1-70b-instruct',   // Previous 70B model
+      'mixtral-8x7b-32768',       // Good alternative
+      'gemma2-9b-it',             // Google's model, good for factual knowledge
+      'llama-3.1-8b-instant'      // Fast fallback
+    ]
+    
+    const modelsToTry = useXAI ? xaiModels : groqModels
+    
+    let groqResponse = null
+    let errorData = null
+    let lastModel = null
+    
+    for (const model of modelsToTry) {
+      lastModel = model
+      const requestBody = {
+        model: model,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: `Create a playlist of ${count} songs: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}
+
+⚠️ CRITICAL REQUIREMENTS:
+1. ONLY suggest REAL songs that ACTUALLY EXIST - never make up, invent, or combine song titles
+2. NEVER mix album names with song titles (e.g., "The Dark Side of the Moog" is NOT a real song)
+3. Only suggest songs you are CERTAIN are available on Spotify
+4. If you are unsure about a track's availability or existence, suggest a different REAL track by the same artist that you know exists and is on Spotify
+5. Do not suggest rare or obscure tracks unless you are confident they are REAL and exist on Spotify`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2500,
+        // Ask Groq to return strict JSON
+        response_format: { type: 'json_object' }
+      }
+
+      groqResponse = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        {
-          role: 'user',
-          content: `Create a playlist of ${count} songs: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}`
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 2500,
-      // Ask Groq to return strict JSON
-      response_format: { type: 'json_object' }
+        body: JSON.stringify(requestBody)
+      })
+
+      if (groqResponse.ok) {
+        console.log(`[Generate Playlist] Successfully using ${useXAI ? 'xAI Grok' : 'Groq'} model: ${model}`)
+        break
+      } else {
+        errorData = await groqResponse.json().catch(() => ({}))
+        console.warn(`[Generate Playlist] Model ${model} failed:`, {
+          status: groqResponse.status,
+          error: errorData
+        })
+        // Continue to next model
+        groqResponse = null
+      }
     }
 
-    const groqResponse = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    })
-
-    if (!groqResponse.ok) {
-      const errorData = await groqResponse.json().catch(() => ({}))
-      console.error('Groq API error:', {
-        status: groqResponse.status,
-        statusText: groqResponse.statusText,
+    if (!groqResponse || !groqResponse.ok) {
+      console.error(`${useXAI ? 'xAI' : 'Groq'} API error (all models failed):`, {
+        lastModel: lastModel,
+        status: groqResponse?.status,
+        statusText: groqResponse?.statusText,
         error: errorData
       })
       return NextResponse.json(
         {
-          error: 'Failed to generate playlist suggestions from Groq',
-          groqStatus: groqResponse.status,
-          groqError: errorData
+          error: `Failed to generate playlist suggestions from ${useXAI ? 'xAI Grok' : 'Groq'}`,
+          apiStatus: groqResponse?.status,
+          apiError: errorData,
+          message: errorData?.error?.message || `All models failed. Last tried: ${lastModel}`
         },
         { status: 502 }
       )
@@ -396,6 +557,9 @@ Do not include any markdown or code fences.`
         { status: 500 }
       )
     }
+
+    // Store the model that worked for use in follow-up requests
+    const workingModel = lastModel
 
     // Create streaming response with abort handling
     const encoder = new TextEncoder()
@@ -498,8 +662,24 @@ Do not include any markdown or code fences.`
                 if (!isDuplicate(verifiedSong, validSuggestions)) {
                   validSuggestions.push(verifiedSong)
                   console.log(`✅ Found on Spotify: "${song.title}" by ${song.artist}`)
-                  // Send verified song immediately
-                  send({ type: 'song', song: verifiedSong, total: validSuggestions.length })
+                  // Send verified song with debug info
+                  send({ 
+                    type: 'song', 
+                    song: verifiedSong, 
+                    total: validSuggestions.length,
+                    debug: {
+                      searched: { title: song.title, artist: song.artist },
+                      matched: { 
+                        title: result.track.name, 
+                        artist: result.track.artists[0]?.name || song.artist,
+                        id: result.track.id,
+                        uri: result.track.uri
+                      },
+                      searchQuery: result.debug?.searchQuery || 'unknown',
+                      apiResponse: result.debug?.apiResponse || null,
+                      matchType: result.debug?.matchType || 'unknown'
+                    }
+                  })
                 } else {
                   console.log(`⏭️ Skipping duplicate verified song: "${song.title}" by ${song.artist}`)
                 }
@@ -558,8 +738,26 @@ Do not include any markdown or code fences.`
                       found: alternative.title
                     })
                     console.log(`✅ Using alternative: "${alternative.title}" by ${alternative.artist} (instead of "${song.title}")`)
-                    // Send verified alternative immediately
-                    send({ type: 'song', song: verifiedSong, total: validSuggestions.length, isAlternative: true, originalTitle: song.title })
+                    // Send verified alternative with debug info showing original vs alternative
+                    send({ 
+                      type: 'song', 
+                      song: verifiedSong, 
+                      total: validSuggestions.length, 
+                      isAlternative: true, 
+                      originalTitle: song.title,
+                      debug: {
+                        searched: { title: song.title, artist: song.artist }, // Original AI suggestion
+                        matched: { 
+                          title: alternative.title, 
+                          artist: alternative.artist,
+                          id: alternative.id,
+                          uri: alternative.uri
+                        },
+                        searchQuery: `artist:"${song.artist}" (alternative search)`,
+                        apiResponse: null, // Alternatives don't include full API response
+                        matchType: 'alternative (original not found)'
+                      }
+                    })
                   } else {
                     console.log(`⚠️ All alternatives for ${song.artist} were duplicates`)
                     send({ type: 'unavailable', song: { title: song.title, artist: song.artist } })
@@ -597,7 +795,7 @@ ${Object.entries(artistAlternatives).map(([artist, alts]) =>
                 : ''
 
               const additionalRequest = {
-                model: 'llama-3.1-8b-instant',
+                model: workingModel, // Use the same model that worked initially
                 messages: [
                   {
                     role: 'system',
@@ -605,7 +803,14 @@ ${Object.entries(artistAlternatives).map(([artist, alts]) =>
                   },
                   {
                     role: 'user',
-                    content: `Create ${needed} more obscure songs for this playlist: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}. 
+                    content: `Create ${needed} more songs for this playlist: ${prompt}${genre ? ` Genre: ${genre}` : ''}${mood ? ` Mood: ${mood}` : ''}${era ? ` Era: ${era}` : ''}. 
+
+⚠️ CRITICAL REQUIREMENTS:
+1. ONLY suggest REAL songs that ACTUALLY EXIST - never make up, invent, or combine song titles
+2. NEVER mix album names with song titles (e.g., "The Dark Side of the Moog" is NOT a real song)
+3. ONLY suggest songs that you are CERTAIN exist on Spotify
+4. If you are unsure, suggest a more popular REAL track by the same artist that you know exists and is on Spotify
+5. Do NOT suggest rare or obscure tracks unless you are confident they are REAL and exist on Spotify
 
 CRITICAL - DO NOT REPEAT:
 - Do NOT repeat any of these songs that were already suggested: ${allSuggestions.map(s => `"${s.title}" by ${s.artist}`).join(', ')}
@@ -620,10 +825,10 @@ ${unavailableFeedback}${alternativesFeedback}`
                 response_format: { type: 'json_object' }
               }
 
-              const additionalResponse = await fetch(GROQ_API_URL, {
+              const additionalResponse = await fetch(API_URL, {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${GROQ_API_KEY}`,
+                  'Authorization': `Bearer ${API_KEY}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(additionalRequest)

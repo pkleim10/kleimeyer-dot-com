@@ -321,14 +321,67 @@ export function SpotifyProvider({ children }) {
       )
 
       if (response.status === 401) {
-        // Token expired, try refresh
-        if (await refreshAccessToken()) {
-          return searchTracks(query, limit)
+        // Token expired, try refresh and retry
+        console.log('[SpotifyContext] Token expired, refreshing...')
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+          console.log('[SpotifyContext] Token refreshed, retrying search...')
+          // Get the new token from state/localStorage
+          const newToken = localStorage.getItem('spotify_access_token')
+          if (newToken) {
+            // Retry with new token
+            const retryResponse = await fetch(
+              `https://api.spotify.com/v1/search?` +
+              new URLSearchParams({
+                q: query,
+                type: 'track',
+                limit: limit.toString(),
+                market: 'US'
+              }),
+              {
+                headers: {
+                  'Authorization': `Bearer ${newToken}`
+                }
+              }
+            )
+            if (retryResponse.ok) {
+              const data = await retryResponse.json()
+              return data.tracks.items
+            }
+            // If retry still fails with 401, token refresh didn't work - user needs to re-authorize
+            if (retryResponse.status === 401) {
+              console.error('[SpotifyContext] Token refresh failed, user needs to re-authorize')
+              throw new Error('Authentication expired. Please reconnect to Spotify.')
+            }
+          }
         }
-        throw new Error('Authentication expired')
+        // If refresh failed, user needs to re-authorize
+        console.error('[SpotifyContext] Could not refresh token, user needs to re-authorize')
+        throw new Error('Authentication expired. Please reconnect to Spotify.')
       }
 
-      if (!response.ok) throw new Error('Failed to search tracks')
+      if (response.status === 429) {
+        // Rate limit exceeded
+        const retryAfter = response.headers.get('Retry-After') || 'unknown'
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[SpotifyContext] Rate limit exceeded:', retryAfter, errorData)
+        throw new Error(`Spotify rate limit exceeded. Please try again later. (Retry after: ${retryAfter}s)`)
+      }
+
+      if (!response.ok) {
+        // Get error details for better debugging
+        let errorMessage = `Failed to search tracks (${response.status})`
+        try {
+          const errorData = await response.json().catch(() => ({}))
+          if (errorData.error?.message) {
+            errorMessage = `${errorMessage}: ${errorData.error.message}`
+          }
+          console.error('[SpotifyContext] Search tracks error:', response.status, errorData)
+        } catch (e) {
+          console.error('[SpotifyContext] Search tracks error (could not parse response):', response.status, response.statusText)
+        }
+        throw new Error(errorMessage)
+      }
 
       const data = await response.json()
       return data.tracks.items
@@ -350,10 +403,17 @@ export function SpotifyProvider({ children }) {
       })
 
       if (userResponse.status === 401) {
-        if (await refreshAccessToken()) {
+        // Token expired, try refresh and retry
+        console.log('[SpotifyContext] Token expired in createPlaylist, refreshing...')
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+          console.log('[SpotifyContext] Token refreshed, retrying createPlaylist...')
+          // Retry the entire function with new token
           return createPlaylist(name, trackUris)
         }
-        throw new Error('Authentication expired')
+        // If refresh failed, user needs to re-authorize
+        console.error('[SpotifyContext] Could not refresh token in createPlaylist, user needs to re-authorize')
+        throw new Error('Authentication expired. Please reconnect to Spotify.')
       }
 
       if (!userResponse.ok) throw new Error('Failed to get user profile')
@@ -377,6 +437,20 @@ export function SpotifyProvider({ children }) {
         }
       )
 
+      if (createResponse.status === 401) {
+        // Token expired during playlist creation, refresh and retry
+        console.log('[SpotifyContext] Token expired while creating playlist, refreshing...')
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+          console.log('[SpotifyContext] Token refreshed, retrying playlist creation...')
+          // Retry the entire function with new token
+          return createPlaylist(name, trackUris)
+        }
+        // If refresh failed, user needs to re-authorize
+        console.error('[SpotifyContext] Could not refresh token while creating playlist, user needs to re-authorize')
+        throw new Error('Authentication expired. Please reconnect to Spotify.')
+      }
+      
       if (!createResponse.ok) {
         const errorData = await createResponse.json().catch(() => ({}))
         console.error('[SpotifyContext] Failed to create playlist:', createResponse.status, errorData)
@@ -407,6 +481,40 @@ export function SpotifyProvider({ children }) {
             }
           )
 
+          if (addResponse.status === 401) {
+            // Token expired during track addition, refresh and retry
+            console.log('[SpotifyContext] Token expired while adding tracks, refreshing...')
+            const refreshed = await refreshAccessToken()
+            if (refreshed) {
+              console.log('[SpotifyContext] Token refreshed, retrying track addition...')
+              // Retry this batch with new token
+              const newToken = localStorage.getItem('spotify_access_token')
+              if (newToken) {
+                const retryAddResponse = await fetch(
+                  `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${newToken}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      uris: batch
+                    })
+                  }
+                )
+                if (retryAddResponse.ok) {
+                  tracksAdded += batch.length
+                  console.log(`[SpotifyContext] Added ${batch.length} tracks (${tracksAdded}/${trackUris.length} total)`)
+                  continue // Success, move to next batch
+                }
+              }
+            }
+            // If refresh failed, user needs to re-authorize
+            console.error('[SpotifyContext] Could not refresh token while adding tracks, user needs to re-authorize')
+            throw new Error('Authentication expired. Please reconnect to Spotify.')
+          }
+          
           if (!addResponse.ok) {
             const errorData = await addResponse.json().catch(() => ({}))
             console.error('[SpotifyContext] Failed to add tracks:', addResponse.status, errorData)
