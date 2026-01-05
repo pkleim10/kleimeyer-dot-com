@@ -3,4 +3,4 @@ ALTER TABLE categories
 ADD COLUMN image TEXT;
 
 -- Add comment to explain the column
-COMMENT ON COLUMN categories.image IS 'The filename of the category image stored in the public/assets folder'; 
+COMMENT ON COLUMN categories.image IS 'The URL of the category image stored in Supabase storage (recipe-images bucket)'; 

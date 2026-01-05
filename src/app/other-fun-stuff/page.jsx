@@ -94,30 +94,6 @@ export default function OtherFunStuffPage() {
               </div>
             </div>
           </Link>
-
-          {/* Auto Lease Management App */}
-          <Link href="#" className="group w-full max-w-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
-              <div className="relative h-48 bg-gradient-to-br from-orange-500 to-red-600">
-                {/* Placeholder for hero image */}
-                <div className="absolute inset-0 bg-black/20" />
-              </div>
-              <div className="p-6 flex-1 flex flex-col">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-300">
-                  Auto Lease Management
-                </h2>
-                <p className="text-gray-600 dark:text-gray-300">
-                  Manage your vehicle lease information
-                </p>
-                <div className="mt-auto flex items-center text-orange-600 dark:text-orange-400 group-hover:text-orange-700 dark:group-hover:text-orange-300 transition-colors duration-300">
-                  <span className="text-sm font-medium">Coming Soon</span>
-                  <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </Link>
           </div>
         </div>
       </div>

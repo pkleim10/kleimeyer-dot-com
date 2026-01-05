@@ -14,7 +14,6 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "clean": "rm -rf .next node_modules/.cache",
-    "generate-nav-images": "node scripts/generate-nav-images.js",
     "assign-family-role": "node scripts/assign-family-role.js",
     "test-documents-api": "node scripts/test-documents-api.js",
     "restore-admin": "node scripts/restore-admin.js",
