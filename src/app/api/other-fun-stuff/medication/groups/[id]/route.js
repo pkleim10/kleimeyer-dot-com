@@ -12,12 +12,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Transform snake_case to camelCase for group data
 function transformGroup(group) {
   if (!group) return null
-  const { accessible_by, day_start_time, day_end_time, created_at, updated_at, ...rest } = group
+  const { accessible_by, day_start_time, day_end_time, time_labels, created_at, updated_at, ...rest } = group
   return {
     ...rest,
     accessibleBy: accessible_by,
     dayStartTime: day_start_time,
     dayEndTime: day_end_time,
+    timeLabels: time_labels || {},
     createdAt: created_at,
     updatedAt: updated_at
   }
@@ -103,7 +104,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json()
-    const { name, accessibleBy, dayStartTime, dayEndTime } = body
+    const { name, accessibleBy, dayStartTime, dayEndTime, timeLabels } = body
 
     console.log('PUT /api/other-fun-stuff/medication/groups/[id] - Request received')
     console.log('Group ID from params:', id)
@@ -127,6 +128,13 @@ export async function PUT(request, { params }) {
     if (dayEndTime !== undefined) {
       // Convert HH:MM to HH:MM:SS format if needed
       updateData.day_end_time = dayEndTime.length === 5 ? `${dayEndTime}:00` : dayEndTime
+    }
+    if (timeLabels !== undefined) {
+      // Validate that timeLabels is an object
+      if (typeof timeLabels !== 'object' || Array.isArray(timeLabels)) {
+        return NextResponse.json({ error: 'timeLabels must be an object' }, { status: 400 })
+      }
+      updateData.time_labels = timeLabels
     }
 
     console.log('Update data prepared:', JSON.stringify(updateData, null, 2))

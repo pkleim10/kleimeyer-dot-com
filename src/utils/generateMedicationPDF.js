@@ -510,6 +510,8 @@ export function generateMedicationPDF(medications, groupName = null, group = nul
       return null
     }
     
+    let timeLabel = ''
+    
     if (timeKey.match(/^\d{2}:\d{2}$/)) {
       // Specific time format HH:MM - convert to 12-hour format (e.g., "12pm", "4pm")
       const [h, m] = timeKey.split(':')
@@ -520,18 +522,30 @@ export function generateMedicationPDF(medications, groupName = null, group = nul
       
       // Format: "12pm" or "4pm" (no minutes if :00, otherwise include minutes)
       if (minutes === 0) {
-        return `${displayHour}${ampm}`
+        timeLabel = `${displayHour}${ampm}`
       } else {
-        return `${displayHour}:${m}${ampm}`
+        timeLabel = `${displayHour}:${m}${ampm}`
+      }
+    } else {
+      // Named times
+      if (timeKey === 'morning') {
+        timeLabel = 'In the morning'
+      } else if (timeKey === 'evening') {
+        timeLabel = 'In the evening'
+      } else if (timeKey === 'bedtime') {
+        timeLabel = 'At bedtime'
+      } else {
+        timeLabel = timeKey
       }
     }
     
-    // Named times
-    if (timeKey === 'morning') return 'In the morning'
-    if (timeKey === 'evening') return 'In the evening'
-    if (timeKey === 'bedtime') return 'At bedtime'
+    // Check for custom label from group
+    const customLabel = group?.timeLabels?.[timeKey]
+    if (customLabel) {
+      return `${timeLabel} (${customLabel})`
+    }
     
-    return timeKey
+    return timeLabel
   }
   
   // Render time-based listing

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMedications } from '@/contexts/MedicationContext'
 import { useGroups } from '@/contexts/GroupContext'
 import MedicationForm from './MedicationForm'
+import EditTimeLabelsDialog from './EditTimeLabelsDialog'
 import { generateMedicationPDF } from '@/utils/generateMedicationPDF'
 
 // Helper function to format date string without timezone issues
@@ -24,6 +25,7 @@ export default function MedicationList() {
   const { selectedGroup } = useGroups()
   const [editingId, setEditingId] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  const [showTimeLabelsDialog, setShowTimeLabelsDialog] = useState(false)
 
   const handleEdit = (medication) => {
     setEditingId(medication.id)
@@ -195,15 +197,26 @@ export default function MedicationList() {
         </div>
         <div className="flex gap-2">
           {medications.length > 0 && (
-            <button
-              onClick={() => generateMedicationPDF(medications, selectedGroup?.name, selectedGroup)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-lg hover:from-green-700 hover:to-emerald-800 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Download PDF
-            </button>
+            <>
+              <button
+                onClick={() => setShowTimeLabelsDialog(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Edit Times
+              </button>
+              <button
+                onClick={() => generateMedicationPDF(medications, selectedGroup?.name, selectedGroup)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-lg hover:from-green-700 hover:to-emerald-800 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download PDF
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowForm(true)}
@@ -346,6 +359,13 @@ export default function MedicationList() {
           ))}
         </div>
       )}
+
+      <EditTimeLabelsDialog
+        isOpen={showTimeLabelsDialog}
+        onClose={() => setShowTimeLabelsDialog(false)}
+        group={selectedGroup}
+        medications={medications}
+      />
     </div>
   )
 }

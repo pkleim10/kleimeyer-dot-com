@@ -196,7 +196,8 @@ export function GroupProvider({ children }) {
           name: updates.name?.trim(),
           accessibleBy: updates.accessibleBy,
           dayStartTime: updates.dayStartTime,
-          dayEndTime: updates.dayEndTime
+          dayEndTime: updates.dayEndTime,
+          timeLabels: updates.timeLabels
         })
       })
 

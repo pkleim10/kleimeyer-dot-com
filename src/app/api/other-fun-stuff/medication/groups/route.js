@@ -11,12 +11,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Transform snake_case to camelCase for group data
 function transformGroup(group) {
   if (!group) return null
-  const { accessible_by, day_start_time, day_end_time, created_at, updated_at, ...rest } = group
+  const { accessible_by, day_start_time, day_end_time, time_labels, created_at, updated_at, ...rest } = group
   return {
     ...rest,
     accessibleBy: accessible_by,
     dayStartTime: day_start_time,
     dayEndTime: day_end_time,
+    timeLabels: time_labels || {},
     createdAt: created_at,
     updatedAt: updated_at
   }

@@ -144,6 +144,143 @@ function createGitTag(version) {
   }
 }
 
+function getCommitsSinceLastRelease() {
+  try {
+    // Get the last tag
+    const lastTag = execSync('git describe --tags --abbrev=0', { encoding: 'utf8' }).trim();
+    // Get commits since last tag
+    const commits = execSync(`git log ${lastTag}..HEAD --pretty=format:"%h|%s|%b"`, { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(line => line.trim() !== '')
+      .map(line => {
+        const [hash, subject, ...bodyParts] = line.split('|');
+        return {
+          hash: hash.trim(),
+          subject: subject.trim(),
+          body: bodyParts.join('|').trim()
+        };
+      });
+    return commits;
+  } catch (error) {
+    // If no tags exist, get all commits
+    try {
+      const commits = execSync('git log --pretty=format:"%h|%s|%b"', { encoding: 'utf8' })
+        .trim()
+        .split('\n')
+        .filter(line => line.trim() !== '')
+        .map(line => {
+          const [hash, subject, ...bodyParts] = line.split('|');
+          return {
+            hash: hash.trim(),
+            subject: subject.trim(),
+            body: bodyParts.join('|').trim()
+          };
+        });
+      return commits.slice(0, 50); // Limit to last 50 commits if no tags
+    } catch (err) {
+      log('Warning: Could not get commits', 'yellow');
+      return [];
+    }
+  }
+}
+
+function categorizeCommits(commits) {
+  const categories = {
+    Added: [],
+    Changed: [],
+    Fixed: [],
+    Security: [],
+    Removed: [],
+    Deprecated: []
+  };
+
+  commits.forEach(commit => {
+    const subjectLower = commit.subject.toLowerCase();
+    const message = `${commit.subject} ${commit.body}`.toLowerCase();
+    
+    // Skip version bump commits
+    if (subjectLower.includes('bump version') || subjectLower.includes('chore: bump')) {
+      return;
+    }
+
+    // Categorize based on conventional commit prefix first (most reliable)
+    if (subjectLower.match(/^(feat|add|new):/)) {
+      categories.Added.push(commit);
+    } else if (subjectLower.match(/^(fix|bug):/)) {
+      categories.Fixed.push(commit);
+    } else if (subjectLower.match(/^(change|update|refactor|improve|chore):/)) {
+      categories.Changed.push(commit);
+    } else if (subjectLower.match(/^(remove|delete|rm):/)) {
+      categories.Removed.push(commit);
+    } else if (message.includes('security') || message.includes('vulnerability') || message.includes('rls') || message.includes('permission')) {
+      categories.Security.push(commit);
+    } else if (subjectLower.match(/^(deprecate):/)) {
+      categories.Deprecated.push(commit);
+    } else {
+      // Fallback: categorize by keywords in subject (more specific patterns)
+      if (subjectLower.match(/\b(add|new|create|implement|introduce)\b/) && !subjectLower.match(/\b(fix|remove|delete)\b/)) {
+        categories.Added.push(commit);
+      } else if (subjectLower.match(/\b(fix|bug|error|issue|resolve|correct)\b/)) {
+        categories.Fixed.push(commit);
+      } else if (subjectLower.match(/\b(change|update|refactor|improve|enhance|modify|optimize)\b/)) {
+        categories.Changed.push(commit);
+      } else if (subjectLower.match(/\b(remove|delete|rm|drop)\b/)) {
+        categories.Removed.push(commit);
+      } else {
+        // Default to Fixed for unknown types
+        categories.Fixed.push(commit);
+      }
+    }
+  });
+
+  // Remove empty categories
+  return Object.fromEntries(
+    Object.entries(categories).filter(([_, commits]) => commits.length > 0)
+  );
+}
+
+function formatCommitMessage(subject, body) {
+  // Remove conventional commit prefix if present
+  let message = subject.replace(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):\s*/i, '');
+  
+  // Capitalize first letter
+  message = message.charAt(0).toUpperCase() + message.slice(1);
+  
+  // Add body as detail if present and different from subject
+  if (body && body.trim() && !subject.toLowerCase().includes(body.toLowerCase().substring(0, 20))) {
+    message += `: ${body.trim()}`;
+  }
+  
+  return message;
+}
+
+function formatChangelogEntry(commits, version, versionType) {
+  const categorized = categorizeCommits(commits);
+  const today = new Date().toISOString().split('T')[0];
+  
+  let entry = `## [${version}] - ${today}\n\n`;
+  
+  // Add sections for each category
+  const categoryOrder = ['Added', 'Changed', 'Fixed', 'Security', 'Removed', 'Deprecated'];
+  
+  categoryOrder.forEach(category => {
+    if (categorized[category] && categorized[category].length > 0) {
+      entry += `### ${category}\n`;
+      
+      categorized[category].forEach(commit => {
+        // Format commit message
+        const message = formatCommitMessage(commit.subject, commit.body);
+        entry += `- ${message}\n`;
+      });
+      
+      entry += '\n';
+    }
+  });
+  
+  return entry;
+}
+
 function updateChangelog(version, versionType) {
   const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
   
@@ -153,15 +290,22 @@ function updateChangelog(version, versionType) {
   }
   
   const changelog = fs.readFileSync(changelogPath, 'utf8');
-  const today = new Date().toISOString().split('T')[0];
   
-  // Create version entry
-  const versionEntry = `## [${version}] - ${today}
-
-### ${versionType === 'major' ? 'BREAKING CHANGES' : versionType === 'minor' ? 'Added' : 'Fixed'}
-- See commit history for detailed changes
-
-`;
+  // Get commits since last release
+  const commits = getCommitsSinceLastRelease();
+  
+  if (commits.length === 0) {
+    log('Warning: No commits found since last release', 'yellow');
+    // Fall back to generic entry
+    const today = new Date().toISOString().split('T')[0];
+    const versionEntry = `## [${version}] - ${today}\n\n### ${versionType === 'major' ? 'BREAKING CHANGES' : versionType === 'minor' ? 'Added' : 'Fixed'}\n- See commit history for detailed changes\n\n`;
+    const updatedChangelog = changelog.replace(/## \[Unreleased\]/, versionEntry + '## [Unreleased]');
+    fs.writeFileSync(changelogPath, updatedChangelog);
+    return;
+  }
+  
+  // Format changelog entry
+  const versionEntry = formatChangelogEntry(commits, version, versionType);
   
   // Replace [Unreleased] with the new version
   const updatedChangelog = changelog.replace(
