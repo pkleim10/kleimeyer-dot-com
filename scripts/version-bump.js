@@ -146,40 +146,80 @@ function createGitTag(version) {
 
 function getCommitsSinceLastRelease() {
   try {
-    // Get the last tag
-    const lastTag = execSync('git describe --tags --abbrev=0', { encoding: 'utf8' }).trim();
-    // Get commits since last tag
-    const commits = execSync(`git log ${lastTag}..HEAD --pretty=format:"%h|%s|%b"`, { encoding: 'utf8' })
-      .trim()
+    // Get all tags sorted by version
+    const tagsOutput = execSync('git tag --sort=-version:refname', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    const tags = tagsOutput.split('\n').filter(t => t.trim());
+    
+    if (tags.length === 0) {
+      throw new Error('No tags found');
+    }
+    
+    // Get the second-to-last tag (the previous release, not the one we might be creating)
+    // If there's only one tag, use it
+    const lastTag = tags.length > 1 ? tags[1] : tags[0];
+    
+    if (!lastTag) {
+      throw new Error('Could not determine last tag');
+    }
+    
+    // Get commits since last tag, excluding merge commits
+    const logOutput = execSync(`git log ${lastTag}..HEAD --no-merges --pretty=format:"%h|%s|%b"`, { 
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    }).trim();
+    
+    if (!logOutput) {
+      return [];
+    }
+    
+    const commits = logOutput
       .split('\n')
       .filter(line => line.trim() !== '')
       .map(line => {
-        const [hash, subject, ...bodyParts] = line.split('|');
+        const parts = line.split('|');
+        const hash = parts[0] || '';
+        const subject = parts[1] || '';
+        const body = parts.slice(2).join('|') || '';
         return {
           hash: hash.trim(),
           subject: subject.trim(),
-          body: bodyParts.join('|').trim()
+          body: body.trim()
         };
-      });
+      })
+      .filter(commit => commit.hash && commit.subject); // Filter out invalid entries
+    
     return commits;
   } catch (error) {
-    // If no tags exist, get all commits
+    // If no tags exist or error getting tags, try to get recent commits
     try {
-      const commits = execSync('git log --pretty=format:"%h|%s|%b"', { encoding: 'utf8' })
-        .trim()
+      const logOutput = execSync('git log --no-merges --pretty=format:"%h|%s|%b" -50', { 
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+      
+      if (!logOutput) {
+        return [];
+      }
+      
+      const commits = logOutput
         .split('\n')
         .filter(line => line.trim() !== '')
         .map(line => {
-          const [hash, subject, ...bodyParts] = line.split('|');
+          const parts = line.split('|');
+          const hash = parts[0] || '';
+          const subject = parts[1] || '';
+          const body = parts.slice(2).join('|') || '';
           return {
             hash: hash.trim(),
             subject: subject.trim(),
-            body: bodyParts.join('|').trim()
+            body: body.trim()
           };
-        });
-      return commits.slice(0, 50); // Limit to last 50 commits if no tags
+        })
+        .filter(commit => commit.hash && commit.subject);
+      
+      return commits;
     } catch (err) {
-      log('Warning: Could not get commits', 'yellow');
+      log(`Warning: Could not get commits: ${err.message}`, 'yellow');
       return [];
     }
   }
@@ -244,12 +284,32 @@ function formatCommitMessage(subject, body) {
   // Remove conventional commit prefix if present
   let message = subject.replace(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build|revert):\s*/i, '');
   
+  // Remove "Release vX.X.X:" prefixes
+  message = message.replace(/^Release v\d+\.\d+\.\d+:\s*/i, '');
+  
   // Capitalize first letter
   message = message.charAt(0).toUpperCase() + message.slice(1);
   
   // Add body as detail if present and different from subject
-  if (body && body.trim() && !subject.toLowerCase().includes(body.toLowerCase().substring(0, 20))) {
-    message += `: ${body.trim()}`;
+  // Only add if body provides meaningful additional context
+  if (body && body.trim()) {
+    const bodyTrimmed = body.trim();
+    // Don't add if body is too similar to subject or is just a list
+    const bodyStart = bodyTrimmed.toLowerCase().substring(0, 30);
+    const subjectLower = subject.toLowerCase();
+    
+    // Only include body if it adds meaningful context and isn't redundant
+    if (!subjectLower.includes(bodyStart) && bodyTrimmed.length > 10) {
+      // Clean up body - remove leading dashes/bullets, trim whitespace
+      // Remove "Release vX.X.X:" prefixes from body too
+      let cleanBody = bodyTrimmed.replace(/^[-*]\s*/, '').replace(/^Release v\d+\.\d+\.\d+:\s*/i, '').trim();
+      
+      // If body starts with the same words as subject, skip it
+      const messageStart = message.toLowerCase().substring(0, 20);
+      if (cleanBody && cleanBody.toLowerCase().substring(0, 20) !== messageStart && cleanBody !== message) {
+        message += `: ${cleanBody}`;
+      }
+    }
   }
   
   return message;
@@ -294,24 +354,32 @@ function updateChangelog(version, versionType) {
   // Get commits since last release
   const commits = getCommitsSinceLastRelease();
   
+  let versionEntry;
   if (commits.length === 0) {
     log('Warning: No commits found since last release', 'yellow');
     // Fall back to generic entry
     const today = new Date().toISOString().split('T')[0];
-    const versionEntry = `## [${version}] - ${today}\n\n### ${versionType === 'major' ? 'BREAKING CHANGES' : versionType === 'minor' ? 'Added' : 'Fixed'}\n- See commit history for detailed changes\n\n`;
-    const updatedChangelog = changelog.replace(/## \[Unreleased\]/, versionEntry + '## [Unreleased]');
-    fs.writeFileSync(changelogPath, updatedChangelog);
-    return;
+    versionEntry = `## [${version}] - ${today}\n\n### ${versionType === 'major' ? 'BREAKING CHANGES' : versionType === 'minor' ? 'Added' : 'Fixed'}\n- See commit history for detailed changes\n\n`;
+  } else {
+    // Format changelog entry
+    versionEntry = formatChangelogEntry(commits, version, versionType);
   }
   
-  // Format changelog entry
-  const versionEntry = formatChangelogEntry(commits, version, versionType);
+  // Insert new version at the top (after header)
+  // Find where the header ends (after the format description lines)
+  const headerMatch = changelog.match(/^(# Changelog\n\n.*?\n)/);
+  const header = headerMatch ? headerMatch[1] : '# Changelog\n\n';
   
-  // Replace [Unreleased] with the new version
-  const updatedChangelog = changelog.replace(
-    /## \[Unreleased\]/,
-    versionEntry + '## [Unreleased]'
-  );
+  // Get everything after the header
+  const restOfChangelog = changelog.replace(/^# Changelog\n\n.*?\n/, '');
+  
+  // Remove old [Unreleased] section entirely (it contains old manual entries)
+  // We'll generate a fresh one from commits if needed
+  const versionsOnly = restOfChangelog.replace(/## \[Unreleased\][\s\S]*?(?=\n## \[|$)/, '').trim();
+  
+  // Build new changelog with newest version at top
+  // Structure: Header -> New Version -> Older Versions
+  const updatedChangelog = header + versionEntry + (versionsOnly ? versionsOnly + '\n' : '');
   
   fs.writeFileSync(changelogPath, updatedChangelog);
   log(`Updated CHANGELOG.md with version ${version}`, 'green');
@@ -366,4 +434,11 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { bumpVersion, detectVersionType, getCurrentVersion };
+module.exports = { 
+  bumpVersion, 
+  detectVersionType, 
+  getCurrentVersion,
+  categorizeCommits,
+  formatCommitMessage,
+  formatChangelogEntry
+};

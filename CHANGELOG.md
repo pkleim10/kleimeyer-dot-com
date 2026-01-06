@@ -5,394 +5,306 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-01-05
+
+### Added
+- Add time labels to medication groups: Add time_labels column to medication_groups table
+
+## [1.23.0] - 2026-01-05
+
+### Fixed
+- Allow Family/Admin users to edit medications in shared groups: Remove user_id filter from medication update/delete queries
+
+## [1.22.1] - 2026-01-05
+
+### Changed
+- Remove unused code and assets: Remove unused /public/assets directory and images
+
+## [1.22.0] - 2025-12-06
+
+### Fixed
+- Improve playlist generation error handling and UI: Fix normalize function to handle null/undefined values by converting to string first
+
+## [1.21.4] - 2025-12-06
+
+### Changed
+- Optimize playlist generation for production - address Vercel timeout issues: Increase max_tokens to 4000 to ensure AI returns all requested songs
+
+## [1.21.3] - 2025-12-05
+
+### Fixed
+- Fix playlist generation stopping early - track processed suggestions and continue on stream errors: Add processedSuggestions Set to track which suggestions have been checked
+
+## [1.21.2] - 2025-12-05
+
+### Fixed
+- Fix playlist generation stopping early - ensure loop continues until 20 tracks are found: Add logging to track initial AI response vs requested count
+
+## [1.21.1] - 2025-12-05
+
+### Fixed
+- Improve error handling and logging for playlist generation: Enhanced send() function to detect stream closure and log failures
+
+## [1.21.0] - 2025-12-05
+
+### Changed
+- Update Grok models and improve playlist generation UX: Updated Grok model list in generate-playlist API with latest models
+
+## [1.20.0] - 2025-12-05
+
+### Removed
+- Remove debug modal and add track deletion feature
+
+## [1.19.3] - 2025-12-05
+
+### Fixed
+- Style Magic Playlists greeting box with yellow background and border, include heading and icon
+
+## [1.19.2] - 2025-12-05
+
+### Added
+- Add M3U import feature for playlists: Import M3U files to load playlists
+- Add M3U export feature for playlists: Export playlist to M3U file format
+- Add detailed logging for 401 authentication errors: Log auth header presence and format
+- Add navigation and breadcrumbs for Magic Playlists page
+
+### Fixed
+- Improve error handling for M3U import and Spotify playlist creation: Better error messages with specific details
+- Improve error handling for empty API error responses: Better parsing of error responses (handles empty JSON, plain text, etc.)
+- Improve error handling and logging for playlist generation: Add better error logging for Spotify API errors
+- Fix Next.js 15 config warnings: move serverExternalPackages and remove deprecated api config
+- Fix profile page role badge display
+
+### Security
+- Security and navigation improvements: Updated Next.js to 15.5.7 to fix CVE-2025-66478 vulnerability
+- Security: Update Next.js to 15.5.7 to fix CVE-2025-66478 vulnerability
+- Role-based permission system and profile page fixes: Implemented 3-role system (Member, Family, Admin) replacing granular permissions
+
+### Removed
+- Remove redundant 'Added to Spotify!' message, keep playlist creation box
+- Remove authentication requirement from generate-playlist API: API uses server-side Spotify Client Credentials, no user auth needed
+
+## [1.17.0] - 2025-12-05
+
+### Added
+- Remove Spotify auth requirement for playlist generation, use Client Credentials for search: Use Spotify Client Credentials Flow for search (no user auth needed)
+
+### Fixed
+- 1.17.0
+- Improve error handling in playlist generation to prevent early stopping
+- Add missing NextResponse import in generate-playlist API route
+- Escape quotes and apostrophes in JSX to fix build errors
+
+## [1.16.0] - 2025-12-04
+
+### Added
+- Add Magic Playlists feature with Spotify integration, obscurity slider, and improved OAuth flow
+- Add detailed logging and error handling to Spotify redirect page
+- Add Spotify OAuth redirect handler for development
+
+### Changed
+- Remove old spotify-redirect page component (replaced with route)
+- Update spotify-redirect to support Authorization Code flow: Handle authorization code from Spotify and forward to API callback
+- Improve Spotify redirect handling for dev and prod
+
+### Fixed
+- Improve error handling in Spotify callback to identify missing env vars
+- Switch Spotify OAuth to Authorization Code flow: Add API route /api/spotify/callback to exchange code for tokens
+- Fix home page announcement check loop
+- Fix Spotify redirect to return to Magic Playlists
+
+## [1.15.2] - 2025-11-21
+
+### Added
+- Add PDF download to Thanksgiving checklist and rename Volunteer to Contributor: Add Download PDF button to Thanksgiving checklist page
+
+## [1.15.1] - 2025-11-21
+
+### Changed
+- Rename 'Just for Me' to 'Other Fun Stuff': Rename all routes from /just-for-me to /other-fun-stuff
+
+## [1.15.0] - 2025-11-21
+
+### Added
+- Add wraparound day sorting for medication schedules: Add day_start_time and day_end_time fields to medication_groups table
+
+## [1.14.4] - 2025-11-21
+
+### Fixed
+- Make dosage field optional when adding and editing medications
+
+## [1.14.3] - 2025-11-21
+
+### Security
+- Fix shared medication group access: allow users with edit permissions to create medications
+
+## [1.14.2] - 2025-11-21
+
+### Fixed
+- Fix stale session issue: add session validation and proper 401 error handling
+
+## [1.14.1] - 2025-11-21
+
+### Fixed
+- Fix authentication redirect for Thanksgiving Checklist page
+
+## [1.14.0] - 2025-11-20
+
+### Added
+- Add Thanksgiving Checklist page with full CRUD operations for family members
+
+## [1.13.1] - 2025-11-20
+
+### Added
+- Add medication notes to PDF summary and reorder checklist columns
+
+### Changed
+- Update package.json version to 1.12.0 to match tag
+
+### Fixed
+- Medication management improvements: Fix visibility badge showing 'Only Me' instead of 'Shared' for shared groups
+
+## [1.13.0] - 2025-11-20
+
+### Added
+- Migrate medication management from localStorage to Supabase: Create database migration for medication_groups, medications, and medication_logs tables
+
+## [1.12.0] - 2025-11-20
+
+### Added
+- Add medication groups feature with dedicated permission category: Add Group concept to medication management (highest-level construct)
+
+## [1.11.3] - 2025-11-19
+
+### Added
+- Add keywords array to JSON-LD structured data: Add keywords attribute as array of strings to JSON-LD
+
+## [1.11.2] - 2025-11-19
+
+### Added
+- Add recipeCuisine field to JSON-LD structured data: Add recipeCuisine attribute to JSON-LD with same value as recipeCategory
+
+## [1.11.1] - 2025-11-19
+
+### Changed
+- Replace recipe modal with direct navigation and improve breadcrumbs: Remove RecipeViewModal usage from RecipeCard
+
+## [1.11.0] - 2025-11-19
+
+### Added
+- Add JSON-LD structured data for recipes: Add JSON-LD script tag to recipe detail pages
+
+## [1.10.1] - 2025-11-09
+
+### Added
+- Add keep-alive workflow to prevent Supabase from sleeping
+
+## [1.10.0] - 2025-10-05
+
+### Added
+- Add document preview modal with frosted glass styling: Add DocumentPreviewModal component with frosted glass UI
+
+## [1.9.0] - 2025-09-21
+
+### Added
+- Improve file upload system with size management: Implement 5MB file size limit for photo uploads
+
+## [1.8.0] - 2025-09-21
+
+### Added
+- Enhance screen view calendar and fix print preview dark mode: Show all appointments in screen view (remove 2-appointment limit)
+
+## [1.7.3] - 2025-09-21
+
+### Fixed
+- Add expiration logic for recurring appointments: Set recurring appointment expiration to 2 hours after last occurrence
+
+## [1.7.2] - 2025-09-21
+
+### Fixed
+- Standardize screen view calendar cell height: Set all calendar days to 120px minimum height in screen view
+
+## [1.7.1] - 2025-09-21
+
+### Fixed
+- Optimize print calendar cell height for consistent layout: Set all calendar days to 118px minimum height (height of day with 2 appointments)
+
+## [1.7.0] - 2025-09-21
+
+### Added
+- Implement separate screen and print calendar views: Add admin-only toggle between Screen View and Print Preview
+
+## [1.6.0] - 2025-09-21
+
+### Removed
+- Remove list view toggle and dashboard calendar link: Remove 'List View' toggle from calendar page, keeping only calendar view
+
+## [1.5.0] - 2025-09-21
+
+### Fixed
+- Revert to standard browser time controls with 1-minute intervals: Removed custom dropdown approach for time selection
+
+## [1.4.2] - 2025-09-20
+
+### Fixed
+- Add permissions to GitHub Actions workflow for release creation: Add 'contents: write' permission to allow release creation
+
+## [1.4.1] - 2025-09-20
+
+### Changed
+- Simplify GitHub Actions workflow: Remove unnecessary build and test steps (Vercel handles builds)
+
+### Fixed
+- Resolve thumbnail corruption when deleting multiple photos from upload queue: Add unique IDs to photo previews to prevent array index misalignment
+- Skip tests in GitHub Actions release workflow: Tests fail due to missing Supabase environment variables in CI
+
+## [1.4.0] - 2025-09-20
+
+### Added
+- Add high-quality lightbox API for better image display: Create dedicated lightbox API endpoint for high-quality image URLs
+
+## [1.3.1] - 2025-09-20
+
+### Fixed
+- Resolve JavaScript hoisting issue with touch handlers: Move touch handlers after navigatePhoto function definition
+
+## [1.3.0] - 2025-09-20
+
+### Added
+- Add bulk delete functionality with progress tracking: Add visual selection system for photos with blue rings and checkmarks
+
+## [1.2.2] - 2025-09-19
+
+### Fixed
+- Eliminate jarring loader during local state updates: Replace async filtering with synchronous useMemo for instant updates
+
+## [1.2.1] - 2025-09-19
+
+### Changed
+- Optimize photo operations to update local state instead of refetching: Upload photos: Add new photos directly to local state instead of refetching all photos
+
+## [1.2.0] - 2025-09-19
+
+### Added
+- Enhance photo upload dialog and slideshow UI: Add drag-and-drop functionality to photo upload dialog
+
+## [1.1.2] - 2025-09-19
+
+### Fixed
+- Add null checks for album data in photo album page: Add null check in handleSetCover function to prevent 'Cannot read properties of null' error
+
+## [1.1.1] - 2025-09-19
+
+### Fixed
+- Update photos page heading from 'Family Photo Albums' to 'Photo Albums': Simplify heading to match the new dedicated photos route
+
+## [1.1.0] - 2025-09-19
+
+### Added
+- Migrate photo albums to dedicated /photos route: Move photo album feature from /family/photos to top-level /photos route
+
 ## [1.0.1] - 2025-09-19
 
 ### Fixed
 - See commit history for detailed changes
 
-## [1.1.0] - 2025-09-19
-
-### Added
-- See commit history for detailed changes
-
-## [1.1.1] - 2025-09-19
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.1.2] - 2025-09-20
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.2.0] - 2025-09-20
-
-### Added
-- See commit history for detailed changes
-
-## [1.2.1] - 2025-09-20
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.2.2] - 2025-09-20
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.3.0] - 2025-09-20
-
-### Added
-- See commit history for detailed changes
-
-## [1.3.1] - 2025-09-20
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.4.0] - 2025-09-20
-
-### Added
-- See commit history for detailed changes
-
-## [1.4.1] - 2025-09-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.4.2] - 2025-09-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.5.0] - 2025-09-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.6.0] - 2025-09-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.7.0] - 2025-09-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.7.1] - 2025-09-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.7.2] - 2025-09-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.7.3] - 2025-09-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.8.0] - 2025-09-22
-
-### Added
-- See commit history for detailed changes
-
-## [1.9.0] - 2025-09-22
-
-### Added
-- See commit history for detailed changes
-
-## [1.10.1] - 2025-11-10
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.11.0] - 2025-11-19
-
-### Added
-- See commit history for detailed changes
-
-## [1.11.1] - 2025-11-19
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.11.2] - 2025-11-19
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.11.3] - 2025-11-19
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.13.0] - 2025-11-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.13.1] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.14.0] - 2025-11-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.14.1] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.14.2] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.14.3] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.14.4] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.15.0] - 2025-11-21
-
-### Added
-- See commit history for detailed changes
-
-## [1.15.1] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.15.2] - 2025-11-21
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.19.2] - 2025-12-05
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.19.3] - 2025-12-06
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.20.0] - 2025-12-06
-
-### Added
-- See commit history for detailed changes
-
-## [1.21.0] - 2025-12-06
-
-### Added
-- See commit history for detailed changes
-
-## [1.21.1] - 2025-12-06
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.21.2] - 2025-12-06
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.21.3] - 2025-12-06
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.21.4] - 2025-12-06
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.22.0] - 2025-12-06
-
-### Added
-- See commit history for detailed changes
-
-## [1.22.1] - 2026-01-05
-
-### Fixed
-- See commit history for detailed changes
-
-## [1.23.0] - 2026-01-06
-
-### Added
-- See commit history for detailed changes
-
-## [1.24.0] - 2026-01-06
-
-### Added
-- See commit history for detailed changes
-
-## [Unreleased]
-
-### Added
-- **Family Appointments Calendar**: Dedicated appointments page with wall calendar view
-  - New `/family/appointments` page with calendar and list views
-  - Month-by-month calendar navigation with previous/next buttons
-  - Wall calendar layout showing appointments on specific days
-  - Support for both regular and recurring appointments in calendar view
-  - Print-friendly calendar with professional styling for physical printing
-  - Appointment details shown in calendar cells (title, time, location)
-  - Today highlighting and smart recurring appointment calculation
-  - Toggle between calendar view and list view for different use cases
-- **Photo Album System**: Complete photo album management with cover images
-  - Create and manage multiple photo albums
-  - Set album cover images automatically or manually
-  - Album deletion with automatic photo cleanup
-  - Clean separation between album photos and general documents
-- **Comprehensive Keyboard Shortcuts**: Professional-grade keyboard navigation
-  - Arrow keys for photo navigation (← →)
-  - E: Edit photo details
-  - C: Set as cover image
-  - S: Start/stop slideshow
-  - D: Delete photo
-  - X: Close lightbox
-  - Spacebar: Toggle slideshow
-  - Escape: Close lightbox and stop slideshow
-- **Smart Photo Deletion Navigation**: Intelligent navigation after photo deletion
-  - Navigate to next photo after deletion
-  - Wrap to first photo when deleting last photo
-  - Return to album view only when no photos remain
-- **Enhanced Slideshow Functionality**: Professional slideshow experience
-  - Keyboard controls (Spacebar to toggle, Escape to stop)
-  - Visual slideshow indicator
-  - Automatic progression with customizable timing
-- **Photo Editing System**: In-place photo metadata editing
-  - Edit descriptions and tags
-  - Real-time updates without page refresh
-  - Client-side filtering and sorting
-- **Storage Optimization**: Automatic cleanup to prevent orphaned files
-  - Album deletion removes all associated photos from storage
-  - Detailed logging of cleanup process
-  - Prevents storage waste on free Supabase plan
-
-### Changed
-- **Document/Photo Separation**: Clean separation of concerns
-  - Photos in albums no longer appear on `/family/documents` page
-  - Standalone documents and album photos are now properly separated
-  - Maintained backward compatibility for album-specific requests
-- **Navigation Improvements**: Enhanced user experience
-  - Delete confirmation dialogs now show in lightbox instead of redirecting
-  - Consistent behavior between keyboard shortcuts and toolbar buttons
-  - Smart navigation prevents users from being stranded on deleted photos
-
-### Fixed
-- **RLS Policy Issues**: Resolved permission errors
-  - Fixed "new row violates row-level security policy" error for document uploads
-  - Updated RLS policies to work with new multi-role permission system
-  - Proper permission checks for all document operations
-- **Photo Deletion UX**: Improved deletion workflow
-  - Delete button and keyboard shortcut now show confirmation in lightbox
-  - No more unexpected redirects to album view during deletion
-  - Consistent behavior across all deletion methods
-
-### Security
-- **Enhanced Permission System**: Improved security model
-  - Updated RLS policies for better security
-  - Proper permission checks for all operations
-  - Maintained security while improving usability
-
-## [Previous Versions]
-
-### Multi-Role Permission System (Earlier)
-- **Refactored Authorization**: Transitioned from hierarchical to multi-role system
-  - Users can now have multiple roles simultaneously
-  - Granular permission system with specific permissions
-  - Admin panel for managing user permissions
-  - Legacy role system removed
-
-### Announcement System (Earlier)
-- **Star Rating System**: Added 5-star rating system for announcements
-  - Visual star display with gold stars for rated announcements
-  - Optional rating input with dropdown selection
-  - Rating display in announcement cards and modals
-- **Line Break Support**: Fixed content display issues
-  - Added `whitespace-pre-wrap` for proper line break rendering
-  - Consistent formatting across announcement views
-- **Appointment Management**: Enhanced appointment functionality
-  - Optional content field for appointments
-  - Proper date/time handling with timezone support
-  - Improved form validation
-
-### Family Business Features (Earlier)
-- **Contact Management**: Complete contact system
-  - Add, edit, and delete family contacts
-  - Mobile-optimized CALL button
-  - Contact notes and information management
-- **Document Management**: File upload and organization
-  - Support for various file types (PDFs, images, documents)
-  - Category-based organization
-  - Search and filtering capabilities
-- **Announcement System**: Family communication
-  - Create and manage family announcements
-  - Category-based announcements (appointments, payments, etc.)
-  - Expiration and priority settings
-
-### Authentication & Authorization (Earlier)
-- **User Management**: Complete user system
-  - User registration and authentication
-  - Role-based access control
-  - Admin panel for user management
-  - Account deletion capabilities
-- **Permission System**: Granular permissions
-  - Family, Recipe, Member, and Admin permissions
-  - Quick preset buttons for common permission sets
-  - Individual permission toggles
-  - Permission inheritance and management
-
-### UI/UX Improvements (Earlier)
-- **Responsive Design**: Mobile-first approach
-  - Responsive navigation and layouts
-  - Mobile-optimized interactions
-  - Touch-friendly controls
-- **Modern Styling**: Contemporary design
-  - Tailwind CSS implementation
-  - Dark mode support
-  - Consistent color scheme and typography
-- **Navigation**: Intuitive navigation system
-  - Clean navigation bar with role-based visibility
-  - Breadcrumb navigation
-  - Quick access to main features
-
----
-
-## Development Notes
-
-### Technical Improvements
-- **Database Optimization**: Improved queries and indexing
-- **API Design**: RESTful API with proper error handling
-- **Security**: Row-level security policies for data protection
-- **Performance**: Optimized queries and caching strategies
-
-### Code Quality
-- **TypeScript**: Type safety and better development experience
-- **Error Handling**: Comprehensive error handling and user feedback
-- **Testing**: Unit tests and integration tests
-- **Documentation**: Comprehensive code documentation
-
-### Deployment
-- **Environment Configuration**: Proper environment variable management
-- **Database Migrations**: Version-controlled database changes
-- **CI/CD**: Automated testing and deployment pipelines
-- **Monitoring**: Error tracking and performance monitoring
-
----
-
-*This changelog is maintained to provide transparency and help users understand the evolution of the project.*
