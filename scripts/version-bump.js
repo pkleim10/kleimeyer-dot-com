@@ -146,7 +146,7 @@ function createGitTag(version) {
 
 function getCommitsSinceLastRelease() {
   try {
-    // Get all tags sorted by version
+    // Get all tags sorted by version (newest first)
     const tagsOutput = execSync('git tag --sort=-version:refname', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
     const tags = tagsOutput.split('\n').filter(t => t.trim());
     
@@ -154,9 +154,9 @@ function getCommitsSinceLastRelease() {
       throw new Error('No tags found');
     }
     
-    // Get the second-to-last tag (the previous release, not the one we might be creating)
-    // If there's only one tag, use it
-    const lastTag = tags.length > 1 ? tags[1] : tags[0];
+    // Get the most recent tag (the last release)
+    // When creating a new release, the new tag doesn't exist yet, so we use the most recent existing tag
+    const lastTag = tags[0];
     
     if (!lastTag) {
       throw new Error('Could not determine last tag');
@@ -365,16 +365,17 @@ function updateChangelog(version, versionType) {
     versionEntry = formatChangelogEntry(commits, version, versionType);
   }
   
-  // Insert new version at the top (after header)
-  // Find where the header ends (after the format description lines)
-  const headerMatch = changelog.match(/^(# Changelog\n\n.*?\n)/);
-  const header = headerMatch ? headerMatch[1] : '# Changelog\n\n';
+  // Extract header (everything up to and including the format description)
+  // Match: # Changelog, blank line, description, blank line, format lines, blank line
+  const headerMatch = changelog.match(/^(# Changelog\n\nAll notable changes[^\n]*\n\nThe format is based[^\n]*\nand this project[^\n]*\n\n)/);
+  const header = headerMatch ? headerMatch[1] : '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n';
   
-  // Get everything after the header
-  const restOfChangelog = changelog.replace(/^# Changelog\n\n.*?\n/, '');
+  // Get everything after the header (all version entries)
+  const restOfChangelog = headerMatch 
+    ? changelog.substring(headerMatch[1].length)
+    : changelog.replace(/^# Changelog[\s\S]*?\n\n/, '');
   
-  // Remove old [Unreleased] section entirely (it contains old manual entries)
-  // We'll generate a fresh one from commits if needed
+  // Remove old [Unreleased] section entirely if it exists
   const versionsOnly = restOfChangelog.replace(/## \[Unreleased\][\s\S]*?(?=\n## \[|$)/, '').trim();
   
   // Build new changelog with newest version at top

@@ -157,7 +157,7 @@ export default function EditTimeLabelsDialog({ isOpen, onClose, group, medicatio
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Add labels to identify time slots (e.g., "Slot 1", "Slot 2") for automatic pill dispensers.
+                  Add labels to identify time slots (e.g., &quot;Slot 1&quot;, &quot;Slot 2&quot;) for automatic pill dispensers.
                 </p>
                 
                 {uniqueTimes.map(timeKey => {
