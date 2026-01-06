@@ -152,11 +152,70 @@ export async function PUT(request, { params }) {
       updateData.group_id = groupId
     }
 
+    // First, verify the medication exists
+    const { data: medicationData, error: medicationError } = await supabaseWithAuth
+      .from('medications')
+      .select('id, user_id, group_id')
+      .eq('id', id)
+      .single()
+
+    if (medicationError) {
+      console.error('Medication check error:', medicationError)
+      if (medicationError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Medication not found' }, { status: 404 })
+      }
+      return NextResponse.json({ error: `Failed to verify medication: ${medicationError.message}` }, { status: 500 })
+    }
+
+    if (!medicationData) {
+      return NextResponse.json({ error: 'Medication not found' }, { status: 404 })
+    }
+
+    // Check if user owns the medication
+    const ownsMedication = medicationData.user_id === user.id
+
+    // If not owner, check if medication belongs to a shared group and user is Family or Admin
+    if (!ownsMedication) {
+      if (!medicationData.group_id) {
+        return NextResponse.json({ 
+          error: 'You do not have permission to update this medication' 
+        }, { status: 403 })
+      }
+
+      // Fetch the group to check if it's shared
+      const { data: group, error: groupError } = await supabaseWithAuth
+        .from('medication_groups')
+        .select('id, user_id, accessible_by')
+        .eq('id', medicationData.group_id)
+        .single()
+
+      if (groupError || !group) {
+        console.error('Error fetching group:', groupError)
+        return NextResponse.json({ 
+          error: 'You do not have permission to update this medication' 
+        }, { status: 403 })
+      }
+
+      if (group.accessible_by !== 'shared') {
+        return NextResponse.json({ 
+          error: 'You do not have permission to update this medication' 
+        }, { status: 403 })
+      }
+
+      // Check if user is Family or Admin (for shared groups)
+      if (!(await isFamilyOrAdmin(token))) {
+        return NextResponse.json({ 
+          error: 'You do not have permission to edit medications in shared groups' 
+        }, { status: 403 })
+      }
+    }
+
+    // Now perform the update
+    // Use RLS policies to handle permissions - don't filter by user_id since shared groups are allowed
     const { data: medication, error } = await supabaseWithAuth
       .from('medications')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id) // Ensure user owns the medication
       .select()
       .single()
 
@@ -199,11 +258,70 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // First, verify the medication exists
+    const { data: medicationData, error: medicationError } = await supabaseWithAuth
+      .from('medications')
+      .select('id, user_id, group_id')
+      .eq('id', id)
+      .single()
+
+    if (medicationError) {
+      console.error('Medication check error:', medicationError)
+      if (medicationError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Medication not found' }, { status: 404 })
+      }
+      return NextResponse.json({ error: `Failed to verify medication: ${medicationError.message}` }, { status: 500 })
+    }
+
+    if (!medicationData) {
+      return NextResponse.json({ error: 'Medication not found' }, { status: 404 })
+    }
+
+    // Check if user owns the medication
+    const ownsMedication = medicationData.user_id === user.id
+
+    // If not owner, check if medication belongs to a shared group and user is Family or Admin
+    if (!ownsMedication) {
+      if (!medicationData.group_id) {
+        return NextResponse.json({ 
+          error: 'You do not have permission to delete this medication' 
+        }, { status: 403 })
+      }
+
+      // Fetch the group to check if it's shared
+      const { data: group, error: groupError } = await supabaseWithAuth
+        .from('medication_groups')
+        .select('id, user_id, accessible_by')
+        .eq('id', medicationData.group_id)
+        .single()
+
+      if (groupError || !group) {
+        console.error('Error fetching group:', groupError)
+        return NextResponse.json({ 
+          error: 'You do not have permission to delete this medication' 
+        }, { status: 403 })
+      }
+
+      if (group.accessible_by !== 'shared') {
+        return NextResponse.json({ 
+          error: 'You do not have permission to delete this medication' 
+        }, { status: 403 })
+      }
+
+      // Check if user is Family or Admin (for shared groups)
+      if (!(await isFamilyOrAdmin(token))) {
+        return NextResponse.json({ 
+          error: 'You do not have permission to delete medications in shared groups' 
+        }, { status: 403 })
+      }
+    }
+
+    // Now perform the delete
+    // Use RLS policies to handle permissions - don't filter by user_id since shared groups are allowed
     const { error } = await supabaseWithAuth
       .from('medications')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id) // Ensure user owns the medication
 
     if (error) {
       console.error('Error deleting medication:', error)
