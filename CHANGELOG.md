@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [1.24.1] - 2026-01-06
+
+### Added
+- Add time labels to medication groups: Add time_labels column to medication_groups table
+
+### Changed
+- Improve changelog generation with detailed commit messages: Regenerate entire changelog from git history
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -307,4 +314,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - See commit history for detailed changes
-
