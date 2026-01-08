@@ -5,27 +5,30 @@ import { parseXGID } from '../utils/xgidParser'
 export default function BackgammonBoard({ 
   direction = 0, 
   player = 0, 
-  boardLabels = true, 
-  pointNumbers = true, 
+  showBoardLabels = true, 
+  showPointNumbers = true, 
   cubeOwner = 1, 
   cubeValue = 16, 
   useCube = true,
   xgid = null,
   ghostCheckers = {}, // Object mapping point numbers (1-24) to ghost checker counts, e.g. { 6: 2, 17: 1 }
   ghostCheckerPositions = {}, // Object mapping point numbers to arrays of stack positions, e.g. { 13: [5, 4] }
+  ghostCheckerOwners = {}, // Object mapping point numbers to owner ('black' or 'white') for ghost checkers
   moves = [], // Array of {from, to, fromStackPosition} point numbers for arrow rendering
-  dice = "00" // "00" = no dice, "XY" = dice values (e.g., "63" = 6 and 3)
+  dice = "00", // "00" = no dice, "XY" = dice values (e.g., "63" = 6 and 3)
+  showTrays = true // true = show trays with checkers, false = show normal border
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: 0 = WHITE (show WHITE's point numbers), 1 = BLACK (show BLACK's point numbers)
-  // boardLabels: true = show HOME and OUTER board labels, false = hide them
-  // pointNumbers: true = show point numbers based on player and direction, false = hide them
+  // showBoardLabels: true = show HOME and OUTER board labels, false = hide them
+  // showPointNumbers: true = show point numbers based on player and direction, false = hide them
   // cubeOwner: 0 = nobody owns (middle), 1 = white owns (near bottom), 2 = black owns (near top)
   // cubeValue: one of [2, 4, 8, 16, 32, 64]
   // useCube: true = show doubling cube, false = hide doubling cube
   // xgid: XGID string to specify board position
   // ghostCheckers: Object mapping point numbers to ghost checker counts (ghost checkers are semi-transparent, 70% opacity)
   // dice: "00" = no dice shown, "XY" = dice values (e.g., "63" = 6 and 3)
+  // showTrays: true = show trays with checkers, false = show normal border
   
   // Parse XGID if provided
   const boardState = xgid ? parseXGID(xgid) : {
@@ -61,10 +64,10 @@ export default function BackgammonBoard({
   
   // Border widths - initial calculation
   const initialTrayBorderWidth = BASE_BORDER_WIDTH * 1.5 * 1.15
-  let rightBorderWidth = direction === 0 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
-  let leftBorderWidth = direction === 1 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
-  const topBorderWidth = boardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
-  const bottomBorderWidth = boardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
+  let rightBorderWidth = showTrays && direction === 0 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
+  let leftBorderWidth = showTrays && direction === 1 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
+  const topBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
+  const bottomBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
   
   // Board dimensions
   let innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
@@ -93,8 +96,8 @@ export default function BackgammonBoard({
   const trayBorderPadding = trayWidth * 0.3
   const requiredTrayBorderWidth = trayWidth + 2 * trayBorderPadding
   
-  // Recalculate border widths if needed, then recalculate dependent values
-  if (direction === 0 && requiredTrayBorderWidth > rightBorderWidth) {
+  // Recalculate border widths if needed (only when showTrays is true), then recalculate dependent values
+  if (showTrays && direction === 0 && requiredTrayBorderWidth > rightBorderWidth) {
     rightBorderWidth = requiredTrayBorderWidth
     innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
     BAR_WIDTH = (innerWidth * 0.95) / (12 + 0.95)
@@ -103,7 +106,7 @@ export default function BackgammonBoard({
     checkerDiameter = pointWidth * 0.95
     checkerRadius = checkerDiameter / 2
     trayWidth = checkerDiameter
-  } else if (direction === 1 && requiredTrayBorderWidth > leftBorderWidth) {
+  } else if (showTrays && direction === 1 && requiredTrayBorderWidth > leftBorderWidth) {
     leftBorderWidth = requiredTrayBorderWidth
     innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
     BAR_WIDTH = (innerWidth * 0.95) / (12 + 0.95)
@@ -588,8 +591,9 @@ export default function BackgammonBoard({
     const totalVisualCount = normalCount + ghostCount // Total checkers to display visually
     
     // If there are no normal checkers but there are ghost checkers, we still need an owner for rendering
-    // Use the owner from ghostCheckerPositions if available, or default to white
-    const effectiveOwner = owner || (ghostCount > 0 ? 'bottom' : null)
+    // Use the owner from ghostCheckerOwners if available, otherwise use current owner, or default to white
+    const ghostOwner = ghostCheckerOwners[whitePointNumber]
+    const effectiveOwner = owner || (ghostOwner === 'black' ? 'top' : ghostOwner === 'white' ? 'bottom' : (ghostCount > 0 ? 'bottom' : null))
     
     let currentY = isTopHalf ? baseY + checkerRadius : baseY - checkerRadius
     const stackDirection = isTopHalf ? 1 : -1
@@ -648,7 +652,7 @@ export default function BackgammonBoard({
               r={checkerRadius}
               fill={fillColor}
               stroke="none"
-              opacity={0.7}
+              opacity={0.6}
             />
             {/* Orange overlay on ghost checker */}
             <circle
@@ -1014,7 +1018,7 @@ export default function BackgammonBoard({
           stroke={COLORS.stroke}
           strokeWidth={1}
         />
-        {pointNumbers && (
+        {showPointNumbers && (
           <text
             x={pointX + pointWidth / 2}
             y={labelY}
@@ -1092,12 +1096,12 @@ export default function BackgammonBoard({
         )}
         
         {/* Trays */}
-        {renderTray(true)}
-        {renderTray(false)}
+        {showTrays && renderTray(true)}
+        {showTrays && renderTray(false)}
         
         {/* Tray checkers */}
-        {renderTrayCheckers(true, topTrayBlackCount)}
-        {renderTrayCheckers(false, bottomTrayWhiteCount)}
+        {showTrays && renderTrayCheckers(true, topTrayBlackCount)}
+        {showTrays && renderTrayCheckers(false, bottomTrayWhiteCount)}
         
         {/* Doubling cube */}
         {renderDoublingCube()}
@@ -1106,7 +1110,7 @@ export default function BackgammonBoard({
         {renderDice()}
         
         {/* Board labels */}
-        {boardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
+        {showBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
         
         {/* Points */}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(0, i, true))}

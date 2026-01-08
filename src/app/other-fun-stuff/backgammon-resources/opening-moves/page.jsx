@@ -330,6 +330,7 @@ export default function OpeningMovesPage() {
                       let boardXGID = STARTING_XGID
                       let boardGhostCheckers = {}
                       let boardGhostCheckerPositions = {}
+                      let boardGhostCheckerOwners = {}
                       let boardMoves = []
                       
                       if (selectedChoice !== null && currentChoices[selectedChoice]) {
@@ -337,6 +338,7 @@ export default function OpeningMovesPage() {
                         boardXGID = selectedMoveResult.xgid
                         boardGhostCheckers = selectedMoveResult.ghostCheckers
                         boardGhostCheckerPositions = selectedMoveResult.ghostCheckerPositions
+                        boardGhostCheckerOwners = selectedMoveResult.ghostCheckerOwners || {}
                         boardMoves = selectedMoveResult.moves
                       }
                       
@@ -346,14 +348,16 @@ export default function OpeningMovesPage() {
                             <BackgammonBoard 
                               direction={0} 
                               player={0} 
-                              boardLabels={false} 
-                              pointNumbers={true}
+                              showBoardLabels={false} 
+                              showPointNumbers={true}
                               useCube={false}
                               xgid={boardXGID}
                               ghostCheckers={boardGhostCheckers}
                               ghostCheckerPositions={boardGhostCheckerPositions}
+                              ghostCheckerOwners={boardGhostCheckerOwners}
                               moves={boardMoves}
                               dice={getDiceString(currentRoll)}
+                              showTrays={false}
                             />
                           </div>
                         </div>
@@ -385,7 +389,7 @@ export default function OpeningMovesPage() {
                         const correctChoice = currentChoices.find(c => c.isCorrect)
                         moveResult = correctChoice 
                           ? applyMove(STARTING_XGID, correctChoice.move)
-                          : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, moves: [] }
+                          : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, ghostCheckerOwners: {}, moves: [] }
                       }
                       
                       return (
@@ -395,14 +399,16 @@ export default function OpeningMovesPage() {
                               <BackgammonBoard 
                                 direction={0} 
                                 player={0} 
-                                boardLabels={false} 
-                                pointNumbers={true}
+                                showBoardLabels={false} 
+                                showPointNumbers={true}
                                 useCube={false}
                                 xgid={moveResult.xgid}
                                 ghostCheckers={moveResult.ghostCheckers}
                                 ghostCheckerPositions={moveResult.ghostCheckerPositions}
+                                ghostCheckerOwners={moveResult.ghostCheckerOwners || {}}
                                 moves={moveResult.moves}
                                 dice={getDiceString(currentRoll)}
+                                showTrays={false}
                               />
                             </div>
                           </div>

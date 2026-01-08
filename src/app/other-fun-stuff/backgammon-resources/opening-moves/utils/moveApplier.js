@@ -1,21 +1,32 @@
 import { parseXGID } from './xgidParser'
 
 /**
+ * Convert point number from BLACK's perspective to WHITE's perspective
+ * BLACK's point 1 = WHITE's point 24, BLACK's point 13 = WHITE's point 12, etc.
+ */
+function convertBlackToWhitePoint(blackPoint) {
+  return 25 - blackPoint
+}
+
+/**
  * Apply a move to a board position and return the new XGID string and ghost checkers
  * @param {string} xgid - Starting XGID position
  * @param {string} move - Move in standard notation (e.g., "24/18 13/11")
+ * @param {string} player - 'white' or 'black' (default: 'white')
  * @returns {{ xgid: string, ghostCheckers: Object }} - New XGID string and ghost checkers object
  */
-export function applyMove(xgid, move) {
+export function applyMove(xgid, move, player = 'white') {
   if (!xgid || !move) {
-    return { xgid, ghostCheckers: {}, moves: [] }
+    return { xgid, ghostCheckers: {}, ghostCheckerPositions: {}, ghostCheckerOwners: {}, moves: [] }
   }
   
   // Parse the starting position
   const boardState = parseXGID(xgid)
   
-  // Track ghost checkers: object mapping point numbers to counts
+  // Track ghost checkers: object mapping point numbers to arrays of {position, owner}
   const ghostCheckers = {}
+  // Track ghost checker owners: object mapping point numbers to owner ('black' or 'white')
+  const ghostCheckerOwners = {}
   // Track moves for arrow rendering: array of {from, to, fromStackPosition} point numbers
   const moves = []
   
@@ -23,7 +34,16 @@ export function applyMove(xgid, move) {
   const moveSteps = move.trim().split(/\s+/).map(step => {
     const parts = step.split('/')
     if (parts.length !== 2) return null
-    return [parseInt(parts[0]), parseInt(parts[1])]
+    let fromPoint = parseInt(parts[0])
+    let toPoint = parseInt(parts[1])
+    
+    // Convert BLACK point numbers to WHITE point numbers if needed
+    if (player === 'black') {
+      fromPoint = convertBlackToWhitePoint(fromPoint)
+      toPoint = convertBlackToWhitePoint(toPoint)
+    }
+    
+    return [fromPoint, toPoint]
   }).filter(step => step !== null)
   
   // Apply each move step sequentially
@@ -39,11 +59,10 @@ export function applyMove(xgid, move) {
     // Can't move from empty point
     if (fromPointData.count === 0 || !fromPointData.owner) continue
     
-    // For opening moves, only WHITE moves
-    // Ensure we're moving WHITE's checkers
-    if (fromPointData.owner !== 'white') continue
+    // Ensure we're moving the correct player's checkers
+    if (fromPointData.owner !== player) continue
     
-    const movingPlayer = 'white'
+    const movingPlayer = player
     
     // Track the stack position of the checker being moved (from top of stack)
     // Position 1 is the top checker, position 2 is second from top, etc.
@@ -54,11 +73,13 @@ export function applyMove(xgid, move) {
     // The checker lands on top of any existing checkers
     const toStackPosition = toPointData.count + 1
     
-    // Add ghost checker at the original position
+    // Add ghost checker at the original position (store owner before removing checker)
     if (!ghostCheckers[fromPoint]) {
       ghostCheckers[fromPoint] = []
     }
     ghostCheckers[fromPoint].push(fromStackPosition)
+    // Store the owner for this ghost checker
+    ghostCheckerOwners[fromPoint] = movingPlayer
     
     // Track this move for arrow rendering with stack positions
     moves.push({ from: fromPoint, to: toPoint, fromStackPosition, toStackPosition })
@@ -100,6 +121,7 @@ export function applyMove(xgid, move) {
     xgid: boardStateToXGID(boardState),
     ghostCheckers: ghostCheckersCounts, // Counts for rendering
     ghostCheckerPositions: ghostCheckers, // Array of positions for each point
+    ghostCheckerOwners: ghostCheckerOwners, // Owner for each point with ghost checkers
     moves // Array of {from, to, fromStackPosition} for arrow rendering
   }
 }
