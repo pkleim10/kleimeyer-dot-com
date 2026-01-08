@@ -277,11 +277,12 @@ export default function OpeningMovesPage() {
                         <div className="rounded-lg shadow-lg border-2 border-gray-300 dark:border-gray-600 overflow-hidden">
                           <BackgammonBoard 
                             direction={0} 
-                            player={0} 
+                            player={1} 
                             boardLabels={false} 
                             pointNumbers={true}
                             useCube={false}
-                            xgid="-b----E-C---eE---c-e----B-"
+                            xgid="-b----D-C---eE---c-e----BA"
+                            dice="45"
                           />
                         </div>
                       </div>

@@ -10,7 +10,9 @@ export default function BackgammonBoard({
   cubeOwner = 1, 
   cubeValue = 16, 
   useCube = true,
-  xgid = null
+  xgid = null,
+  ghostCheckers = {}, // Object mapping point numbers (1-24) to ghost checker counts, e.g. { 6: 2, 17: 1 }
+  dice = "00" // "00" = no dice, "XY" = dice values (e.g., "63" = 6 and 3)
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: 0 = WHITE (show WHITE's point numbers), 1 = BLACK (show BLACK's point numbers)
@@ -20,6 +22,8 @@ export default function BackgammonBoard({
   // cubeValue: one of [2, 4, 8, 16, 32, 64]
   // useCube: true = show doubling cube, false = hide doubling cube
   // xgid: XGID string to specify board position
+  // ghostCheckers: Object mapping point numbers to ghost checker counts (ghost checkers are semi-transparent, 70% opacity)
+  // dice: "00" = no dice shown, "XY" = dice values (e.g., "63" = 6 and 3)
   
   // Parse XGID if provided
   const boardState = xgid ? parseXGID(xgid) : {
@@ -262,6 +266,104 @@ export default function BackgammonBoard({
     )
   }
   
+  // Helper: Get pip positions for a die value
+  const getPipPositions = (value) => {
+    const positions = {
+      1: [{ x: 0, y: 0 }], // center
+      2: [{ x: -1, y: -1 }, { x: 1, y: 1 }], // top-left, bottom-right
+      3: [{ x: -1, y: -1 }, { x: 0, y: 0 }, { x: 1, y: 1 }], // top-left, center, bottom-right
+      4: [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }], // corners
+      5: [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 0, y: 0 }, { x: -1, y: 1 }, { x: 1, y: 1 }], // corners + center
+      6: [{ x: -1, y: -1 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 }] // two columns
+    }
+    return positions[value] || []
+  }
+  
+  // Helper: Render dice
+  const renderDice = () => {
+    if (!dice || dice === "00") return null
+    
+    // Parse dice values
+    const die1 = parseInt(dice[0]) || 0
+    const die2 = parseInt(dice[1]) || 0
+    
+    if (die1 === 0 || die2 === 0) return null
+    
+    // Dice size
+    const dieSize = BAR_WIDTH * 0.8 // 80% of bar width
+    const dieRadius = dieSize / 2
+    const pipRadius = dieSize * 0.08 // 8% of die size
+    const pipSpacing = dieSize * 0.25 // 25% spacing for pips
+    
+    // Position dice in right half of board, between top and bottom boards
+    const diceY = topBorderWidth + innerHeight / 2 // Center vertically
+    const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75 // 75% across (right half)
+    const die1X = rightHalfCenterX - dieSize * 0.6 // First die slightly left
+    const die2X = rightHalfCenterX + dieSize * 0.6 // Second die slightly right
+    
+    // Dice colors based on player
+    const dieFill = player === 0 ? COLORS.checkerWhite : COLORS.checkerBlack
+    const pipFill = player === 0 ? COLORS.stroke : COLORS.checkerWhite
+    
+    const diceElements = []
+    
+    // Render first die
+    const pipPositions1 = getPipPositions(die1)
+    diceElements.push(
+      <g key="die-1">
+        <rect
+          x={die1X - dieRadius}
+          y={diceY - dieRadius}
+          width={dieSize}
+          height={dieSize}
+          rx={dieSize * 0.15}
+          ry={dieSize * 0.15}
+          fill={dieFill}
+          stroke={COLORS.stroke}
+          strokeWidth={2}
+        />
+        {pipPositions1.map((pos, i) => (
+          <circle
+            key={`pip-1-${i}`}
+            cx={die1X + pos.x * pipSpacing}
+            cy={diceY + pos.y * pipSpacing}
+            r={pipRadius}
+            fill={pipFill}
+          />
+        ))}
+      </g>
+    )
+    
+    // Render second die
+    const pipPositions2 = getPipPositions(die2)
+    diceElements.push(
+      <g key="die-2">
+        <rect
+          x={die2X - dieRadius}
+          y={diceY - dieRadius}
+          width={dieSize}
+          height={dieSize}
+          rx={dieSize * 0.15}
+          ry={dieSize * 0.15}
+          fill={dieFill}
+          stroke={COLORS.stroke}
+          strokeWidth={2}
+        />
+        {pipPositions2.map((pos, i) => (
+          <circle
+            key={`pip-2-${i}`}
+            cx={die2X + pos.x * pipSpacing}
+            cy={diceY + pos.y * pipSpacing}
+            r={pipRadius}
+            fill={pipFill}
+          />
+        ))}
+      </g>
+    )
+    
+    return <g>{diceElements}</g>
+  }
+  
   // Helper: Render board label
   const renderLabel = (text, x, y, baseline = 'middle') => (
     <text
@@ -470,21 +572,26 @@ export default function BackgammonBoard({
   }
   
   // Helper: Render checkers on a point
-  const renderCheckers = (pointX, baseY, tipY, isTopHalf, checkerCount, owner) => {
+  const renderCheckers = (pointX, baseY, tipY, isTopHalf, checkerCount, owner, whitePointNumber) => {
     if (checkerCount === 0 || !owner || owner === 'empty') return null
     
     const checkers = []
     const centerX = pointX + pointWidth / 2
     
+    // Get ghost checker count for this point (ghost checkers are always the last ones)
+    const ghostCount = ghostCheckers[whitePointNumber] || 0
+    const normalCount = checkerCount - ghostCount
+    
     let currentY = isTopHalf ? baseY + checkerRadius : baseY - checkerRadius
     const stackDirection = isTopHalf ? 1 : -1
     
-    const displayCount = Math.min(checkerCount, 5)
+    // Render normal checkers first
+    const normalDisplayCount = Math.min(normalCount, 5)
     const showCount = checkerCount > 5
     
-    for (let i = 0; i < displayCount; i++) {
+    for (let i = 0; i < normalDisplayCount; i++) {
       const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
-      const isLastChecker = i === displayCount - 1
+      const isLastNormalChecker = i === normalDisplayCount - 1 && ghostCount === 0
       
       checkers.push(
         <g key={`checker-${i}`}>
@@ -495,8 +602,9 @@ export default function BackgammonBoard({
             fill={fillColor}
             stroke={COLORS.stroke}
             strokeWidth={1}
+            opacity={1}
           />
-          {isLastChecker && showCount && (
+          {isLastNormalChecker && showCount && (
             <text
               x={centerX}
               y={currentY + 2}
@@ -513,6 +621,45 @@ export default function BackgammonBoard({
       )
       
       currentY += stackDirection * checkerDiameter
+    }
+    
+    // Render ghost checkers (semi-transparent, 70% opacity)
+    if (ghostCount > 0) {
+      const ghostDisplayCount = Math.min(ghostCount, 5)
+      const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
+      const isLastChecker = normalDisplayCount + ghostDisplayCount >= Math.min(checkerCount, 5)
+      
+      for (let i = 0; i < ghostDisplayCount; i++) {
+        checkers.push(
+          <g key={`ghost-checker-${i}`}>
+            <circle
+              cx={centerX}
+              cy={currentY}
+              r={checkerRadius}
+              fill={fillColor}
+              stroke={COLORS.stroke}
+              strokeWidth={1}
+              opacity={0.7}
+            />
+            {isLastChecker && showCount && (
+              <text
+                x={centerX}
+                y={currentY + 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={checkerRadius * 0.8}
+                fontWeight="bold"
+                fill={fillColor === COLORS.checkerWhite ? COLORS.stroke : COLORS.checkerWhite}
+                opacity={0.7}
+              >
+                {checkerCount}
+              </text>
+            )}
+          </g>
+        )
+        
+        currentY += stackDirection * checkerDiameter
+      }
     }
     
     return <g>{checkers}</g>
@@ -580,10 +727,9 @@ export default function BackgammonBoard({
     // Get checker data from boardState if xgid is provided
     let checkerCount = 0
     let checkerOwner = null
+    const whitePointNumber = getPointNumberWhite(quadrantIndex, pointIndex)
     
     if (xgid) {
-      // Find the WHITE point number for this quadrant/pointIndex
-      const whitePointNumber = getPointNumberWhite(quadrantIndex, pointIndex)
       if (whitePointNumber >= 1 && whitePointNumber <= 24) {
         const pointData = boardState.points[whitePointNumber - 1] // points array is 0-indexed
         checkerCount = pointData.count
@@ -612,7 +758,7 @@ export default function BackgammonBoard({
             {pointNumber}
           </text>
         )}
-        {renderCheckers(pointX, baseY, tipY, isTopHalf, checkerCount, checkerOwner)}
+        {renderCheckers(pointX, baseY, tipY, isTopHalf, checkerCount, checkerOwner, whitePointNumber)}
       </g>
     )
   }
@@ -680,6 +826,9 @@ export default function BackgammonBoard({
         
         {/* Doubling cube */}
         {renderDoublingCube()}
+        
+        {/* Dice */}
+        {renderDice()}
         
         {/* Board labels */}
         {boardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
