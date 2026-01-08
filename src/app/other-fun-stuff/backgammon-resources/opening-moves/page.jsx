@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { openingMovesData } from './openingMovesData'
 import BackgammonBoard from './components/BackgammonBoard'
+import { applyMove } from './utils/moveApplier'
 
 // Component to display a single die with pips
 function Die({ value }) {
@@ -50,6 +51,9 @@ export default function OpeningMovesPage() {
   const [showAnswer, setShowAnswer] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState(null)
   const [currentChoices, setCurrentChoices] = useState([])
+  
+  // Starting position XGID
+  const STARTING_XGID = "-b----E-C---eE---c-e----B-"
   
   // All 15 non-double opening rolls (higher number first)
   const allRolls = [
@@ -290,7 +294,7 @@ export default function OpeningMovesPage() {
                             boardLabels={false} 
                             pointNumbers={true}
                             useCube={false}
-                            xgid="-b----E-C---eE---c-e----B-"
+                            xgid={STARTING_XGID}
                             dice={getDiceString(currentRoll)}
                           />
                         </div>
@@ -309,32 +313,48 @@ export default function OpeningMovesPage() {
                       </div>
                     )}
 
-                    {/* Answer Image */}
+                    {/* Answer Board */}
+                    {showAnswer && currentRoll && (() => {
+                      // Find the correct move
+                      const correctChoice = currentChoices.find(c => c.isCorrect)
+                      const answerXGID = correctChoice 
+                        ? applyMove(STARTING_XGID, correctChoice.move)
+                        : STARTING_XGID
+                      
+                      return (
+                        <div className="space-y-6">
+                          <div className="flex justify-center">
+                            <div className="rounded-lg shadow-lg overflow-hidden">
+                              <BackgammonBoard 
+                                direction={0} 
+                                player={0} 
+                                boardLabels={false} 
+                                pointNumbers={true}
+                                useCube={false}
+                                xgid={answerXGID}
+                                dice={getDiceString(currentRoll)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    
+                    {/* Next and Finish Buttons */}
                     {showAnswer && (
-                      <div className="space-y-6">
-                        <div className="flex justify-center">
-                          <img
-                            src={getImagePath(currentRoll)}
-                            alt={`Opening move for ${currentRoll[0]}-${currentRoll[1]}`}
-                            className="max-w-full h-auto rounded-lg shadow-lg border-2 border-gray-300 dark:border-gray-600"
-                          />
-                        </div>
-
-                        {/* Next and Finish Buttons */}
-                        <div className="flex justify-center gap-4">
-                          <button
-                            onClick={handleNext}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                          >
-                            Next
-                          </button>
-                          <button
-                            onClick={handleFinish}
-                            className="px-6 py-3 bg-gray-500 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                          >
-                            Finish
-                          </button>
-                        </div>
+                      <div className="flex justify-center gap-4">
+                        <button
+                          onClick={handleNext}
+                          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        >
+                          Next
+                        </button>
+                        <button
+                          onClick={handleFinish}
+                          className="px-6 py-3 bg-gray-500 text-white font-semibold rounded-lg shadow-lg hover:bg-gray-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                          Finish
+                        </button>
                       </div>
                     )}
 
