@@ -767,8 +767,14 @@ export default function BackgammonBoard({
   const topTrayBlackCount = xgid ? (15 - boardState.blackBar - boardState.points.reduce((sum, p) => sum + (p.owner === 'black' ? p.count : 0), 0)) : 15
   const bottomTrayWhiteCount = xgid ? (15 - boardState.whiteBar - boardState.points.reduce((sum, p) => sum + (p.owner === 'white' ? p.count : 0), 0)) : 15
   
+  // Determine information bar text
+  const playerName = player === 0 ? 'WHITE' : 'BLACK'
+  const needsToRoll = !dice || dice === '00'
+  const actionText = needsToRoll ? 'to roll' : 'to play'
+  const infoText = `${playerName} ${actionText}`
+  
   return (
-    <div className="flex justify-center w-full">
+    <div className="flex flex-col items-center w-full">
       <svg
         width={BOARD_WIDTH}
         height={BOARD_HEIGHT}
@@ -839,6 +845,19 @@ export default function BackgammonBoard({
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(2, i, false))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(3, i, false))}
       </svg>
+      
+      {/* Information bar */}
+      <div 
+        className="w-full text-center py-3 px-4"
+        style={{
+          backgroundColor: '#4b5563', // dark grey
+          color: '#ffffff', // white font
+          width: `${BOARD_WIDTH}px`,
+          maxWidth: '100%'
+        }}
+      >
+        <span className="text-lg font-semibold">{infoText}</span>
+      </div>
     </div>
   )
 }

@@ -68,13 +68,26 @@ export default function OpeningMovesPage() {
   const screenColor = user?.user_metadata?.other_fun_stuff_background_color ??
                       user?.user_metadata?.just_for_me_background_color ?? '#f9fafb'
 
-  const getRandomRoll = () => {
-    const randomIndex = Math.floor(Math.random() * allRolls.length)
-    return allRolls[randomIndex]
+  // Roll two independent dice, re-roll if doubles
+  const rollDice = () => {
+    let die1, die2
+    do {
+      die1 = Math.floor(Math.random() * 6) + 1 // 1-6
+      die2 = Math.floor(Math.random() * 6) + 1 // 1-6
+    } while (die1 === die2) // Re-roll if doubles
+    
+    return [die1, die2] // Return in actual roll order
   }
 
+  // Get roll key for lookup (highest die first)
   const getRollKey = (roll) => {
-    return `${roll[0]}-${roll[1]}`
+    const sorted = [...roll].sort((a, b) => b - a) // Sort descending
+    return `${sorted[0]}-${sorted[1]}`
+  }
+  
+  // Get dice string for board display (actual roll order)
+  const getDiceString = (roll) => {
+    return `${roll[0]}${roll[1]}`
   }
 
   const shuffleArray = (array) => {
@@ -102,7 +115,7 @@ export default function OpeningMovesPage() {
   }
 
   const handleStartQuiz = () => {
-    const roll = getRandomRoll()
+    const roll = rollDice()
     setQuizStarted(true)
     setCurrentRoll(roll)
     setCurrentChoices(getChoicesForRoll(roll))
@@ -115,7 +128,7 @@ export default function OpeningMovesPage() {
   }
 
   const handleNext = () => {
-    const roll = getRandomRoll()
+    const roll = rollDice()
     setCurrentRoll(roll)
     setCurrentChoices(getChoicesForRoll(roll))
     setShowAnswer(false)
@@ -129,7 +142,9 @@ export default function OpeningMovesPage() {
   }
 
   const getImagePath = (roll) => {
-    const [higher, lower] = roll
+    // Sort roll so higher die comes first for image filename
+    const sorted = [...roll].sort((a, b) => b - a)
+    const [higher, lower] = sorted
     return `/backgammon/openings/open-${higher}-${lower}.png`
   }
 
@@ -223,12 +238,6 @@ export default function OpeningMovesPage() {
               <div className="space-y-6">
                 {currentRoll && (
                   <>
-                    {/* Dice Display */}
-                    <div className="flex justify-center items-center gap-6 py-8">
-                      <Die value={currentRoll[0]} />
-                      <Die value={currentRoll[1]} />
-                    </div>
-
                     {/* Choices */}
                     {currentChoices.length > 0 && (
                       <div className="space-y-3 mb-6">
@@ -262,7 +271,7 @@ export default function OpeningMovesPage() {
                                 } : undefined}
                               >
                                 <span className="font-mono text-gray-900 dark:text-white">
-                                  {getRollKey(currentRoll)}: {choice.move}
+                                  {choice.move}
                                 </span>
                               </div>
                             )
@@ -272,17 +281,17 @@ export default function OpeningMovesPage() {
                     )}
 
                     {/* Starting Position Board */}
-                    {!showAnswer && (
+                    {!showAnswer && currentRoll && (
                       <div className="flex justify-center mb-6">
-                        <div className="rounded-lg shadow-lg border-2 border-gray-300 dark:border-gray-600 overflow-hidden">
+                        <div className="rounded-lg shadow-lg overflow-hidden">
                           <BackgammonBoard 
                             direction={0} 
-                            player={1} 
+                            player={0} 
                             boardLabels={false} 
                             pointNumbers={true}
                             useCube={false}
-                            xgid="-b----D-C---eE---c-e----BA"
-                            dice="45"
+                            xgid="-b----E-C---eE---c-e----B-"
+                            dice={getDiceString(currentRoll)}
                           />
                         </div>
                       </div>
