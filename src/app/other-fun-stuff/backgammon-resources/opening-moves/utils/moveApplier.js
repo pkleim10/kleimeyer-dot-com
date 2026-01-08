@@ -1,16 +1,23 @@
 import { parseXGID } from './xgidParser'
 
 /**
- * Apply a move to a board position and return the new XGID string
+ * Apply a move to a board position and return the new XGID string and ghost checkers
  * @param {string} xgid - Starting XGID position
  * @param {string} move - Move in standard notation (e.g., "24/18 13/11")
- * @returns {string} - New XGID string after applying the move
+ * @returns {{ xgid: string, ghostCheckers: Object }} - New XGID string and ghost checkers object
  */
 export function applyMove(xgid, move) {
-  if (!xgid || !move) return xgid
+  if (!xgid || !move) {
+    return { xgid, ghostCheckers: {}, moves: [] }
+  }
   
   // Parse the starting position
   const boardState = parseXGID(xgid)
+  
+  // Track ghost checkers: object mapping point numbers to counts
+  const ghostCheckers = {}
+  // Track moves for arrow rendering: array of {from, to, fromStackPosition} point numbers
+  const moves = []
   
   // Parse move into individual steps (e.g., "24/18 13/11" -> [["24", "18"], ["13", "11"]])
   const moveSteps = move.trim().split(/\s+/).map(step => {
@@ -38,6 +45,24 @@ export function applyMove(xgid, move) {
     
     const movingPlayer = 'white'
     
+    // Track the stack position of the checker being moved (from top of stack)
+    // Position 1 is the top checker, position 2 is second from top, etc.
+    const fromStackPosition = fromPointData.count
+    
+    // Track the destination stack position (where the checker will land)
+    // Position 1 is the top checker, position 2 is second from top, etc.
+    // The checker lands on top of any existing checkers
+    const toStackPosition = toPointData.count + 1
+    
+    // Add ghost checker at the original position
+    if (!ghostCheckers[fromPoint]) {
+      ghostCheckers[fromPoint] = []
+    }
+    ghostCheckers[fromPoint].push(fromStackPosition)
+    
+    // Track this move for arrow rendering with stack positions
+    moves.push({ from: fromPoint, to: toPoint, fromStackPosition, toStackPosition })
+    
     // Remove checker from source point
     fromPointData.count--
     if (fromPointData.count === 0) {
@@ -64,8 +89,19 @@ export function applyMove(xgid, move) {
     toPointData.count++
   }
   
+  // Convert ghostCheckers from arrays to counts for backward compatibility
+  const ghostCheckersCounts = {}
+  for (const [point, positions] of Object.entries(ghostCheckers)) {
+    ghostCheckersCounts[point] = positions.length
+  }
+  
   // Convert board state back to XGID format
-  return boardStateToXGID(boardState)
+  return {
+    xgid: boardStateToXGID(boardState),
+    ghostCheckers: ghostCheckersCounts, // Counts for rendering
+    ghostCheckerPositions: ghostCheckers, // Array of positions for each point
+    moves // Array of {from, to, fromStackPosition} for arrow rendering
+  }
 }
 
 /**

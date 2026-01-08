@@ -12,6 +12,8 @@ export default function BackgammonBoard({
   useCube = true,
   xgid = null,
   ghostCheckers = {}, // Object mapping point numbers (1-24) to ghost checker counts, e.g. { 6: 2, 17: 1 }
+  ghostCheckerPositions = {}, // Object mapping point numbers to arrays of stack positions, e.g. { 13: [5, 4] }
+  moves = [], // Array of {from, to, fromStackPosition} point numbers for arrow rendering
   dice = "00" // "00" = no dice, "XY" = dice values (e.g., "63" = 6 and 3)
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
@@ -578,16 +580,17 @@ export default function BackgammonBoard({
     const checkers = []
     const centerX = pointX + pointWidth / 2
     
-    // Get ghost checker count for this point (ghost checkers are always the last ones)
+    // Get ghost checker count for this point (ghost checkers are rendered on top, in addition to normal checkers)
     const ghostCount = ghostCheckers[whitePointNumber] || 0
-    const normalCount = checkerCount - ghostCount
+    const normalCount = checkerCount // Normal checkers are what's in the XGID
+    const totalVisualCount = normalCount + ghostCount // Total checkers to display visually
     
     let currentY = isTopHalf ? baseY + checkerRadius : baseY - checkerRadius
     const stackDirection = isTopHalf ? 1 : -1
     
     // Render normal checkers first
     const normalDisplayCount = Math.min(normalCount, 5)
-    const showCount = checkerCount > 5
+    const showCount = totalVisualCount > 5
     
     for (let i = 0; i < normalDisplayCount; i++) {
       const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
@@ -604,7 +607,7 @@ export default function BackgammonBoard({
             strokeWidth={1}
             opacity={1}
           />
-          {isLastNormalChecker && showCount && (
+          {isLastNormalChecker && showCount && ghostCount === 0 && (
             <text
               x={centerX}
               y={currentY + 2}
@@ -623,11 +626,12 @@ export default function BackgammonBoard({
       currentY += stackDirection * checkerDiameter
     }
     
-    // Render ghost checkers (semi-transparent, 70% opacity)
+    // Render ghost checkers (semi-transparent, 70% opacity) on top of normal checkers
     if (ghostCount > 0) {
       const ghostDisplayCount = Math.min(ghostCount, 5)
       const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
-      const isLastChecker = normalDisplayCount + ghostDisplayCount >= Math.min(checkerCount, 5)
+      const isLastChecker = normalDisplayCount + ghostDisplayCount >= Math.min(totalVisualCount, 5)
+      const arrowColor = "#3B82F6" // Same color as arrows (blue)
       
       for (let i = 0; i < ghostDisplayCount; i++) {
         checkers.push(
@@ -637,9 +641,16 @@ export default function BackgammonBoard({
               cy={currentY}
               r={checkerRadius}
               fill={fillColor}
-              stroke={COLORS.stroke}
-              strokeWidth={1}
+              stroke="none"
               opacity={0.7}
+            />
+            {/* Orange overlay on ghost checker */}
+            <circle
+              cx={centerX}
+              cy={currentY}
+              r={checkerRadius}
+              fill={arrowColor}
+              opacity={0.3}
             />
             {isLastChecker && showCount && (
               <text
@@ -652,7 +663,7 @@ export default function BackgammonBoard({
                 fill={fillColor === COLORS.checkerWhite ? COLORS.stroke : COLORS.checkerWhite}
                 opacity={0.7}
               >
-                {checkerCount}
+                {totalVisualCount}
               </text>
             )}
           </g>
@@ -698,6 +709,134 @@ export default function BackgammonBoard({
       }
     }
     return null
+  }
+  
+  // Get checker coordinates for a point (for arrow rendering)
+  // stackPosition: 1-based from top of stack (1 = top checker, 2 = second from top, etc.)
+  const getCheckerCoordinates = (whitePointNumber, isGhost = false, stackPosition = null) => {
+    const pos = getPointPosition(whitePointNumber)
+    if (!pos) return null
+    
+    const { quadrantIndex, pointIndex } = pos
+    const isTopHalf = quadrantIndex === 0 || quadrantIndex === 1
+    const isRight = quadrantIndex === 0 || quadrantIndex === 3
+    const quadrantX = isRight ? rightQuadrantX : leftQuadrantX
+    const quadrantY = isTopHalf ? topBorderWidth : topBorderWidth + quadrantHeight
+    
+    const pointX = quadrantX + pointIndex * pointWidth
+    const baseY = isTopHalf ? quadrantY : quadrantY + quadrantHeight
+    const centerX = pointX + pointWidth / 2
+    
+    // Get checker count and owner from boardState
+    let checkerCount = 0
+    let checkerOwner = null
+    if (xgid && whitePointNumber >= 1 && whitePointNumber <= 24) {
+      const pointData = boardState.points[whitePointNumber - 1]
+      checkerCount = pointData.count
+      checkerOwner = pointData.owner
+    }
+    
+    // Starting Y position
+    let checkerY = isTopHalf ? baseY + checkerRadius : baseY - checkerRadius
+    const stackDirection = isTopHalf ? 1 : -1
+    
+    if (isGhost && stackPosition !== null) {
+      // Ghost checker at specific stack position (from original position)
+      // stackPosition is 1-based from top of ORIGINAL stack: 1 = top checker, 2 = second from top, etc.
+      // We need to calculate where this position would be in the original stack
+      // The original stack had checkerCount + ghostCount checkers
+      // Position 1 is at the top, so we need to count down from the top
+      const ghostCount = ghostCheckers[whitePointNumber] || 0
+      const originalStackSize = checkerCount + ghostCount
+      const positionFromTop = stackPosition - 1 // Convert to 0-based from top (0 = top, 1 = second, etc.)
+      checkerY += stackDirection * (positionFromTop * checkerDiameter)
+    } else if (isGhost) {
+      // Fallback: ghost checker is at the top of the stack (after normal checkers)
+      checkerY += stackDirection * (checkerCount * checkerDiameter)
+    } else {
+      // Normal checker - use stackPosition if provided, otherwise find the last normal checker position
+      if (stackPosition !== null) {
+        // stackPosition is 1-based from top: 1 = top checker, 2 = second from top, etc.
+        // If there are more than 5 checkers, positions 6+ should point to the 5th checker (the one with the count)
+        const maxDisplayPosition = Math.min(stackPosition, 5)
+        const positionFromTop = maxDisplayPosition - 1 // Convert to 0-based from top
+        checkerY += stackDirection * (positionFromTop * checkerDiameter)
+      } else {
+        // Fallback: find the last normal checker position
+        const normalDisplayCount = Math.min(checkerCount, 5)
+        checkerY += stackDirection * ((normalDisplayCount - 1) * checkerDiameter)
+      }
+    }
+    
+    return { x: centerX, y: checkerY }
+  }
+  
+  // Render arrows for moves
+  const renderMoveArrows = () => {
+    if (!moves || moves.length === 0) return null
+    
+    const arrows = moves.map((move, index) => {
+      // Use the stack positions from the move to get the correct checker positions
+      const fromCoords = getCheckerCoordinates(move.from, true, move.fromStackPosition) // Ghost checker at specific position
+      const toCoords = getCheckerCoordinates(move.to, false, move.toStackPosition) // Destination checker at specific position
+      
+      if (!fromCoords || !toCoords) return null
+      
+      // Calculate arrow path
+      const dx = toCoords.x - fromCoords.x
+      const dy = toCoords.y - fromCoords.y
+      const length = Math.sqrt(dx * dx + dy * dy)
+      const angle = Math.atan2(dy, dx)
+      
+      // Arrow head size (proportional to stroke width)
+      const arrowHeadSize = 24
+      const arrowHeadAngle = Math.PI / 6 // 30 degrees
+      
+      // Start point (slightly offset from ghost checker center)
+      const startOffset = checkerRadius + 2
+      const startX = fromCoords.x + Math.cos(angle) * startOffset
+      const startY = fromCoords.y + Math.sin(angle) * startOffset
+      
+      // End point (slightly offset from destination checker center)
+      const endOffset = checkerRadius + 2
+      const endX = toCoords.x - Math.cos(angle) * endOffset
+      const endY = toCoords.y - Math.sin(angle) * endOffset
+      
+      // Arrow head base point (where the line should end, slightly into the arrowhead to avoid gaps)
+      // Extend the line well into the arrowhead base to ensure no gap (overlap by 6 pixels)
+      const arrowHeadBaseOffset = arrowHeadSize - 6
+      const arrowHeadBaseX = endX - arrowHeadBaseOffset * Math.cos(angle)
+      const arrowHeadBaseY = endY - arrowHeadBaseOffset * Math.sin(angle)
+      
+      // Arrow head points (for orange fill) - triangle from tip to base
+      const arrowHeadX1 = endX - arrowHeadSize * Math.cos(angle - arrowHeadAngle)
+      const arrowHeadY1 = endY - arrowHeadSize * Math.sin(angle - arrowHeadAngle)
+      const arrowHeadX2 = endX - arrowHeadSize * Math.cos(angle + arrowHeadAngle)
+      const arrowHeadY2 = endY - arrowHeadSize * Math.sin(angle + arrowHeadAngle)
+      
+      return (
+        <g key={`arrow-${index}`}>
+          {/* Arrow line - extends slightly into arrowhead base */}
+          <line
+            x1={startX}
+            y1={startY}
+            x2={arrowHeadBaseX}
+            y2={arrowHeadBaseY}
+            stroke="#3B82F6"
+            strokeWidth={8}
+            opacity={0.8}
+          />
+          {/* Orange arrowhead - triangle from tip to base points */}
+          <polygon
+            points={`${endX},${endY} ${arrowHeadX1},${arrowHeadY1} ${arrowHeadBaseX},${arrowHeadBaseY} ${arrowHeadX2},${arrowHeadY2}`}
+            fill="#3B82F6"
+            opacity={0.8}
+          />
+        </g>
+      )
+    })
+    
+    return <g>{arrows}</g>
   }
   
   // Render a point (triangle) in a quadrant
@@ -844,6 +983,9 @@ export default function BackgammonBoard({
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(1, i, true))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(2, i, false))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(3, i, false))}
+        
+        {/* Move arrows - rendered last so they appear on top */}
+        {renderMoveArrows()}
       </svg>
       
       {/* Information bar */}

@@ -276,6 +276,11 @@ export default function OpeningMovesPage() {
                               >
                                 <span className="font-mono text-gray-900 dark:text-white">
                                   {choice.move}
+                                  {currentChoices.length === 1 && (
+                                    <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">
+                                      (FREEBIE!)
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             )
@@ -317,9 +322,9 @@ export default function OpeningMovesPage() {
                     {showAnswer && currentRoll && (() => {
                       // Find the correct move
                       const correctChoice = currentChoices.find(c => c.isCorrect)
-                      const answerXGID = correctChoice 
+                      const moveResult = correctChoice 
                         ? applyMove(STARTING_XGID, correctChoice.move)
-                        : STARTING_XGID
+                        : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, moves: [] }
                       
                       return (
                         <div className="space-y-6">
@@ -331,7 +336,10 @@ export default function OpeningMovesPage() {
                                 boardLabels={false} 
                                 pointNumbers={true}
                                 useCube={false}
-                                xgid={answerXGID}
+                                xgid={moveResult.xgid}
+                                ghostCheckers={moveResult.ghostCheckers}
+                                ghostCheckerPositions={moveResult.ghostCheckerPositions}
+                                moves={moveResult.moves}
                                 dice={getDiceString(currentRoll)}
                               />
                             </div>
