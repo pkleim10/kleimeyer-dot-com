@@ -112,7 +112,8 @@ export default function OpeningMovesPage() {
     const choices = moves.map(m => ({
       move: m.move,
       isCorrect: m.rank === 1,
-      rank: m.rank
+      rank: m.rank,
+      equity: m.equity
     }))
     
     return shuffleArray(choices)
@@ -129,6 +130,8 @@ export default function OpeningMovesPage() {
 
   const handleShowAnswer = () => {
     setShowAnswer(true)
+    // Reset selectedChoice when showing answer so it defaults to correct answer
+    setSelectedChoice(null)
   }
 
   const handleNext = () => {
@@ -263,25 +266,49 @@ export default function OpeningMovesPage() {
                                     : isSelected
                                     ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-700'
-                                } ${!showAnswer ? 'cursor-pointer hover:border-amber-400' : ''}`}
-                                onClick={!showAnswer ? () => setSelectedChoice(index) : undefined}
-                                role={!showAnswer ? 'button' : undefined}
-                                tabIndex={!showAnswer ? 0 : undefined}
-                                onKeyDown={!showAnswer ? (e) => {
+                                } cursor-pointer hover:border-amber-400`}
+                                onClick={() => setSelectedChoice(index)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault()
                                     setSelectedChoice(index)
                                   }
-                                } : undefined}
+                                }}
                               >
-                                <span className="font-mono text-gray-900 dark:text-white">
-                                  {choice.move}
-                                  {currentChoices.length === 1 && (
-                                    <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">
-                                      (FREEBIE!)
-                                    </span>
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono text-gray-900 dark:text-white">
+                                    {choice.move}
+                                    {showAnswer && choice.equity !== undefined && (
+                                      <span className="ml-2 text-gray-600 dark:text-gray-400">
+                                        ({choice.equity > 0 ? '+' : ''}{choice.equity.toFixed(4)})
+                                      </span>
+                                    )}
+                                    {currentChoices.length === 1 && (
+                                      <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">
+                                        (FREEBIE!)
+                                      </span>
+                                    )}
+                                  </span>
+                                  {showAnswer && (
+                                    <div className="flex-shrink-0 ml-4">
+                                      {isCorrect ? (
+                                        <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        </div>
+                                      ) : (
+                                        <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
+                                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
-                                </span>
+                                </div>
                               </div>
                             )
                           })}
@@ -289,22 +316,41 @@ export default function OpeningMovesPage() {
                       </div>
                     )}
 
-                    {/* Starting Position Board */}
-                    {!showAnswer && currentRoll && (
-                      <div className="flex justify-center mb-6">
-                        <div className="rounded-lg shadow-lg overflow-hidden">
-                          <BackgammonBoard 
-                            direction={0} 
-                            player={0} 
-                            boardLabels={false} 
-                            pointNumbers={true}
-                            useCube={false}
-                            xgid={STARTING_XGID}
-                            dice={getDiceString(currentRoll)}
-                          />
+                    {/* Board Display - Show selected move or starting position */}
+                    {!showAnswer && currentRoll && (() => {
+                      // If a choice is selected, show the board after applying that move
+                      let boardXGID = STARTING_XGID
+                      let boardGhostCheckers = {}
+                      let boardGhostCheckerPositions = {}
+                      let boardMoves = []
+                      
+                      if (selectedChoice !== null && currentChoices[selectedChoice]) {
+                        const selectedMoveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move)
+                        boardXGID = selectedMoveResult.xgid
+                        boardGhostCheckers = selectedMoveResult.ghostCheckers
+                        boardGhostCheckerPositions = selectedMoveResult.ghostCheckerPositions
+                        boardMoves = selectedMoveResult.moves
+                      }
+                      
+                      return (
+                        <div className="flex justify-center mb-6">
+                          <div className="rounded-lg shadow-lg overflow-hidden">
+                            <BackgammonBoard 
+                              direction={0} 
+                              player={0} 
+                              boardLabels={false} 
+                              pointNumbers={true}
+                              useCube={false}
+                              xgid={boardXGID}
+                              ghostCheckers={boardGhostCheckers}
+                              ghostCheckerPositions={boardGhostCheckerPositions}
+                              moves={boardMoves}
+                              dice={getDiceString(currentRoll)}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {/* Show Answer Button */}
                     {!showAnswer && (
@@ -318,13 +364,21 @@ export default function OpeningMovesPage() {
                       </div>
                     )}
 
-                    {/* Answer Board */}
+                    {/* Answer Board - Show selected choice or correct answer */}
                     {showAnswer && currentRoll && (() => {
-                      // Find the correct move
-                      const correctChoice = currentChoices.find(c => c.isCorrect)
-                      const moveResult = correctChoice 
-                        ? applyMove(STARTING_XGID, correctChoice.move)
-                        : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, moves: [] }
+                      // If a choice is selected, show that move; otherwise show the correct answer
+                      let moveResult
+                      
+                      if (selectedChoice !== null && currentChoices[selectedChoice]) {
+                        // Show the selected choice's move
+                        moveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move)
+                      } else {
+                        // Show the correct answer
+                        const correctChoice = currentChoices.find(c => c.isCorrect)
+                        moveResult = correctChoice 
+                          ? applyMove(STARTING_XGID, correctChoice.move)
+                          : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, moves: [] }
+                      }
                       
                       return (
                         <div className="space-y-6">
