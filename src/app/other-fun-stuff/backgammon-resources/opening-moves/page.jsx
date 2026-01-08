@@ -248,7 +248,7 @@ export default function OpeningMovesPage() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center">
                           {showAnswer ? 'Your selection and the correct answer:' : 'Select the best opening move:'}
                         </h3>
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {currentChoices.map((choice, index) => {
                             const isSelected = selectedChoice === index
                             const isCorrect = choice.isCorrect
@@ -308,7 +308,7 @@ export default function OpeningMovesPage() {
 
                     {/* Show Answer Button */}
                     {!showAnswer && (
-                      <div className="text-center">
+                      <div className="sticky bottom-0 bg-white dark:bg-slate-800 py-4 border-t border-gray-200 dark:border-gray-700 -mx-6 px-6 mt-6 text-center z-10">
                         <button
                           onClick={handleShowAnswer}
                           className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold rounded-lg shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
@@ -350,7 +350,7 @@ export default function OpeningMovesPage() {
                     
                     {/* Next and Finish Buttons */}
                     {showAnswer && (
-                      <div className="flex justify-center gap-4">
+                      <div className="sticky bottom-0 bg-white dark:bg-slate-800 py-4 border-t border-gray-200 dark:border-gray-700 -mx-6 px-6 mt-6 flex justify-center gap-4 z-10">
                         <button
                           onClick={handleNext}
                           className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
