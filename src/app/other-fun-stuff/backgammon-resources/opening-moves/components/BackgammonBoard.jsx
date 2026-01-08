@@ -575,15 +575,21 @@ export default function BackgammonBoard({
   
   // Helper: Render checkers on a point
   const renderCheckers = (pointX, baseY, tipY, isTopHalf, checkerCount, owner, whitePointNumber) => {
-    if (checkerCount === 0 || !owner || owner === 'empty') return null
+    // Get ghost checker count for this point (ghost checkers are rendered on top, in addition to normal checkers)
+    const ghostCount = ghostCheckers[whitePointNumber] || 0
+    
+    // If there are no checkers and no ghost checkers, don't render anything
+    if ((checkerCount === 0 || !owner || owner === 'empty') && ghostCount === 0) return null
     
     const checkers = []
     const centerX = pointX + pointWidth / 2
     
-    // Get ghost checker count for this point (ghost checkers are rendered on top, in addition to normal checkers)
-    const ghostCount = ghostCheckers[whitePointNumber] || 0
     const normalCount = checkerCount // Normal checkers are what's in the XGID
     const totalVisualCount = normalCount + ghostCount // Total checkers to display visually
+    
+    // If there are no normal checkers but there are ghost checkers, we still need an owner for rendering
+    // Use the owner from ghostCheckerPositions if available, or default to white
+    const effectiveOwner = owner || (ghostCount > 0 ? 'bottom' : null)
     
     let currentY = isTopHalf ? baseY + checkerRadius : baseY - checkerRadius
     const stackDirection = isTopHalf ? 1 : -1
@@ -593,7 +599,7 @@ export default function BackgammonBoard({
     const showCount = totalVisualCount > 5
     
     for (let i = 0; i < normalDisplayCount; i++) {
-      const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
+      const fillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
       const isLastNormalChecker = i === normalDisplayCount - 1 && ghostCount === 0
       
       checkers.push(
@@ -629,7 +635,7 @@ export default function BackgammonBoard({
     // Render ghost checkers (semi-transparent, 70% opacity) on top of normal checkers
     if (ghostCount > 0) {
       const ghostDisplayCount = Math.min(ghostCount, 5)
-      const fillColor = owner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
+      const fillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
       const isLastChecker = normalDisplayCount + ghostDisplayCount >= Math.min(totalVisualCount, 5)
       const arrowColor = "#3B82F6" // Same color as arrows (blue)
       

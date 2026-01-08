@@ -50,6 +50,7 @@ export default function OpeningMovesPage() {
   const [currentRoll, setCurrentRoll] = useState(null)
   const [showAnswer, setShowAnswer] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState(null)
+  const [userSelectedChoice, setUserSelectedChoice] = useState(null) // Track user's selection before showing answer
   const [currentChoices, setCurrentChoices] = useState([])
   
   // Starting position XGID
@@ -129,6 +130,8 @@ export default function OpeningMovesPage() {
   }
 
   const handleShowAnswer = () => {
+    // Save the user's selection before showing answer
+    setUserSelectedChoice(selectedChoice)
     setShowAnswer(true)
     // Reset selectedChoice when showing answer so it defaults to correct answer
     setSelectedChoice(null)
@@ -140,6 +143,7 @@ export default function OpeningMovesPage() {
     setCurrentChoices(getChoicesForRoll(roll))
     setShowAnswer(false)
     setSelectedChoice(null)
+    setUserSelectedChoice(null)
   }
 
   const handleFinish = () => {
@@ -255,7 +259,9 @@ export default function OpeningMovesPage() {
                           {currentChoices.map((choice, index) => {
                             const isSelected = selectedChoice === index
                             const isCorrect = choice.isCorrect
+                            const wasUserSelection = showAnswer && userSelectedChoice === index
                             const showCorrect = showAnswer && isCorrect
+                            const showIncorrect = showAnswer && wasUserSelection && !isCorrect
                             
                             return (
                               <div
@@ -263,6 +269,8 @@ export default function OpeningMovesPage() {
                                 className={`p-4 text-left rounded-lg border-2 transition-all ${
                                   showCorrect
                                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                                    : showIncorrect
+                                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
                                     : isSelected
                                     ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-700'
