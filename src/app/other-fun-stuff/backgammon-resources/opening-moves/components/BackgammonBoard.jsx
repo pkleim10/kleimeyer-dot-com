@@ -794,47 +794,171 @@ export default function BackgammonBoard({
       const length = Math.sqrt(dx * dx + dy * dy)
       const angle = Math.atan2(dy, dx)
       
-      // Arrow head size (proportional to stroke width)
-      const arrowHeadSize = 24
-      const arrowHeadAngle = Math.PI / 6 // 30 degrees
+      // Arrow head size (reduced by 10 pixels from original 24, wider angle for visibility)
+      const arrowHeadSize = 24 - 10 // 14 pixels
+      const arrowHeadAngle = Math.PI / 4 // 45 degrees (wider than original 30 degrees)
       
-      // Start point (slightly offset from ghost checker center)
-      const startOffset = checkerRadius + 2
-      const startX = fromCoords.x + Math.cos(angle) * startOffset
-      const startY = fromCoords.y + Math.sin(angle) * startOffset
+      // Start point (at center of ghost checker)
+      const startX = fromCoords.x
+      const startY = fromCoords.y
       
-      // End point (slightly offset from destination checker center)
-      const endOffset = checkerRadius + 2
-      const endX = toCoords.x - Math.cos(angle) * endOffset
-      const endY = toCoords.y - Math.sin(angle) * endOffset
+      // End point (at center of destination checker)
+      const endX = toCoords.x
+      const endY = toCoords.y
       
-      // Arrow head base point (where the line should end, slightly into the arrowhead to avoid gaps)
-      // Extend the line well into the arrowhead base to ensure no gap (overlap by 6 pixels)
-      const arrowHeadBaseOffset = arrowHeadSize - 6
-      const arrowHeadBaseX = endX - arrowHeadBaseOffset * Math.cos(angle)
-      const arrowHeadBaseY = endY - arrowHeadBaseOffset * Math.sin(angle)
+      // Arrow head base point (where the line should end, accounting for checker radius)
+      // The arrow line stops at the checker edge
+      const checkerEdgeOffset = checkerRadius
+      const arrowHeadBaseX = endX - checkerEdgeOffset * Math.cos(angle)
+      const arrowHeadBaseY = endY - checkerEdgeOffset * Math.sin(angle)
       
-      // Arrow head points (for orange fill) - triangle from tip to base
-      const arrowHeadX1 = endX - arrowHeadSize * Math.cos(angle - arrowHeadAngle)
-      const arrowHeadY1 = endY - arrowHeadSize * Math.sin(angle - arrowHeadAngle)
-      const arrowHeadX2 = endX - arrowHeadSize * Math.cos(angle + arrowHeadAngle)
-      const arrowHeadY2 = endY - arrowHeadSize * Math.sin(angle + arrowHeadAngle)
+      // Arrow head base points - triangle with tip at checker center, base at checker edge
+      const arrowHeadX1 = arrowHeadBaseX - arrowHeadSize * Math.cos(angle - arrowHeadAngle)
+      const arrowHeadY1 = arrowHeadBaseY - arrowHeadSize * Math.sin(angle - arrowHeadAngle)
+      const arrowHeadX2 = arrowHeadBaseX - arrowHeadSize * Math.cos(angle + arrowHeadAngle)
+      const arrowHeadY2 = arrowHeadBaseY - arrowHeadSize * Math.sin(angle + arrowHeadAngle)
+      
+      // Center of arrowhead base (where shaft should end)
+      const arrowHeadBaseCenterX = (arrowHeadX1 + arrowHeadX2) / 2
+      const arrowHeadBaseCenterY = (arrowHeadY1 + arrowHeadY2) / 2
+      
+      // Calculate curved base arc - arc connecting the two base points with checker radius
+      // The arc curves inward (toward the arrow tip)
+      const arcRadius = checkerRadius
+      
+      // Calculate angles from tip to each base point
+      const angleToPoint1 = Math.atan2(arrowHeadY1 - endY, arrowHeadX1 - endX)
+      const angleToPoint2 = Math.atan2(arrowHeadY2 - endY, arrowHeadX2 - endX)
+      
+      // Calculate the midpoint of the base
+      const baseMidX = (arrowHeadX1 + arrowHeadX2) / 2
+      const baseMidY = (arrowHeadY1 + arrowHeadY2) / 2
+      
+      // Direction from tip to base midpoint
+      const tipToMidX = baseMidX - endX
+      const tipToMidY = baseMidY - endY
+      const tipToMidDist = Math.sqrt(tipToMidX * tipToMidX + tipToMidY * tipToMidY)
+      
+      // Arc center is offset from base midpoint toward tip, then perpendicular
+      // to create an arc that curves inward
+      const baseDist = Math.sqrt(
+        Math.pow(arrowHeadX2 - arrowHeadX1, 2) + Math.pow(arrowHeadY2 - arrowHeadY1, 2)
+      ) / 2
+      
+      // Ensure arc radius is valid (must be >= baseDist)
+      // If baseDist is too large, fall back to straight line
+      if (baseDist >= arcRadius) {
+        // Fallback to straight line if arc radius too small
+        return (
+          <g key={`arrow-${index}`}>
+            <line
+              x1={startX}
+              y1={startY}
+              x2={arrowHeadBaseCenterX}
+              y2={arrowHeadBaseCenterY}
+              stroke="#3B82F6"
+              strokeWidth={8}
+              opacity={0.8}
+            />
+            <polygon
+              points={`${endX},${endY} ${arrowHeadX1},${arrowHeadY1} ${arrowHeadX2},${arrowHeadY2}`}
+              fill="#3B82F6"
+              opacity={0.8}
+            />
+          </g>
+        )
+      }
+      const distToCenter = Math.sqrt(arcRadius * arcRadius - baseDist * baseDist)
+      
+      // Perpendicular direction (normalized)
+      const perpVecX = -(arrowHeadY2 - arrowHeadY1)
+      const perpVecY = arrowHeadX2 - arrowHeadX1
+      const perpVecLen = Math.sqrt(perpVecX * perpVecX + perpVecY * perpVecY)
+      if (perpVecLen === 0) {
+        // Fallback to straight line if points are too close
+        return (
+          <g key={`arrow-${index}`}>
+            <line
+              x1={startX}
+              y1={startY}
+              x2={arrowHeadBaseCenterX}
+              y2={arrowHeadBaseCenterY}
+              stroke="#3B82F6"
+              strokeWidth={8}
+              opacity={0.8}
+            />
+            <polygon
+              points={`${endX},${endY} ${arrowHeadX1},${arrowHeadY1} ${arrowHeadX2},${arrowHeadY2}`}
+              fill="#3B82F6"
+              opacity={0.8}
+            />
+          </g>
+        )
+      }
+      
+      const perpX = perpVecX / perpVecLen
+      const perpY = perpVecY / perpVecLen
+      
+      // Choose perpendicular direction that points toward tip
+      const perpToTip1 = (baseMidX + distToCenter * perpX - endX) * tipToMidX + 
+                         (baseMidY + distToCenter * perpY - endY) * tipToMidY
+      const usePositivePerp = perpToTip1 > 0
+      
+      const arcCenterX = baseMidX + (usePositivePerp ? distToCenter : -distToCenter) * perpX
+      const arcCenterY = baseMidY + (usePositivePerp ? distToCenter : -distToCenter) * perpY
+      
+      // Calculate angles from arc center to base points
+      const arcAngle1 = Math.atan2(arrowHeadY1 - arcCenterY, arrowHeadX1 - arcCenterX)
+      const arcAngle2 = Math.atan2(arrowHeadY2 - arcCenterY, arrowHeadX2 - arcCenterX)
+      
+      // Determine sweep direction - we want the arc that curves toward the tip
+      const centerToTipX = endX - arcCenterX
+      const centerToTipY = endY - arcCenterY
+      const centerToTipAngle = Math.atan2(centerToTipY, centerToTipX)
+      
+      // Check which sweep direction puts the arc midpoint closer to tip
+      let angleDiff1 = arcAngle2 - arcAngle1
+      while (angleDiff1 < 0) angleDiff1 += Math.PI * 2
+      while (angleDiff1 >= Math.PI * 2) angleDiff1 -= Math.PI * 2
+      
+      const midAngle1 = arcAngle1 + angleDiff1 / 2
+      const midAngle2 = arcAngle1 + (angleDiff1 > Math.PI ? angleDiff1 - Math.PI * 2 : angleDiff1) / 2
+      
+      const midPoint1X = arcCenterX + arcRadius * Math.cos(midAngle1)
+      const midPoint1Y = arcCenterY + arcRadius * Math.sin(midAngle1)
+      const midPoint2X = arcCenterX + arcRadius * Math.cos(midAngle2)
+      const midPoint2Y = arcCenterY + arcRadius * Math.sin(midAngle2)
+      
+      const dist1 = Math.sqrt(Math.pow(endX - midPoint1X, 2) + Math.pow(endY - midPoint1Y, 2))
+      const dist2 = Math.sqrt(Math.pow(endX - midPoint2X, 2) + Math.pow(endY - midPoint2Y, 2))
+      
+      // Always use small arc (largeArcFlag = 0) to avoid full circles
+      // Choose sweep direction that curves toward tip
+      const useSweep1 = dist1 < dist2
+      const largeArcFlag = 0 // Always use small arc
+      const sweepFlag = useSweep1 ? 1 : 0
+      
+      // Use the original base center and extend forward slightly to connect with curved base
+      // Extend by about 4 pixels along the arrow direction
+      const extendForward = 4
+      const shaftEndX = arrowHeadBaseCenterX + extendForward * Math.cos(angle)
+      const shaftEndY = arrowHeadBaseCenterY + extendForward * Math.sin(angle)
       
       return (
         <g key={`arrow-${index}`}>
-          {/* Arrow line - extends slightly into arrowhead base */}
+          {/* Arrow line - extends to curved base midpoint */}
           <line
             x1={startX}
             y1={startY}
-            x2={arrowHeadBaseX}
-            y2={arrowHeadBaseY}
+            x2={shaftEndX}
+            y2={shaftEndY}
             stroke="#3B82F6"
             strokeWidth={8}
             opacity={0.8}
           />
-          {/* Orange arrowhead - triangle from tip to base points */}
-          <polygon
-            points={`${endX},${endY} ${arrowHeadX1},${arrowHeadY1} ${arrowHeadBaseX},${arrowHeadBaseY} ${arrowHeadX2},${arrowHeadY2}`}
+          {/* Blue arrowhead with curved base matching checker radius */}
+          <path
+            d={`M ${endX} ${endY} L ${arrowHeadX1} ${arrowHeadY1} A ${arcRadius} ${arcRadius} 0 ${largeArcFlag} ${sweepFlag} ${arrowHeadX2} ${arrowHeadY2} Z`}
             fill="#3B82F6"
             opacity={0.8}
           />
