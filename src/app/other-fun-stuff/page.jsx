@@ -94,6 +94,34 @@ export default function OtherFunStuffPage() {
               </div>
             </div>
           </Link>
+
+          {/* Backgammon Resources App */}
+          <Link href="/other-fun-stuff/backgammon-resources" className="group w-full max-w-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+              <div className="relative h-48 bg-gradient-to-br from-amber-500 to-orange-600">
+                <div className="absolute inset-0 bg-black/20" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg className="w-24 h-24 text-white opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="p-6 flex-1 flex flex-col">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors duration-300">
+                  Backgammon Resources
+                </h2>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Learn and practice backgammon opening moves
+                </p>
+                <div className="mt-auto flex items-center text-amber-600 dark:text-amber-400 group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors duration-300">
+                  <span className="text-sm font-medium">Get Started</span>
+                  <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
           </div>
         </div>
       </div>
