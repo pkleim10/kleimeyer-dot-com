@@ -112,6 +112,7 @@ export default function BackgammonBoard({
   // Use localSettings for rendering if user has overridden, otherwise use XGID/props
   const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
   const activeShowTrays = localSettings?.showTrays !== undefined ? localSettings.showTrays : showTrays
+  const activeShowBoardLabels = localSettings?.showBoardLabels !== undefined ? localSettings.showBoardLabels : showBoardLabels
   
   // Override with localSettings only if user has explicitly changed them, otherwise use XGID/props
   const finalEffectivePlayer = localSettings?.player !== undefined ? localSettings.player : effectivePlayer
@@ -124,12 +125,19 @@ export default function BackgammonBoard({
   const initialTrayBorderWidth = BASE_BORDER_WIDTH * 1.5 * 1.15
   let rightBorderWidth = activeShowTrays && activeDirection === 0 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
   let leftBorderWidth = activeShowTrays && activeDirection === 1 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
-  const topBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
-  const bottomBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
+  const topBorderWidth = activeShowBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
+  const bottomBorderWidth = activeShowBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
   
-  // Board dimensions
+  // Calculate effective board height - increase total height when labels are shown to keep playing area constant
+  // Base innerHeight = BOARD_HEIGHT - 2 * BASE_BORDER_WIDTH
+  // When labels are shown, we add extra height to accommodate thicker borders while keeping innerHeight the same
+  const extraTopBorderHeight = topBorderWidth - BASE_BORDER_WIDTH
+  const extraBottomBorderHeight = bottomBorderWidth - BASE_BORDER_WIDTH
+  const effectiveBoardHeight = BOARD_HEIGHT + extraTopBorderHeight + extraBottomBorderHeight
+  
+  // Board dimensions - innerHeight stays constant regardless of border thickness
   let innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
-  const innerHeight = BOARD_HEIGHT - topBorderWidth - bottomBorderWidth
+  const innerHeight = effectiveBoardHeight - topBorderWidth - bottomBorderWidth
   
   // Calculate BAR_WIDTH to equal checker diameter
   let BAR_WIDTH = (innerWidth * 0.95) / (12 + 0.95)
@@ -452,7 +460,7 @@ export default function BackgammonBoard({
     const leftX = leftBorderWidth + quarterWidth
     const rightX = leftBorderWidth + innerWidth / 2 + quarterWidth
     const topY = 5
-    const bottomY = BOARD_HEIGHT - 5
+    const bottomY = effectiveBoardHeight - 5
     
     if (activeDirection === 0) {
       return [
@@ -1073,7 +1081,7 @@ export default function BackgammonBoard({
     
     const labelY = isTopHalf 
       ? topBorderWidth - ONE_REM
-      : BOARD_HEIGHT - bottomBorderWidth + ONE_REM
+      : effectiveBoardHeight - bottomBorderWidth + ONE_REM
     
     // Get checker data from boardState if xgid is provided
     let checkerCount = 0
@@ -1166,7 +1174,8 @@ export default function BackgammonBoard({
     cubeValue: finalEffectiveCubeValue,
     useCube: finalEffectiveUseCube,
     dice: finalEffectiveDice,
-    showTrays: activeShowTrays
+    showTrays: activeShowTrays,
+    showBoardLabels: activeShowBoardLabels
   }
   
   const handleSettingsChange = (key, value) => {
@@ -1391,6 +1400,20 @@ export default function BackgammonBoard({
                   Show Trays
                 </label>
               </div>
+              
+              {/* Show Board Labels */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="showBoardLabels"
+                  checked={dialogSettings.showBoardLabels}
+                  onChange={(e) => handleSettingsChange('showBoardLabels', e.target.checked)}
+                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                />
+                <label htmlFor="showBoardLabels" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Show Board Labels
+                </label>
+              </div>
             </div>
             
             <div className="flex justify-end gap-3 mt-6">
@@ -1412,8 +1435,8 @@ export default function BackgammonBoard({
       )}
       <svg
         width={BOARD_WIDTH}
-        height={BOARD_HEIGHT}
-        viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`}
+        height={effectiveBoardHeight}
+        viewBox={`0 0 ${BOARD_WIDTH} ${effectiveBoardHeight}`}
         className="backgammon-board max-w-full"
         preserveAspectRatio="xMidYMid meet"
       >
@@ -1422,7 +1445,7 @@ export default function BackgammonBoard({
           x="0"
           y="0"
           width={BOARD_WIDTH}
-          height={BOARD_HEIGHT}
+          height={effectiveBoardHeight}
           fill={COLORS.border}
         />
         
@@ -1472,7 +1495,7 @@ export default function BackgammonBoard({
         {renderDice()}
         
         {/* Board labels */}
-        {showBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
+        {activeShowBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
         
         {/* Points */}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(0, i, true))}
@@ -1487,7 +1510,7 @@ export default function BackgammonBoard({
         {displayXGID && (
           <text
             x={BOARD_WIDTH / 2}
-            y={BOARD_HEIGHT - bottomBorderWidth / 2 + 5 + ONE_REM / 2}
+            y={effectiveBoardHeight - bottomBorderWidth / 2 + 5 + ONE_REM / 2}
             textAnchor="middle"
             fontSize="12"
             fill={COLORS.stroke}

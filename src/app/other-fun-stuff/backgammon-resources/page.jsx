@@ -65,6 +65,18 @@ export default function BackgammonResourcesPage() {
                   Test your knowledge of backgammon opening moves. Learn the optimal moves for all 15 unique opening rolls.
                 </p>
               </Link>
+              
+              <Link
+                href="/other-fun-stuff/backgammon-resources/board-editor"
+                className="block p-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-lg border-2 border-amber-200 dark:border-amber-800 hover:border-amber-400 dark:hover:border-amber-600 transition-all duration-300 hover:shadow-lg"
+              >
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Board Editor
+                </h2>
+                <p className="text-gray-700 dark:text-gray-300">
+                  Edit and configure backgammon board settings. Adjust player perspective, cube settings, dice, and more.
+                </p>
+              </Link>
             </div>
           </div>
         </div>

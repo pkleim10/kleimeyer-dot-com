@@ -25,6 +25,9 @@ const getNavigationContext = (pathname) => {
   if (pathname.startsWith('/other-fun-stuff/medication/group/')) return { app: 'otherFunStuff', section: 'medication', page: 'medication-group' }
   if (pathname.startsWith('/other-fun-stuff/medication')) return { app: 'otherFunStuff', section: 'medication', page: 'medication' }
   if (pathname.startsWith('/other-fun-stuff/magic-playlists')) return { app: 'otherFunStuff', section: 'magic-playlists', page: 'magic-playlists' }
+  if (pathname.startsWith('/other-fun-stuff/backgammon-resources/opening-moves')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'opening-moves' }
+  if (pathname.startsWith('/other-fun-stuff/backgammon-resources/board-editor')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'board-editor' }
+  if (pathname.startsWith('/other-fun-stuff/backgammon-resources')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'backgammon-resources' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
     if (pathname === '/recipe/search') return { app: 'recipes', section: 'search', page: 'search' }
@@ -125,6 +128,13 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         }
       } else if (context.section === 'magic-playlists') {
         breadcrumbs.push({ name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: true })
+      } else if (context.section === 'backgammon-resources') {
+        breadcrumbs.push({ name: 'Backgammon Resources', href: '/other-fun-stuff/backgammon-resources', current: context.page === 'backgammon-resources' })
+        if (context.page === 'opening-moves') {
+          breadcrumbs.push({ name: 'Opening Moves Quiz', href: '/other-fun-stuff/backgammon-resources/opening-moves', current: true })
+        } else if (context.page === 'board-editor') {
+          breadcrumbs.push({ name: 'Board Editor', href: '/other-fun-stuff/backgammon-resources/board-editor', current: true })
+        }
       }
       break
     case 'admin':
@@ -168,6 +178,7 @@ const getAppNavigation = (context, user, canManageUsers) => {
         { name: 'Other Fun Stuff', href: '/other-fun-stuff', current: context.section === 'home' },
         { name: 'Medication Management', href: '/other-fun-stuff/medication', current: context.section === 'medication' },
         { name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: context.section === 'magic-playlists' },
+        { name: 'Backgammon Resources', href: '/other-fun-stuff/backgammon-resources', current: context.section === 'backgammon-resources' },
         { name: 'Select Background', href: '/other-fun-stuff?action=select-background', current: false, isAction: true }
       ]
     case 'admin':
