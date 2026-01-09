@@ -12,6 +12,8 @@ export default function BoardEditorPage() {
   const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10"
   
   const [currentPlayer, setCurrentPlayer] = useState(1) // Track current player: -1 = black, 1 = white
+  const [boardXGID, setBoardXGID] = useState(STARTING_XGID) // Track board state
+  const [editingMode, setEditingMode] = useState('free') // 'free' or 'play'
   
   const backgroundUrl = user?.user_metadata?.other_fun_stuff_background ||
                         user?.user_metadata?.just_for_me_background ||
@@ -71,15 +73,48 @@ export default function BoardEditorPage() {
                 </p>
               </div>
 
+              {/* Editing Mode Toggle and Start Button */}
+              <div className="flex justify-center mb-4">
+                <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-1">
+                  <button
+                    onClick={() => setEditingMode('free')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      editingMode === 'free'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    EDIT
+                  </button>
+                  <button
+                    onClick={() => setEditingMode('play')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      editingMode === 'play'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    PLAY
+                  </button>
+                  <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                  <button
+                    onClick={() => setBoardXGID(STARTING_XGID)}
+                    className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    Start
+                  </button>
+                </div>
+              </div>
+
               {/* Board Display */}
               <div className="flex justify-center">
                 <div className="rounded-lg shadow-lg overflow-hidden">
                   <BackgammonBoard 
                     direction={0} 
-                    showBoardLabels={true} 
+                    showBoardLabels={false} 
                     showPointNumbers={true}
                     useCube={true}
-                    xgid={STARTING_XGID}
+                    xgid={boardXGID}
                     ghostCheckers={{}}
                     ghostCheckerPositions={{}}
                     ghostCheckerOwners={{}}
@@ -87,8 +122,22 @@ export default function BoardEditorPage() {
                     dice="00"
                     showTrays={true}
                     onPlayerChange={setCurrentPlayer}
+                    showOptions={true}
+                    isEditable={true}
+                    editingMode={editingMode}
+                    onChange={setBoardXGID}
                   />
                 </div>
+              </div>
+              
+              {/* XGID Display */}
+              <div className="mt-4 p-4 bg-gray-100 dark:bg-slate-700 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Current XGID:
+                </label>
+                <code className="text-sm font-mono text-gray-900 dark:text-white break-all">
+                  {boardXGID}
+                </code>
               </div>
 
               <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
