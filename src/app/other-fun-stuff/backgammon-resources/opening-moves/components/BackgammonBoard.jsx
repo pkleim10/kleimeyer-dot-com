@@ -4,11 +4,11 @@ import { parseXGID } from '../utils/xgidParser'
 
 export default function BackgammonBoard({ 
   direction = 0, 
-  player = 0, 
+  player = 1, 
   showBoardLabels = true, 
   showPointNumbers = true, 
-  cubeOwner = 1, 
-  cubeValue = 16, 
+  cubeOwner = 1, // -1 = black owns (near top), 0 = nobody owns (middle), 1 = white owns (near bottom)
+  cubeValue = 4, // Exponent: 0-6, displayed value = 2^cubeValue (0 displays as 64)
   useCube = true,
   xgid = null,
   ghostCheckers = {}, // Object mapping point numbers (1-24) to ghost checker counts, e.g. { 6: 2, 17: 1 }
@@ -19,11 +19,11 @@ export default function BackgammonBoard({
   showTrays = true // true = show trays with checkers, false = show normal border
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
-  // player: 0 = WHITE (show WHITE's point numbers), 1 = BLACK (show BLACK's point numbers)
+  // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
   // showBoardLabels: true = show HOME and OUTER board labels, false = hide them
   // showPointNumbers: true = show point numbers based on player and direction, false = hide them
-  // cubeOwner: 0 = nobody owns (middle), 1 = white owns (near bottom), 2 = black owns (near top)
-  // cubeValue: one of [2, 4, 8, 16, 32, 64]
+  // cubeOwner: -1 = black owns (near top), 0 = nobody owns (middle), 1 = white owns (near bottom)
+  // cubeValue: exponent 0-6, displayed value = 2^cubeValue (0 displays as 64, 1=2, 2=4, 3=8, 4=16, 5=32, 6=64)
   // useCube: true = show doubling cube, false = hide doubling cube
   // xgid: XGID string to specify board position
   // ghostCheckers: Object mapping point numbers to ghost checker counts (ghost checkers are semi-transparent, 70% opacity)
@@ -34,8 +34,21 @@ export default function BackgammonBoard({
   const boardState = xgid ? parseXGID(xgid) : {
     blackBar: 0,
     whiteBar: 0,
-    points: Array(24).fill({ count: 0, owner: null })
+    points: Array(24).fill({ count: 0, owner: null }),
+    cubeValue: undefined,
+    cubeOwner: undefined,
+    player: undefined,
+    dice: undefined
   }
+  
+  // Use cubeValue from XGID if available, otherwise use prop value
+  const effectiveCubeValue = boardState.cubeValue !== undefined ? boardState.cubeValue : cubeValue
+  // Use cubeOwner from XGID if available, otherwise use prop value
+  const effectiveCubeOwner = boardState.cubeOwner !== undefined ? boardState.cubeOwner : cubeOwner
+  // Use player from XGID if available, otherwise use prop value
+  const effectivePlayer = boardState.player !== undefined ? boardState.player : player
+  // Use dice prop if provided (overrides XGID), otherwise use XGID value, otherwise default to "00"
+  const effectiveDice = dice !== undefined ? dice : (boardState.dice !== undefined ? boardState.dice : "00")
   
   // Constants
   const BOARD_WIDTH = 800
@@ -223,20 +236,23 @@ export default function BackgammonBoard({
   const renderDoublingCube = () => {
     if (!useCube) return null
     
-    const validCubeValues = [2, 4, 8, 16, 32, 64]
-    if (!validCubeValues.includes(cubeValue)) return null
+    const validCubeValues = [0, 1, 2, 3, 4, 5, 6]
+    if (!validCubeValues.includes(effectiveCubeValue)) return null
+    
+    // Convert exponent to displayed value: 0 → 64, otherwise 2^effectiveCubeValue
+    const displayedValue = effectiveCubeValue === 0 ? 64 : Math.pow(2, effectiveCubeValue)
     
     const cubeSize = BAR_WIDTH * 0.8
     const barX = leftBorderWidth + (innerWidth - BAR_WIDTH) / 2
     const barCenterX = barX + BAR_WIDTH / 2
     
     let cubeY
-    if (cubeOwner === 0) {
-      cubeY = topBorderWidth + innerHeight / 2 - cubeSize / 2
-    } else if (cubeOwner === 1) {
-      cubeY = topBorderWidth + innerHeight - cubeSize - 20
-    } else if (cubeOwner === 2) {
-      cubeY = topBorderWidth + 20
+    if (effectiveCubeOwner === -1) {
+      cubeY = topBorderWidth + 20 // Black owns (near top)
+    } else if (effectiveCubeOwner === 0) {
+      cubeY = topBorderWidth + innerHeight / 2 - cubeSize / 2 // Nobody owns (middle)
+    } else if (effectiveCubeOwner === 1) {
+      cubeY = topBorderWidth + innerHeight - cubeSize - 20 // White owns (near bottom)
     } else {
       return null
     }
@@ -265,7 +281,7 @@ export default function BackgammonBoard({
           fontWeight="700"
           fill={COLORS.stroke}
         >
-          {cubeValue}
+          {displayedValue}
         </text>
       </g>
     )
@@ -286,11 +302,11 @@ export default function BackgammonBoard({
   
   // Helper: Render dice
   const renderDice = () => {
-    if (!dice || dice === "00") return null
+    if (!effectiveDice || effectiveDice === "00") return null
     
     // Parse dice values
-    const die1 = parseInt(dice[0]) || 0
-    const die2 = parseInt(dice[1]) || 0
+    const die1 = parseInt(effectiveDice[0]) || 0
+    const die2 = parseInt(effectiveDice[1]) || 0
     
     if (die1 === 0 || die2 === 0) return null
     
@@ -307,8 +323,8 @@ export default function BackgammonBoard({
     const die2X = rightHalfCenterX + dieSize * 0.6 // Second die slightly right
     
     // Dice colors based on player
-    const dieFill = player === 0 ? COLORS.checkerWhite : COLORS.checkerBlack
-    const pipFill = player === 0 ? COLORS.stroke : COLORS.checkerWhite
+    const dieFill = effectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
+    const pipFill = effectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
     
     const diceElements = []
     
@@ -641,7 +657,9 @@ export default function BackgammonBoard({
       const ghostDisplayCount = Math.min(ghostCount, 5)
       const fillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
       const isLastChecker = normalDisplayCount + ghostDisplayCount >= Math.min(totalVisualCount, 5)
-      const arrowColor = "#3B82F6" // Same color as arrows (blue)
+      // Use red for BLACK ghost checkers, blue for WHITE
+      const ghostOwner = ghostCheckerOwners[whitePointNumber]
+      const arrowColor = ghostOwner === 'black' ? "#EF4444" : "#3B82F6" // Red for BLACK, blue for WHITE
       
       for (let i = 0; i < ghostDisplayCount; i++) {
         checkers.push(
@@ -791,6 +809,11 @@ export default function BackgammonBoard({
       const toCoords = getCheckerCoordinates(move.to, false, move.toStackPosition) // Destination checker at specific position
       
       if (!fromCoords || !toCoords) return null
+      
+      // Determine arrow color based on ghost checker owner at the starting point
+      // Use red for BLACK moves, blue for WHITE moves
+      const moveOwner = ghostCheckerOwners[move.from]
+      const arrowColor = moveOwner === 'black' ? "#EF4444" : "#3B82F6" // Red for BLACK, blue for WHITE
       
       // Calculate arrow path
       const dx = toCoords.x - fromCoords.x
@@ -956,14 +979,14 @@ export default function BackgammonBoard({
             y1={startY}
             x2={shaftEndX}
             y2={shaftEndY}
-            stroke="#3B82F6"
+            stroke={arrowColor}
             strokeWidth={8}
             opacity={0.8}
           />
-          {/* Blue arrowhead with curved base matching checker radius */}
+          {/* Arrowhead with curved base matching checker radius */}
           <path
             d={`M ${endX} ${endY} L ${arrowHeadX1} ${arrowHeadY1} A ${arcRadius} ${arcRadius} 0 ${largeArcFlag} ${sweepFlag} ${arrowHeadX2} ${arrowHeadY2} Z`}
-            fill="#3B82F6"
+            fill={arrowColor}
             opacity={0.8}
           />
         </g>
@@ -989,7 +1012,7 @@ export default function BackgammonBoard({
       : (pointIndex % 2 === 1)
     const isGrey = direction === 1 ? !baseIsGrey : baseIsGrey
     
-    const pointNumber = player === 0 
+    const pointNumber = effectivePlayer === 1 
       ? getPointNumberWhite(quadrantIndex, pointIndex)
       : getPointNumberBlack(quadrantIndex, pointIndex)
     
@@ -1041,8 +1064,8 @@ export default function BackgammonBoard({
   const bottomTrayWhiteCount = xgid ? (15 - boardState.whiteBar - boardState.points.reduce((sum, p) => sum + (p.owner === 'white' ? p.count : 0), 0)) : 15
   
   // Determine information bar text
-  const playerName = player === 0 ? 'WHITE' : 'BLACK'
-  const needsToRoll = !dice || dice === '00'
+  const playerName = effectivePlayer === 1 ? 'WHITE' : 'BLACK'
+  const needsToRoll = !effectiveDice || effectiveDice === '00'
   const actionText = needsToRoll ? 'to roll' : 'to play'
   const infoText = `${playerName} ${actionText}`
   

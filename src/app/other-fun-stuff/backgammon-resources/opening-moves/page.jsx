@@ -53,8 +53,8 @@ export default function OpeningMovesPage() {
   const [userSelectedChoice, setUserSelectedChoice] = useState(null) // Track user's selection before showing answer
   const [currentChoices, setCurrentChoices] = useState([])
   
-  // Starting position XGID
-  const STARTING_XGID = "-b----E-C---eE---c-e----B-"
+  // Starting position XGID (xg1: checker positions, xg2: cubeValue, xg3: cubeOwner, xg4: player, xg5: dice, xg6-xg10: match play values)
+  const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10"
   
   // All 15 non-double opening rolls (higher number first)
   const allRolls = [
@@ -347,10 +347,9 @@ export default function OpeningMovesPage() {
                           <div className="rounded-lg shadow-lg overflow-hidden">
                             <BackgammonBoard 
                               direction={0} 
-                              player={0} 
                               showBoardLabels={false} 
                               showPointNumbers={true}
-                              useCube={false}
+                              useCube={true}
                               xgid={boardXGID}
                               ghostCheckers={boardGhostCheckers}
                               ghostCheckerPositions={boardGhostCheckerPositions}
@@ -398,10 +397,10 @@ export default function OpeningMovesPage() {
                             <div className="rounded-lg shadow-lg overflow-hidden">
                               <BackgammonBoard 
                                 direction={0} 
-                                player={0} 
                                 showBoardLabels={false} 
                                 showPointNumbers={true}
-                                useCube={false}
+                                useCube={true}
+                                cubeOwner={0}
                                 xgid={moveResult.xgid}
                                 ghostCheckers={moveResult.ghostCheckers}
                                 ghostCheckerPositions={moveResult.ghostCheckerPositions}

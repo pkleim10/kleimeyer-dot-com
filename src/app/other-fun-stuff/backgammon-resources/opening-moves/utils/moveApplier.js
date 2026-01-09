@@ -22,6 +22,8 @@ export function applyMove(xgid, move, player = 'white') {
   
   // Parse the starting position
   const boardState = parseXGID(xgid)
+  // Preserve original XGID parts for reconstruction
+  const xgidParts = xgid.split(':')
   
   // Track ghost checkers: object mapping point numbers to arrays of {position, owner}
   const ghostCheckers = {}
@@ -116,9 +118,9 @@ export function applyMove(xgid, move, player = 'white') {
     ghostCheckersCounts[point] = positions.length
   }
   
-  // Convert board state back to XGID format
+  // Convert board state back to XGID format, preserving xg2 and other parts
   return {
-    xgid: boardStateToXGID(boardState),
+    xgid: boardStateToXGID(boardState, xgidParts),
     ghostCheckers: ghostCheckersCounts, // Counts for rendering
     ghostCheckerPositions: ghostCheckers, // Array of positions for each point
     ghostCheckerOwners: ghostCheckerOwners, // Owner for each point with ghost checkers
@@ -129,9 +131,10 @@ export function applyMove(xgid, move, player = 'white') {
 /**
  * Convert board state back to XGID string format
  * @param {Object} boardState - Board state object from parseXGID
+ * @param {Array} originalParts - Original XGID parts array to preserve xg2, xg3, etc.
  * @returns {string} - XGID string
  */
-function boardStateToXGID(boardState) {
+function boardStateToXGID(boardState, originalParts = []) {
   // Character mapping: count to character
   const countToChar = (count, owner) => {
     if (count === 0) return '-'
@@ -164,8 +167,36 @@ function boardStateToXGID(boardState) {
   // Position 26: WHITE checkers on bar
   chars[25] = countToChar(boardState.whiteBar, 'white')
   
-  // Combine into XGID format (for now, just return xg1 part)
-  // TODO: Add other XGID parts (xg2, xg3, etc.) when needed
-  return chars.join('')
+  // Build XGID string: xg1:xg2:xg3:xg4:xg5:xg6:xg7:xg8:xg9:xg10
+  const xgidParts = [chars.join('')]
+  
+  // Preserve xg2 (cubeValue), xg3 (cubeOwner), xg4 (player), and xg5 (dice) from original XGID
+  if (originalParts.length > 1) {
+    xgidParts.push(originalParts[1]) // xg2 (cubeValue)
+  }
+  if (originalParts.length > 2) {
+    xgidParts.push(originalParts[2]) // xg3 (cubeOwner)
+  }
+  if (originalParts.length > 3) {
+    xgidParts.push(originalParts[3]) // xg4 (player)
+  }
+  if (originalParts.length > 4) {
+    xgidParts.push(originalParts[4]) // xg5 (dice)
+  }
+  // Preserve xg6-xg10 (match play values) from original XGID, or use defaults if missing
+  for (let i = 5; i < 10; i++) {
+    if (originalParts.length > i) {
+      xgidParts.push(originalParts[i]) // Preserve existing value
+    } else {
+      // Use defaults: xg6-xg9 = 0, xg10 = 10
+      xgidParts.push(i === 9 ? '10' : '0')
+    }
+  }
+  // Preserve any additional parts beyond xg10 (shouldn't normally exist)
+  for (let i = 10; i < originalParts.length; i++) {
+    xgidParts.push(originalParts[i])
+  }
+  
+  return xgidParts.join(':')
 }
 
