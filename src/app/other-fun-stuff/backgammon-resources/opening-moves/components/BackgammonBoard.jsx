@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { parseXGID } from '../utils/xgidParser'
 
 export default function BackgammonBoard({ 
@@ -16,7 +17,9 @@ export default function BackgammonBoard({
   ghostCheckerOwners = {}, // Object mapping point numbers to owner ('black' or 'white') for ghost checkers
   moves = [], // Array of {from, to, fromStackPosition} point numbers for arrow rendering
   dice = "00", // "00" = no dice, "XY" = dice values (e.g., "63" = 6 and 3)
-  showTrays = true // true = show trays with checkers, false = show normal border
+  showTrays = true, // true = show trays with checkers, false = show normal border
+  onPlayerChange = null, // Callback when player setting changes: (player) => void, where player is -1 (black) or 1 (white)
+  onClearGhosts = null // Callback to clear ghost checkers and arrows: () => void
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
@@ -75,10 +78,52 @@ export default function BackgammonBoard({
     checkerBlack: '#000000'
   }
   
+  // Options dialog state (moved up to use in border calculations)
+  // null means use XGID/props, object means user explicitly overrode settings
+  const [showOptionsDialog, setShowOptionsDialog] = useState(false)
+  const [localSettings, setLocalSettings] = useState(null)
+  
+  // Dialog drag state - load from localStorage if available
+  const loadDialogPosition = () => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('backgammonBoardDialogPosition')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          return { x: 0, y: 0 }
+        }
+      }
+    }
+    return { x: 0, y: 0 }
+  }
+  
+  const [dialogPosition, setDialogPosition] = useState(loadDialogPosition)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  
+  // Save dialog position to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonBoardDialogPosition', JSON.stringify(dialogPosition))
+    }
+  }, [dialogPosition])
+  
+  // Use localSettings for rendering if user has overridden, otherwise use XGID/props
+  const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
+  const activeShowTrays = localSettings?.showTrays !== undefined ? localSettings.showTrays : showTrays
+  
+  // Override with localSettings only if user has explicitly changed them, otherwise use XGID/props
+  const finalEffectivePlayer = localSettings?.player !== undefined ? localSettings.player : effectivePlayer
+  const finalEffectiveCubeOwner = localSettings?.cubeOwner !== undefined ? localSettings.cubeOwner : effectiveCubeOwner
+  const finalEffectiveCubeValue = localSettings?.cubeValue !== undefined ? localSettings.cubeValue : effectiveCubeValue
+  const finalEffectiveDice = localSettings?.dice !== undefined ? localSettings.dice : effectiveDice
+  const finalEffectiveUseCube = localSettings?.useCube !== undefined ? localSettings.useCube : useCube
+  
   // Border widths - initial calculation
   const initialTrayBorderWidth = BASE_BORDER_WIDTH * 1.5 * 1.15
-  let rightBorderWidth = showTrays && direction === 0 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
-  let leftBorderWidth = showTrays && direction === 1 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
+  let rightBorderWidth = activeShowTrays && activeDirection === 0 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
+  let leftBorderWidth = activeShowTrays && activeDirection === 1 ? initialTrayBorderWidth : BASE_BORDER_WIDTH
   const topBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
   const bottomBorderWidth = showBoardLabels ? BASE_BORDER_WIDTH * LABEL_BORDER_MULTIPLIER : BASE_BORDER_WIDTH
   
@@ -110,7 +155,7 @@ export default function BackgammonBoard({
   const requiredTrayBorderWidth = trayWidth + 2 * trayBorderPadding
   
   // Recalculate border widths if needed (only when showTrays is true), then recalculate dependent values
-  if (showTrays && direction === 0 && requiredTrayBorderWidth > rightBorderWidth) {
+  if (activeShowTrays && activeDirection === 0 && requiredTrayBorderWidth > rightBorderWidth) {
     rightBorderWidth = requiredTrayBorderWidth
     innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
     BAR_WIDTH = (innerWidth * 0.95) / (12 + 0.95)
@@ -119,7 +164,7 @@ export default function BackgammonBoard({
     checkerDiameter = pointWidth * 0.95
     checkerRadius = checkerDiameter / 2
     trayWidth = checkerDiameter
-  } else if (showTrays && direction === 1 && requiredTrayBorderWidth > leftBorderWidth) {
+  } else if (activeShowTrays && activeDirection === 1 && requiredTrayBorderWidth > leftBorderWidth) {
     leftBorderWidth = requiredTrayBorderWidth
     innerWidth = BOARD_WIDTH - leftBorderWidth - rightBorderWidth
     BAR_WIDTH = (innerWidth * 0.95) / (12 + 0.95)
@@ -151,7 +196,7 @@ export default function BackgammonBoard({
       3: (i) => 7 + i   // Bottom right (WHITE OUTER): 7-12
     }
     
-    const mapping = direction === 0 ? ccwMapping : cwMapping
+    const mapping = activeDirection === 0 ? ccwMapping : cwMapping
     return mapping[quadrantIndex]?.(pointIndex) ?? 0
   }
   
@@ -161,7 +206,7 @@ export default function BackgammonBoard({
   
   // Helper: Render a tray rectangle
   const renderTray = (isTop) => {
-    const trayX = direction === 0 
+    const trayX = activeDirection === 0 
       ? BOARD_WIDTH - rightBorderWidth + (rightBorderWidth - trayWidth) / 2
       : (leftBorderWidth - trayWidth) / 2
     const trayY = topBorderWidth + (isTop ? 0 : quadrantHeight) + (quadrantHeight - trayHeight) / 2
@@ -184,7 +229,7 @@ export default function BackgammonBoard({
   const renderTrayCheckers = (isTop, checkerCount) => {
     if (checkerCount === 0) return null
     
-    const trayX = direction === 0 
+    const trayX = activeDirection === 0 
       ? BOARD_WIDTH - rightBorderWidth + (rightBorderWidth - trayWidth) / 2
       : (leftBorderWidth - trayWidth) / 2
     const trayY = topBorderWidth + (isTop ? 0 : quadrantHeight) + (quadrantHeight - trayHeight) / 2
@@ -237,21 +282,21 @@ export default function BackgammonBoard({
     if (!useCube) return null
     
     const validCubeValues = [0, 1, 2, 3, 4, 5, 6]
-    if (!validCubeValues.includes(effectiveCubeValue)) return null
+    if (!validCubeValues.includes(finalEffectiveCubeValue)) return null
     
-    // Convert exponent to displayed value: 0 → 64, otherwise 2^effectiveCubeValue
-    const displayedValue = effectiveCubeValue === 0 ? 64 : Math.pow(2, effectiveCubeValue)
+    // Convert exponent to displayed value: 0 → 64, otherwise 2^finalEffectiveCubeValue
+    const displayedValue = finalEffectiveCubeValue === 0 ? 64 : Math.pow(2, finalEffectiveCubeValue)
     
     const cubeSize = BAR_WIDTH * 0.8
     const barX = leftBorderWidth + (innerWidth - BAR_WIDTH) / 2
     const barCenterX = barX + BAR_WIDTH / 2
     
     let cubeY
-    if (effectiveCubeOwner === -1) {
+    if (finalEffectiveCubeOwner === -1) {
       cubeY = topBorderWidth + 20 // Black owns (near top)
-    } else if (effectiveCubeOwner === 0) {
+    } else if (finalEffectiveCubeOwner === 0) {
       cubeY = topBorderWidth + innerHeight / 2 - cubeSize / 2 // Nobody owns (middle)
-    } else if (effectiveCubeOwner === 1) {
+    } else if (finalEffectiveCubeOwner === 1) {
       cubeY = topBorderWidth + innerHeight - cubeSize - 20 // White owns (near bottom)
     } else {
       return null
@@ -302,11 +347,11 @@ export default function BackgammonBoard({
   
   // Helper: Render dice
   const renderDice = () => {
-    if (!effectiveDice || effectiveDice === "00") return null
+    if (!finalEffectiveDice || finalEffectiveDice === "00") return null
     
     // Parse dice values
-    const die1 = parseInt(effectiveDice[0]) || 0
-    const die2 = parseInt(effectiveDice[1]) || 0
+    const die1 = parseInt(finalEffectiveDice[0]) || 0
+    const die2 = parseInt(finalEffectiveDice[1]) || 0
     
     if (die1 === 0 || die2 === 0) return null
     
@@ -323,8 +368,8 @@ export default function BackgammonBoard({
     const die2X = rightHalfCenterX + dieSize * 0.6 // Second die slightly right
     
     // Dice colors based on player
-    const dieFill = effectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
-    const pipFill = effectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
+    const dieFill = finalEffectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
+    const pipFill = finalEffectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
     
     const diceElements = []
     
@@ -409,7 +454,7 @@ export default function BackgammonBoard({
     const topY = 5
     const bottomY = BOARD_HEIGHT - 5
     
-    if (direction === 0) {
+    if (activeDirection === 0) {
       return [
         { text: 'WHITE HOME', x: rightX, y: bottomY, baseline: 'baseline' },
         { text: 'WHITE OUTER', x: leftX, y: bottomY, baseline: 'baseline' },
@@ -663,7 +708,14 @@ export default function BackgammonBoard({
       
       for (let i = 0; i < ghostDisplayCount; i++) {
         checkers.push(
-          <g key={`ghost-checker-${i}`}>
+          <g 
+            key={`ghost-checker-${i}`}
+            onClick={onClearGhosts ? (e) => {
+              e.stopPropagation()
+              onClearGhosts()
+            } : undefined}
+            style={onClearGhosts ? { cursor: 'pointer' } : undefined}
+          >
             <circle
               cx={centerX}
               cy={currentY}
@@ -671,14 +723,16 @@ export default function BackgammonBoard({
               fill={fillColor}
               stroke="none"
               opacity={0.6}
+              pointerEvents={onClearGhosts ? 'all' : 'none'}
             />
-            {/* Orange overlay on ghost checker */}
+            {/* Color overlay on ghost checker */}
             <circle
               cx={centerX}
               cy={currentY}
               r={checkerRadius}
               fill={arrowColor}
               opacity={0.3}
+              pointerEvents={onClearGhosts ? 'all' : 'none'}
             />
             {isLastChecker && showCount && (
               <text
@@ -713,7 +767,7 @@ export default function BackgammonBoard({
     //   Points 13-18: quadrant 1 (top left), pointIndex 0-5
     //   Points 19-24: quadrant 0 (top right), pointIndex 0-5
     
-    if (direction === 0) {
+    if (activeDirection === 0) {
       // ccw
       if (whitePointNumber >= 1 && whitePointNumber <= 6) {
         return { quadrantIndex: 3, pointIndex: 6 - whitePointNumber }
@@ -804,7 +858,8 @@ export default function BackgammonBoard({
     if (!moves || moves.length === 0) return null
     
     const arrows = moves.map((move, index) => {
-      // Use the stack positions from the move to get the correct checker positions
+      // Moves are stored in WHITE's perspective (converted in moveApplier if needed)
+      // getCheckerCoordinates expects WHITE point numbers, which map to correct physical locations
       const fromCoords = getCheckerCoordinates(move.from, true, move.fromStackPosition) // Ghost checker at specific position
       const toCoords = getCheckerCoordinates(move.to, false, move.toStackPosition) // Destination checker at specific position
       
@@ -1010,9 +1065,9 @@ export default function BackgammonBoard({
     const baseIsGrey = isTopHalf 
       ? (pointIndex % 2 === 0) 
       : (pointIndex % 2 === 1)
-    const isGrey = direction === 1 ? !baseIsGrey : baseIsGrey
+    const isGrey = activeDirection === 1 ? !baseIsGrey : baseIsGrey
     
-    const pointNumber = effectivePlayer === 1 
+    const pointNumber = finalEffectivePlayer === 1 
       ? getPointNumberWhite(quadrantIndex, pointIndex)
       : getPointNumberBlack(quadrantIndex, pointIndex)
     
@@ -1064,13 +1119,297 @@ export default function BackgammonBoard({
   const bottomTrayWhiteCount = xgid ? (15 - boardState.whiteBar - boardState.points.reduce((sum, p) => sum + (p.owner === 'white' ? p.count : 0), 0)) : 15
   
   // Determine information bar text
-  const playerName = effectivePlayer === 1 ? 'WHITE' : 'BLACK'
-  const needsToRoll = !effectiveDice || effectiveDice === '00'
+  const playerName = finalEffectivePlayer === 1 ? 'WHITE' : 'BLACK'
+  const needsToRoll = !finalEffectiveDice || finalEffectiveDice === '00'
   const actionText = needsToRoll ? 'to roll' : 'to play'
   const infoText = `${playerName} ${actionText}`
   
+  // Generate modified XGID string that reflects current effective values
+  const getDisplayXGID = () => {
+    if (!xgid) return null
+    
+    const parts = xgid.split(':')
+    const modifiedParts = [parts[0]] // Always keep xg1 (checker positions)
+    
+    // Update xg2 (cubeValue) with current effective value
+    modifiedParts[1] = String(finalEffectiveCubeValue)
+    
+    // Update xg3 (cubeOwner) with current effective value
+    modifiedParts[2] = String(finalEffectiveCubeOwner)
+    
+    // Update xg4 (player) with current effective value
+    modifiedParts[3] = String(finalEffectivePlayer)
+    
+    // Update xg5 (dice) with current effective value
+    modifiedParts[4] = finalEffectiveDice
+    
+    // Preserve xg6-xg10 from original XGID, or use defaults if missing
+    for (let i = 5; i < 10; i++) {
+      if (parts.length > i) {
+        modifiedParts[i] = parts[i] // Preserve original value
+      } else {
+        // Use defaults: xg6-xg9 = 0, xg10 = 10
+        modifiedParts[i] = i === 9 ? '10' : '0'
+      }
+    }
+    
+    return modifiedParts.join(':')
+  }
+  
+  const displayXGID = getDisplayXGID()
+  
+  // Get current settings for dialog (use localSettings if overridden, otherwise use XGID/props)
+  const dialogSettings = localSettings || {
+    direction: activeDirection,
+    player: finalEffectivePlayer,
+    cubeOwner: finalEffectiveCubeOwner,
+    cubeValue: finalEffectiveCubeValue,
+    useCube: finalEffectiveUseCube,
+    dice: finalEffectiveDice,
+    showTrays: activeShowTrays
+  }
+  
+  const handleSettingsChange = (key, value) => {
+    setLocalSettings(prev => {
+      const current = prev || dialogSettings
+      return { ...current, [key]: value }
+    })
+  }
+  
+  const handleSaveSettings = () => {
+    // Ensure dice has a valid value before saving
+    if (localSettings && (!localSettings.dice || localSettings.dice.length === 0)) {
+      setLocalSettings(prev => ({ ...prev, dice: '00' }))
+    }
+    // Notify parent if player changed
+    if (localSettings && onPlayerChange && localSettings.player !== undefined) {
+      onPlayerChange(localSettings.player)
+    }
+    // Settings are now applied via localSettings override
+    setShowOptionsDialog(false)
+  }
+  
+  const handleCancelSettings = () => {
+    // Reset to null to use XGID/props again
+    setLocalSettings(null)
+    setShowOptionsDialog(false)
+  }
+  
+  // Dialog drag handlers
+  const handleDialogMouseDown = (e) => {
+    if (e.target.closest('button, input, select, textarea')) {
+      return // Don't drag if clicking on interactive elements
+    }
+    setIsDragging(true)
+    setDragStart({
+      x: e.clientX - dialogPosition.x,
+      y: e.clientY - dialogPosition.y
+    })
+  }
+  
+  // Add global mouse event listeners for dragging
+  useEffect(() => {
+    if (!isDragging) return
+    
+    const handleMouseMove = (e) => {
+      setDialogPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      })
+    }
+    
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, dragStart])
+  
   return (
-    <div className="flex flex-col items-center w-full">
+    <div className="flex flex-col items-center w-full relative">
+      {/* Options icon button */}
+      <button
+        onClick={() => {
+          setShowOptionsDialog(true)
+        }}
+        className="absolute top-2 z-20 p-2"
+        style={{ right: '0px' }}
+        aria-label="Board options"
+      >
+        <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+      
+      {/* Options Dialog */}
+      {showOptionsDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={handleCancelSettings}>
+          <div 
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translate(${dialogPosition.x}px, ${dialogPosition.y}px)`,
+              cursor: isDragging ? 'grabbing' : 'default'
+            }}
+          >
+            <div 
+              className="flex justify-between items-center mb-4 cursor-grab active:cursor-grabbing select-none"
+              onMouseDown={handleDialogMouseDown}
+            >
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Board Settings</h2>
+              <button
+                onClick={handleCancelSettings}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Player */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Player
+                </label>
+                <select
+                  value={dialogSettings.player}
+                  onChange={(e) => handleSettingsChange('player', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                >
+                  <option value={-1}>Black</option>
+                  <option value={1}>White</option>
+                </select>
+              </div>
+              
+              {/* Direction */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Direction
+                </label>
+                <select
+                  value={dialogSettings.direction}
+                  onChange={(e) => handleSettingsChange('direction', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                >
+                  <option value={0}>Counter-clockwise</option>
+                  <option value={1}>Clockwise</option>
+                </select>
+              </div>
+              
+              {/* Cube Owner */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cube Owner
+                </label>
+                <select
+                  value={dialogSettings.cubeOwner}
+                  onChange={(e) => handleSettingsChange('cubeOwner', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                >
+                  <option value={-1}>Black</option>
+                  <option value={0}>Nobody</option>
+                  <option value={1}>White</option>
+                </select>
+              </div>
+              
+              {/* Cube Value */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cube Value (Exponent: 0-6)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="6"
+                  value={dialogSettings.cubeValue}
+                  onChange={(e) => handleSettingsChange('cubeValue', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Displayed value: {dialogSettings.cubeValue === 0 ? 64 : Math.pow(2, dialogSettings.cubeValue)}
+                </p>
+              </div>
+              
+              {/* Use Cube */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useCube"
+                  checked={dialogSettings.useCube}
+                  onChange={(e) => handleSettingsChange('useCube', e.target.checked)}
+                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                />
+                <label htmlFor="useCube" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Show Doubling Cube
+                </label>
+              </div>
+              
+              {/* Dice */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Dice (00 = to roll, XY = rolled values)
+                </label>
+                <input
+                  type="text"
+                  pattern="[0-9]{2}"
+                  maxLength={2}
+                  value={dialogSettings.dice}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+                    handleSettingsChange('dice', value) // Allow empty value during editing
+                  }}
+                  onBlur={(e) => {
+                    // Default to '00' only when field loses focus and is empty
+                    if (!e.target.value || e.target.value.length === 0) {
+                      handleSettingsChange('dice', '00')
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white font-mono"
+                  placeholder="00"
+                />
+              </div>
+              
+              {/* Show Trays */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="showTrays"
+                  checked={dialogSettings.showTrays}
+                  onChange={(e) => handleSettingsChange('showTrays', e.target.checked)}
+                  className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                />
+                <label htmlFor="showTrays" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Show Trays
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={handleCancelSettings}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <svg
         width={BOARD_WIDTH}
         height={BOARD_HEIGHT}
@@ -1119,15 +1458,15 @@ export default function BackgammonBoard({
         )}
         
         {/* Trays */}
-        {showTrays && renderTray(true)}
-        {showTrays && renderTray(false)}
+        {activeShowTrays && renderTray(true)}
+        {activeShowTrays && renderTray(false)}
         
         {/* Tray checkers */}
-        {showTrays && renderTrayCheckers(true, topTrayBlackCount)}
-        {showTrays && renderTrayCheckers(false, bottomTrayWhiteCount)}
+        {activeShowTrays && renderTrayCheckers(true, topTrayBlackCount)}
+        {activeShowTrays && renderTrayCheckers(false, bottomTrayWhiteCount)}
         
         {/* Doubling cube */}
-        {renderDoublingCube()}
+        {finalEffectiveUseCube && renderDoublingCube()}
         
         {/* Dice */}
         {renderDice()}
@@ -1143,6 +1482,20 @@ export default function BackgammonBoard({
         
         {/* Move arrows - rendered last so they appear on top */}
         {renderMoveArrows()}
+        
+        {/* XGID display at bottom border */}
+        {displayXGID && (
+          <text
+            x={BOARD_WIDTH / 2}
+            y={BOARD_HEIGHT - bottomBorderWidth / 2 + 5 + ONE_REM / 2}
+            textAnchor="middle"
+            fontSize="12"
+            fill={COLORS.stroke}
+            fontFamily="monospace"
+          >
+            {displayXGID}
+          </text>
+        )}
       </svg>
       
       {/* Information bar */}

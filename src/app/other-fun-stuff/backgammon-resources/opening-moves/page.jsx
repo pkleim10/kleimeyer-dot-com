@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { openingMovesData } from './openingMovesData'
@@ -46,15 +46,49 @@ function Die({ value }) {
 
 export default function OpeningMovesPage() {
   const { user } = useAuth()
+  // Starting position XGID (xg1: checker positions, xg2: cubeValue, xg3: cubeOwner, xg4: player, xg5: dice, xg6-xg10: match play values)
+  const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10"
+  
   const [quizStarted, setQuizStarted] = useState(false)
   const [currentRoll, setCurrentRoll] = useState(null)
   const [showAnswer, setShowAnswer] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState(null)
   const [userSelectedChoice, setUserSelectedChoice] = useState(null) // Track user's selection before showing answer
   const [currentChoices, setCurrentChoices] = useState([])
+  const [currentPlayer, setCurrentPlayer] = useState(1) // Track current player: -1 = black, 1 = white
+  const [boardGhostCheckers, setBoardGhostCheckers] = useState({})
+  const [boardGhostCheckerPositions, setBoardGhostCheckerPositions] = useState({})
+  const [boardGhostCheckerOwners, setBoardGhostCheckerOwners] = useState({})
+  const [boardMoves, setBoardMoves] = useState([])
+  const [boardXGID, setBoardXGID] = useState(STARTING_XGID)
   
-  // Starting position XGID (xg1: checker positions, xg2: cubeValue, xg3: cubeOwner, xg4: player, xg5: dice, xg6-xg10: match play values)
-  const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10"
+  // Update board state when choice is selected
+  useEffect(() => {
+    if (!showAnswer && selectedChoice !== null && currentChoices[selectedChoice]) {
+      const movePlayer = currentPlayer === -1 ? 'black' : 'white'
+      const selectedMoveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move, movePlayer)
+      setBoardXGID(selectedMoveResult.xgid)
+      setBoardGhostCheckers(selectedMoveResult.ghostCheckers)
+      setBoardGhostCheckerPositions(selectedMoveResult.ghostCheckerPositions)
+      setBoardGhostCheckerOwners(selectedMoveResult.ghostCheckerOwners || {})
+      setBoardMoves(selectedMoveResult.moves)
+    } else if (!showAnswer && selectedChoice === null) {
+      // Clear ghosts when no choice is selected
+      setBoardXGID(STARTING_XGID)
+      setBoardGhostCheckers({})
+      setBoardGhostCheckerPositions({})
+      setBoardGhostCheckerOwners({})
+      setBoardMoves([])
+    }
+  }, [selectedChoice, currentChoices, currentPlayer, showAnswer])
+  
+  const handleClearGhosts = () => {
+    // Clear ghost checkers and arrows, but keep the final board state (boardXGID)
+    setBoardGhostCheckers({})
+    setBoardGhostCheckerPositions({})
+    setBoardGhostCheckerOwners({})
+    setBoardMoves([])
+  }
   
   // All 15 non-double opening rolls (higher number first)
   const allRolls = [
@@ -144,6 +178,12 @@ export default function OpeningMovesPage() {
     setShowAnswer(false)
     setSelectedChoice(null)
     setUserSelectedChoice(null)
+    // Reset board state
+    setBoardXGID(STARTING_XGID)
+    setBoardGhostCheckers({})
+    setBoardGhostCheckerPositions({})
+    setBoardGhostCheckerOwners({})
+    setBoardMoves([])
   }
 
   const handleFinish = () => {
@@ -325,24 +365,7 @@ export default function OpeningMovesPage() {
                     )}
 
                     {/* Board Display - Show selected move or starting position */}
-                    {!showAnswer && currentRoll && (() => {
-                      // If a choice is selected, show the board after applying that move
-                      let boardXGID = STARTING_XGID
-                      let boardGhostCheckers = {}
-                      let boardGhostCheckerPositions = {}
-                      let boardGhostCheckerOwners = {}
-                      let boardMoves = []
-                      
-                      if (selectedChoice !== null && currentChoices[selectedChoice]) {
-                        const selectedMoveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move)
-                        boardXGID = selectedMoveResult.xgid
-                        boardGhostCheckers = selectedMoveResult.ghostCheckers
-                        boardGhostCheckerPositions = selectedMoveResult.ghostCheckerPositions
-                        boardGhostCheckerOwners = selectedMoveResult.ghostCheckerOwners || {}
-                        boardMoves = selectedMoveResult.moves
-                      }
-                      
-                      return (
+                    {!showAnswer && currentRoll && (
                         <div className="flex justify-center mb-6">
                           <div className="rounded-lg shadow-lg overflow-hidden">
                             <BackgammonBoard 
@@ -357,11 +380,12 @@ export default function OpeningMovesPage() {
                               moves={boardMoves}
                               dice={getDiceString(currentRoll)}
                               showTrays={false}
+                              onPlayerChange={setCurrentPlayer}
+                              onClearGhosts={handleClearGhosts}
                             />
                           </div>
                         </div>
-                      )
-                    })()}
+                      )}
 
                     {/* Show Answer Button */}
                     {!showAnswer && (
@@ -380,14 +404,16 @@ export default function OpeningMovesPage() {
                       // If a choice is selected, show that move; otherwise show the correct answer
                       let moveResult
                       
+                      const movePlayer = currentPlayer === -1 ? 'black' : 'white'
+                      
                       if (selectedChoice !== null && currentChoices[selectedChoice]) {
                         // Show the selected choice's move
-                        moveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move)
+                        moveResult = applyMove(STARTING_XGID, currentChoices[selectedChoice].move, movePlayer)
                       } else {
                         // Show the correct answer
                         const correctChoice = currentChoices.find(c => c.isCorrect)
                         moveResult = correctChoice 
-                          ? applyMove(STARTING_XGID, correctChoice.move)
+                          ? applyMove(STARTING_XGID, correctChoice.move, movePlayer)
                           : { xgid: STARTING_XGID, ghostCheckers: {}, ghostCheckerPositions: {}, ghostCheckerOwners: {}, moves: [] }
                       }
                       
@@ -408,6 +434,7 @@ export default function OpeningMovesPage() {
                                 moves={moveResult.moves}
                                 dice={getDiceString(currentRoll)}
                                 showTrays={false}
+                                onPlayerChange={setCurrentPlayer}
                               />
                             </div>
                           </div>
