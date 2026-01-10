@@ -915,10 +915,10 @@ export default function BackgammonBoard({
         // Add drag and double-click handlers if editable
         const dragHandlers = isEditable ? {
           onMouseDown: (e) => {
-            handleCheckerMouseDown(e, 0, 1, 'black', topBarCount, false, null)
+            handleCheckerMouseDown(e, 0, 1, 'black', 1, false, null)
           },
           onDoubleClick: (e) => {
-            handleCheckerDoubleClick(e, 0, 'black', topBarCount, false)
+            handleCheckerDoubleClick(e, 0, 'black', 1, false)
           },
           style: { cursor: 'grab' }
         } : {}
@@ -954,10 +954,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 0, 1, 'black', topBarCount, false, null)
+              handleCheckerMouseDown(e, 0, 1, 'black', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 0, 'black', topBarCount, false)
+              handleCheckerDoubleClick(e, 0, 'black', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
@@ -982,10 +982,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 0, 2, 'black', topBarCount - 1, false, null)
+              handleCheckerMouseDown(e, 0, 2, 'black', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 0, 'black', topBarCount - 1, false)
+              handleCheckerDoubleClick(e, 0, 'black', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
@@ -1010,10 +1010,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 0, 3, 'black', topBarCount - 2, false, null)
+              handleCheckerMouseDown(e, 0, 3, 'black', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 0, 'black', topBarCount - 2, false)
+              handleCheckerDoubleClick(e, 0, 'black', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
@@ -1043,10 +1043,10 @@ export default function BackgammonBoard({
         // Add drag and double-click handlers if editable
         const dragHandlers = isEditable ? {
           onMouseDown: (e) => {
-            handleCheckerMouseDown(e, 25, 1, 'white', bottomBarCount, false, null)
+            handleCheckerMouseDown(e, 25, 1, 'white', 1, false, null)
           },
           onDoubleClick: (e) => {
-            handleCheckerDoubleClick(e, 25, 'white', bottomBarCount, false)
+            handleCheckerDoubleClick(e, 25, 'white', 1, false)
           },
           style: { cursor: 'grab' }
         } : {}
@@ -1082,10 +1082,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 25, 1, 'white', bottomBarCount, false, null)
+              handleCheckerMouseDown(e, 25, 1, 'white', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 25, 'white', bottomBarCount, false)
+              handleCheckerDoubleClick(e, 25, 'white', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
@@ -1110,10 +1110,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 25, 2, 'white', bottomBarCount - 1, false, null)
+              handleCheckerMouseDown(e, 25, 2, 'white', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 25, 'white', bottomBarCount - 1, false)
+              handleCheckerDoubleClick(e, 25, 'white', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
@@ -1138,10 +1138,10 @@ export default function BackgammonBoard({
           // Add drag and double-click handlers if editable
           const dragHandlers = isEditable ? {
             onMouseDown: (e) => {
-              handleCheckerMouseDown(e, 25, 3, 'white', bottomBarCount - 2, false, null)
+              handleCheckerMouseDown(e, 25, 3, 'white', 1, false, null)
             },
             onDoubleClick: (e) => {
-              handleCheckerDoubleClick(e, 25, 'white', bottomBarCount - 2, false)
+              handleCheckerDoubleClick(e, 25, 'white', 1, false)
             },
             style: { cursor: 'grab' }
           } : {}
