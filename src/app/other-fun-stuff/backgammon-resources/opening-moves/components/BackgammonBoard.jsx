@@ -200,6 +200,19 @@ export default function BackgammonBoard({
       }
     }
   }, [effectiveXGID, effectiveEditingMode, isEditable]) // Note: intentionally not including turnState to avoid loops
+
+  // Clear localSettings.player when XGID player changes in PLAY mode to ensure UI consistency
+  useEffect(() => {
+    if (effectiveEditingMode === 'play' && localSettings?.player !== undefined) {
+      const boardState = effectiveXGID ? parseXGID(effectiveXGID) : null
+      if (boardState && boardState.player !== undefined) {
+        const xgidPlayer = boardState.player === 1 ? 1 : -1
+        if (localSettings.player !== xgidPlayer) {
+          setLocalSettings(prev => prev ? { ...prev, player: undefined } : null)
+        }
+      }
+    }
+  }, [effectiveXGID, effectiveEditingMode, localSettings?.player])
   
   // Use localSettings for rendering if user has overridden, otherwise use XGID/props
   const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
@@ -207,7 +220,8 @@ export default function BackgammonBoard({
   const activeShowBoardLabels = localSettings?.showBoardLabels !== undefined ? localSettings.showBoardLabels : showBoardLabels
   
   // Override with localSettings only if user has explicitly changed them, otherwise use XGID/props
-  const finalEffectivePlayer = localSettings?.player !== undefined ? localSettings.player : effectivePlayer
+  // In PLAY mode, always use the XGID player (authoritative during gameplay), otherwise use localSettings override
+  const finalEffectivePlayer = effectiveEditingMode === 'play' ? effectivePlayer : (localSettings?.player !== undefined ? localSettings.player : effectivePlayer)
   const finalEffectiveCubeOwner = localSettings?.cubeOwner !== undefined ? localSettings.cubeOwner : effectiveCubeOwner
   const finalEffectiveCubeValue = localSettings?.cubeValue !== undefined ? localSettings.cubeValue : effectiveCubeValue
   const finalEffectiveDice = localSettings?.dice !== undefined ? localSettings.dice : effectiveDice
@@ -3397,10 +3411,16 @@ export default function BackgammonBoard({
           if (onChange) {
             onChange(newXGID)
           }
+
+          // Reset turn state if player or dice changed in PLAY mode
+          // This prevents turn state from becoming stale when changing player during play
+          if (effectiveEditingMode === 'play') {
+            setTurnState(null)
+          }
         }
       }
     }
-    
+
     // Notify parent if player changed
     if (localSettings && onPlayerChange && localSettings.player !== undefined) {
       onPlayerChange(localSettings.player)
