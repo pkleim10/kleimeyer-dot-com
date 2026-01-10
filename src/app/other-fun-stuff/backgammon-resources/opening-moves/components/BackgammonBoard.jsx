@@ -2321,29 +2321,10 @@ export default function BackgammonBoard({
       const pointBottom = Math.max(baseY, tipY)
       
       if (x >= pointLeft && x <= pointRight && y >= pointTop && y <= pointBottom) {
-        // pointNum is in white's absolute perspective, convert to current player's relative perspective
-        // Determine current player for coordinate conversion:
-        // - In PLAY mode: use turnState.currentPlayer (most accurate for game logic)
-        // - In EDIT mode: use finalEffectivePlayer (display player, allows moving any checker)
-        let currentPlayer = 1 // Default to white
-        if (effectiveEditingMode === 'play') {
-          // Play mode: use turnState which tracks the actual current player
-          if (turnState && turnState.currentPlayer) {
-            currentPlayer = turnState.currentPlayer === 'black' ? -1 : 1
-          } else if (draggedChecker && draggedChecker.owner) {
-            // Fallback: derive from owner (in play mode you can only move your own pieces)
-            currentPlayer = draggedChecker.owner === 'black' ? -1 : 1
-          }
-        } else {
-          // Edit mode: use display player (allows moving any checker from any perspective)
-          currentPlayer = finalEffectivePlayer !== undefined ? finalEffectivePlayer : 1
-        }
-        
-        if (currentPlayer === 1) {
-          return pointNum // Already in white's perspective
-        } else {
-          return 25 - pointNum // Convert to black's relative perspective
-        }
+        // Return pointNum in white's absolute perspective (1-24)
+        // This is needed for rendering with getPointPosition
+        // Will be converted to relative coordinates when calling validateMove
+        return pointNum
       }
     }
     
@@ -2707,25 +2688,43 @@ export default function BackgammonBoard({
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
         
-        const dropPoint = getPointFromCoordinates(x, y)
+        const dropPointAbsolute = getPointFromCoordinates(x, y)
         
-        if (dropPoint !== null && dropPoint !== draggedChecker.point) {
+        if (dropPointAbsolute !== null) {
           const currentXGID = editableXGID || effectiveXGID || xgid
           if (currentXGID) {
             const boardState = parseXGID(currentXGID)
             
-            // Validate move
-            if (validateMove(draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
-              // Update XGID
-              const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
-              setEditableXGID(newXGID)
+            // Convert dropPoint from absolute to relative coordinates
+            // dropPointAbsolute is in white's absolute perspective (1-24)
+            // updateXGIDForMove expects relative coordinates based on boardState.player
+            // In EDIT mode, use finalEffectivePlayer if available; in PLAY mode, use boardState.player
+            const currentPlayerForConversion = effectiveEditingMode === 'play' 
+              ? (boardState.player !== undefined ? boardState.player : 1)
+              : (finalEffectivePlayer !== undefined ? finalEffectivePlayer : (boardState.player !== undefined ? boardState.player : 1))
+            
+            const dropPoint = (dropPointAbsolute >= 1 && dropPointAbsolute <= 24)
+              ? (currentPlayerForConversion === -1 ? 25 - dropPointAbsolute : dropPointAbsolute)
+              : dropPointAbsolute
+            
+            // For validation, convert to relative coordinates based on draggedChecker.owner
+            const dropPointForValidation = (dropPointAbsolute >= 1 && dropPointAbsolute <= 24)
+              ? (draggedChecker.owner === 'black' ? 25 - dropPointAbsolute : dropPointAbsolute)
+              : dropPointAbsolute
               
-              // Track dice usage in PLAY mode
-              if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
-                const distance = calculateMoveDistance(draggedChecker.point, dropPoint, draggedChecker.owner)
+            if (dropPointForValidation !== draggedChecker.point) {
+              // Validate move
+              if (validateMove(draggedChecker.point, dropPointForValidation, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
+                // Update XGID - use dropPoint (relative to boardState.player) for updateXGIDForMove
+                const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
+                setEditableXGID(newXGID)
+                
+                // Track dice usage in PLAY mode
+                if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+                  const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
                 if (distance !== null && distance > 0) {
                   const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
-                  const isBearingOff = (dropPoint === -1 || dropPoint === -2)
+                  const isBearingOff = (dropPointForValidation === -1 || dropPointForValidation === -2)
                   const checkersToMove = draggedChecker.count
                   
                   // Find dice that can be used for this move
@@ -2799,7 +2798,7 @@ export default function BackgammonBoard({
                       parts[3] = String(nextPlayer) // Update player
                       parts[4] = '00' // Reset dice
                       const finalXGID = parts.join(':')
-                        setEditableXGID(finalXGID)
+                      setEditableXGID(finalXGID)
                       setTurnState(null) // Reset turn state for next player
                       
                       if (onChange) {
@@ -2818,16 +2817,16 @@ export default function BackgammonBoard({
                       
                       if (onChange) {
                         onChange(finalXGID)
-                    }
-                  } else {
+                      }
+                    } else {
                       // Update turn state with used dice
                       setTurnState(updatedTurnState)
                       
                       if (onChange) {
                         onChange(newXGID)
                       }
-                  }
-                } else {
+                    }
+                  } else {
                     // Not enough dice - shouldn't happen if validation worked, but notify anyway
                     if (onChange) {
                       onChange(newXGID)
@@ -2841,9 +2840,12 @@ export default function BackgammonBoard({
                 }
               } else {
                 // Not play mode or no turn state - just notify
-              if (onChange) {
+                if (onChange) {
                   onChange(newXGID)
                 }
+              }
+              } else {
+                // Invalid move - do nothing
               }
             }
           }
@@ -2864,7 +2866,7 @@ export default function BackgammonBoard({
       document.removeEventListener('mousemove', handleGlobalMouseMove)
       document.removeEventListener('mouseup', handleGlobalMouseUp)
     }
-  }, [isEditable, draggedChecker, editableXGID, effectiveXGID, xgid, effectiveEditingMode, onChange])
+  }, [isEditable, draggedChecker, editableXGID, effectiveXGID, xgid, effectiveEditingMode, onChange, turnState])
   
   // Local mouse move handler (for SVG only, but global handler above takes precedence)
   const handleMouseMove = (e) => {
@@ -3779,10 +3781,19 @@ export default function BackgammonBoard({
                     const baseY = isTopHalf ? quadrantY : quadrantY + quadrantHeight
                     const tipY = isTopHalf ? baseY + pointHeight : baseY - pointHeight
                     
+                    // Convert dragOverPoint from absolute to relative coordinates for validation
+                    // dragOverPoint is in white's absolute perspective (1-24)
+                    // draggedChecker.point is in relative perspective (from owner's view)
+                    // So convert dragOverPoint to relative using the owner's perspective
+                    const currentPlayerForConversion = draggedChecker.owner === 'black' ? -1 : 1
+                    const dragOverPointRelative = currentPlayerForConversion === 1 
+                      ? dragOverPoint 
+                      : 25 - dragOverPoint
+                    
                     // Validate if this is a valid drop zone
                   const isValid = validateMove(
                         draggedChecker.point,
-                        dragOverPoint,
+                        dragOverPointRelative,
                         draggedChecker.count,
                         draggedChecker.owner,
                         effectiveEditingMode,
