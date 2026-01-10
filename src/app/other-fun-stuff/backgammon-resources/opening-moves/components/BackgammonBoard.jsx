@@ -45,6 +45,9 @@ export default function BackgammonBoard({
   const [dragScreenPosition, setDragScreenPosition] = useState({ x: 0, y: 0 }) // Current mouse position in screen coordinates
   const [localEditingMode, setLocalEditingMode] = useState(editingMode) // Local editing mode (can override prop)
   
+  // Turn state for play mode
+  const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
+  
   // Use editableXGID if in editable mode, otherwise use xgid prop
   const effectiveXGID = isEditable && editableXGID ? editableXGID : xgid
   
@@ -141,6 +144,52 @@ export default function BackgammonBoard({
       localStorage.setItem('backgammonBoardDialogPosition', JSON.stringify(dialogPosition))
     }
   }, [dialogPosition])
+  
+  // Initialize turn state when dice are rolled (in play mode)
+  // Only initialize when dice change from "00" to actual values, or when player changes
+  useEffect(() => {
+    if (effectiveEditingMode !== 'play' || !isEditable) {
+      setTurnState(null)
+      return
+    }
+
+    const boardState = effectiveXGID ? parseXGID(effectiveXGID) : null
+    if (!boardState) return
+
+    const currentPlayer = boardState.player
+    if (currentPlayer === undefined) return
+
+    const owner = currentPlayer === 1 ? 'white' : 'black'
+    const dice = boardState.dice
+
+    // Only initialize if dice are rolled (not "00") AND we don't already have turn state for this player
+    if (dice && dice !== '00') {
+      const die1 = parseInt(dice[0])
+      const die2 = parseInt(dice[1])
+      
+      if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
+        // Only initialize if we don't have turn state, or if player changed, or if turn was completed
+        if (!turnState || turnState.currentPlayer !== owner || turnState.isTurnComplete) {
+          const diceArray = [die1, die2]
+          const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
+          
+          setTurnState({
+            currentPlayer: owner,
+            dice: diceArray,
+            usedDice: [],
+            isTurnComplete: false,
+            mustEnterFromBar: barCount > 0,
+            noLegalMoves: false
+          })
+        }
+      }
+    } else {
+      // Reset turn state when dice are "00" (but only if we had turn state)
+      if (turnState) {
+        setTurnState(null)
+      }
+    }
+  }, [effectiveXGID, effectiveEditingMode, isEditable]) // Note: intentionally not including turnState to avoid loops
   
   // Use localSettings for rendering if user has overridden, otherwise use XGID/props
   const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
@@ -547,8 +596,29 @@ export default function BackgammonBoard({
     const die2X = rightHalfCenterX + dieSize * 0.6 // Second die slightly right
     
     // Dice colors based on player
-    const dieFill = finalEffectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
-    const pipFill = finalEffectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
+    const baseDieFill = finalEffectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
+    const basePipFill = finalEffectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
+    
+    // Check if dice are used (in play mode)
+    // Count occurrences of each die value in usedDice
+    const usedDice = (effectiveEditingMode === 'play' && turnState && turnState.usedDice) ? turnState.usedDice : []
+    let die1Used, die2Used
+    if (die1 === die2) {
+      // Both dice show the same value - count total uses of that value
+      const totalUsedCount = usedDice.filter(d => d === die1).length
+      die1Used = totalUsedCount >= 1
+      die2Used = totalUsedCount >= 2
+    } else {
+      // Different values - check each independently
+      die1Used = usedDice.filter(d => d === die1).length >= 1
+      die2Used = usedDice.filter(d => d === die2).length >= 1
+    }
+    
+    // Grey out used dice
+    const die1Fill = die1Used ? '#888888' : baseDieFill
+    const die2Fill = die2Used ? '#888888' : baseDieFill
+    const die1PipFill = die1Used ? '#666666' : basePipFill
+    const die2PipFill = die2Used ? '#666666' : basePipFill
     
     const diceElements = []
     
@@ -574,7 +644,7 @@ export default function BackgammonBoard({
           height={dieSize}
           rx={dieSize * 0.15}
           ry={dieSize * 0.15}
-          fill={dieFill}
+          fill={die1Fill}
           stroke={COLORS.stroke}
           strokeWidth={2}
           pointerEvents={isEditable ? 'all' : 'none'}
@@ -585,7 +655,7 @@ export default function BackgammonBoard({
             cx={die1X + pos.x * pipSpacing}
             cy={diceY + pos.y * pipSpacing}
             r={pipRadius}
-            fill={pipFill}
+            fill={die1PipFill}
             pointerEvents="none"
           />
         ))}
@@ -603,7 +673,7 @@ export default function BackgammonBoard({
           height={dieSize}
           rx={dieSize * 0.15}
           ry={dieSize * 0.15}
-          fill={dieFill}
+          fill={die2Fill}
           stroke={COLORS.stroke}
           strokeWidth={2}
           pointerEvents={isEditable ? 'all' : 'none'}
@@ -614,7 +684,7 @@ export default function BackgammonBoard({
             cx={die2X + pos.x * pipSpacing}
             cy={diceY + pos.y * pipSpacing}
             r={pipRadius}
-            fill={pipFill}
+            fill={die2PipFill}
             pointerEvents="none"
           />
         ))}
@@ -1318,16 +1388,290 @@ export default function BackgammonBoard({
   }
   
   /**
+   * Convert relative point number (current player's perspective) to absolute (white's perspective/physical board)
+   * @param {number} relativePoint - Point number in current player's perspective (1-24)
+   * @param {number} currentPlayer - Current player (-1 for black, 1 for white)
+   * @returns {number} - Absolute point number (1-24)
+   */
+  const relativeToAbsolute = (relativePoint, currentPlayer) => {
+    if (currentPlayer === 1) { // White's turn
+      return relativePoint // Already in white's perspective
+    } else { // Black's turn
+      return 25 - relativePoint // Convert black's perspective to white's perspective
+    }
+  }
+
+  /**
+   * Get available dice (not yet used)
+   * @param {number[]} dice - Array of dice values
+   * @param {number[]} usedDice - Array of used dice values
+   * @returns {number[]} - Array of available dice values
+   */
+  const getAvailableDice = (dice, usedDice) => {
+    const available = [...dice]
+    for (const used of usedDice) {
+      const index = available.indexOf(used)
+      if (index !== -1) {
+        available.splice(index, 1)
+      }
+    }
+    return available
+  }
+
+  /**
+   * Check if player can bear off
+   * @param {Object} boardState - Current board state
+   * @param {string} owner - 'black' | 'white'
+   * @param {number} currentPlayer - Current player (-1 for black, 1 for white)
+   * @returns {boolean} - True if player can bear off
+   */
+  const canBearOff = (boardState, owner, currentPlayer) => {
+    // Must have no checkers on bar
+    const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
+    if (barCount > 0) return false
+
+    // All checkers must be in home board (relative points 1-6)
+    const homeBoardAbsolute = currentPlayer === 1 
+      ? [1, 2, 3, 4, 5, 6]  // White's home board
+      : [19, 20, 21, 22, 23, 24]  // Black's home board (relative 1-6 = absolute 19-24)
+
+    for (let i = 0; i < 24; i++) {
+      const pointData = boardState.points[i]
+      if (pointData.count > 0 && pointData.owner === owner) {
+        const absolutePoint = i + 1
+        if (!homeBoardAbsolute.includes(absolutePoint)) {
+          return false
+        }
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Get the highest occupied point in player's home board when bearing off
+   * Returns relative point number (1-6) in current player's perspective
+   * @param {Object} boardState - Current board state (in white's perspective)
+   * @param {string} owner - 'black' | 'white'
+   * @param {number} currentPlayer - Current player (-1 for black, 1 for white)
+   * @returns {number|null} - Highest occupied relative point number (1-6), or null if none
+   */
+  const getHighestOccupiedPoint = (boardState, owner, currentPlayer) => {
+    // Convert relative points 1-6 to absolute points based on current player
+    const homeBoardAbsolute = currentPlayer === 1
+      ? [1, 2, 3, 4, 5, 6]  // White's home board
+      : [19, 20, 21, 22, 23, 24]  // Black's home board (relative 1-6 = absolute 19-24)
+
+    // Iterate from highest to lowest absolute point
+    for (let i = homeBoardAbsolute.length - 1; i >= 0; i--) {
+      const absolutePoint = homeBoardAbsolute[i]
+      const pointIndex = absolutePoint - 1
+      const pointData = boardState.points[pointIndex]
+      if (pointData.count > 0 && pointData.owner === owner) {
+        // Return relative point number (1-6)
+        return i + 1
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Check if player can enter from bar
+   * @param {Object} boardState - Current board state
+   * @param {Object} turnState - Turn state
+   * @returns {boolean} - True if player can enter from bar
+   */
+  const canEnterFromBar = (boardState, turnState) => {
+    if (!turnState.mustEnterFromBar) return false
+    if (turnState.dice.length === 0) return false
+
+    const owner = turnState.currentPlayer
+    const currentPlayer = owner === 'white' ? 1 : -1
+    const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+
+    if (availableDice.length === 0) return false
+
+    // Check if any entry point is available
+    // Bar entry: always enter to opponent's home board (relative points 19-24)
+    // Roll 1→24, 2→23, 3→22, 4→21, 5→20, 6→19
+    for (const die of availableDice) {
+      const entryPointRelative = 25 - die // Relative points 19-24
+      const entryPointAbsolute = relativeToAbsolute(entryPointRelative, currentPlayer)
+
+      if (entryPointRelative >= 19 && entryPointRelative <= 24) {
+        const pointData = boardState.points[entryPointAbsolute - 1]
+        // Can enter if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
+        if (pointData.count === 0 || 
+            pointData.owner === owner || 
+            (pointData.count === 1 && pointData.owner !== owner)) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Get all legal moves for the current player
+   * @param {Object} boardState - Current board state
+   * @param {Object} turnState - Turn state
+   * @returns {Array} - Array of legal moves {from, to, dieUsed}
+   */
+  const getLegalMoves = (boardState, turnState) => {
+    const legalMoves = []
+
+    if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
+      return legalMoves
+    }
+
+    const owner = turnState.currentPlayer
+    const currentPlayer = owner === 'white' ? 1 : -1
+    const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+
+    if (availableDice.length === 0) {
+      return legalMoves
+    }
+
+    // Check if must enter from bar
+    if (turnState.mustEnterFromBar) {
+      if (!canEnterFromBar(boardState, turnState)) {
+        return legalMoves
+      }
+
+      // Check bar entry moves
+      // Bar entry: always enter to opponent's home board (relative points 19-24)
+      // Roll 1→24, 2→23, 3→22, 4→21, 5→20, 6→19
+      for (const die of availableDice) {
+        const entryPointRelative = 25 - die // Relative points 19-24
+        const entryPointAbsolute = relativeToAbsolute(entryPointRelative, currentPlayer)
+
+        if (entryPointRelative >= 19 && entryPointRelative <= 24) {
+          const pointData = boardState.points[entryPointAbsolute - 1]
+          // Can enter if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
+          if (pointData.count === 0 || 
+              pointData.owner === owner || 
+              (pointData.count === 1 && pointData.owner !== owner)) {
+            legalMoves.push({ from: owner === 'white' ? 25 : 0, to: entryPointRelative, dieUsed: die })
+          }
+        }
+      }
+
+      return legalMoves
+    }
+
+    // Check if can bear off
+    const bearingOff = canBearOff(boardState, owner, currentPlayer)
+    const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, owner, currentPlayer) : null
+
+    // Check all points for possible moves
+    for (let fromPointRelative = 1; fromPointRelative <= 24; fromPointRelative++) {
+      const fromPointAbsolute = relativeToAbsolute(fromPointRelative, currentPlayer)
+      const fromIndex = fromPointAbsolute - 1
+      const fromPointData = boardState.points[fromIndex]
+
+      // Must have checkers owned by current player
+      if (fromPointData.count === 0 || fromPointData.owner !== owner) {
+        continue
+      }
+
+      // Try each available die
+      for (const die of availableDice) {
+        // Calculate destination (always from higher to lower relative points)
+        let toPointRelative = fromPointRelative - die
+
+        // Check bearing off
+        if (bearingOff && toPointRelative < 1) {
+          // Bearing off happens when moving past point 1
+          // Bearing off distance: point 1 = 6, point 2 = 5, ..., point 6 = 1
+          const bearOffDistance = 7 - fromPointRelative
+
+          if (fromPointRelative >= 1 && fromPointRelative <= 6 && bearOffDistance <= die) {
+            // Rule: If die exceeds highest occupied point's distance, must bear off from highest point
+            if (highestOccupiedPoint !== null) {
+              const highestBearOffDistance = 7 - highestOccupiedPoint
+
+              if (die > highestBearOffDistance) {
+                // Only allow bearing off from highest occupied point
+                if (fromPointRelative === highestOccupiedPoint) {
+                  const tray = owner === 'white' ? -2 : -1
+                  legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+                }
+              } else {
+                // Normal bearing off: can bear off from any point if die >= distance
+                const tray = owner === 'white' ? -2 : -1
+                legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+              }
+            } else {
+              // Fallback: normal bearing off
+              const tray = owner === 'white' ? -2 : -1
+              legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+            }
+          }
+          continue
+        }
+
+        // Regular move to point
+        if (toPointRelative >= 1 && toPointRelative <= 24) {
+          const toPointAbsolute = relativeToAbsolute(toPointRelative, currentPlayer)
+          const toIndex = toPointAbsolute - 1
+          const toPointData = boardState.points[toIndex]
+
+          // Can move if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
+          if (toPointData.count === 0 || 
+              toPointData.owner === owner || 
+              (toPointData.count === 1 && toPointData.owner !== owner)) {
+            legalMoves.push({ from: fromPointRelative, to: toPointRelative, dieUsed: die })
+          }
+        }
+      }
+    }
+
+    return legalMoves
+  }
+
+  /**
+   * Calculate move distance for a given move (using relative coordinates)
+   * @param {number} from - Source point (1-24 relative, 0 for black bar, 25 for white bar)
+   * @param {number} to - Destination point (1-24 relative, 0 for black bar, 25 for white bar, -1 for black tray, -2 for white tray)
+   * @param {string} owner - 'black' | 'white'
+   * @returns {number|null} - Distance moved, or null if invalid
+   */
+  const calculateMoveDistance = (from, to, owner) => {
+    // Bar entry: Players enter to opponent's home board (relative points 19-24)
+    if (from === 0 || from === 25) {
+      if (to >= 19 && to <= 24) {
+        return 25 - to // Distance: roll 1→24 (24), roll 2→23 (23), etc.
+      }
+      return null
+    }
+
+    // Bearing off: moving to tray from home board (relative points 1-6)
+    if ((to === -1 || to === -2) && from >= 1 && from <= 6) {
+      return 7 - from // Distance: point 1 = 6, point 6 = 1
+    }
+
+    // Regular point-to-point move (always from higher to lower numbers in relative coordinates)
+    if (from >= 1 && from <= 24 && to >= 1 && to <= 24) {
+      return from - to
+    }
+
+    return null
+  }
+
+  /**
    * Validate a move based on editing mode
-   * @param {number} from - Source point number (1-24, 0 for black bar, 25 for white bar, -1 for black tray, -2 for white tray)
+   * @param {number} from - Source point number (1-24 relative, 0 for black bar, 25 for white bar, -1 for black tray, -2 for white tray)
    * @param {number} to - Destination point number (same as from)
    * @param {number} count - Number of checkers to move
    * @param {string} owner - Owner of checkers ('black' or 'white')
    * @param {string} mode - Editing mode ('free' or 'play')
    * @param {Object} boardState - Current board state
+   * @param {Object} turnState - Turn state (optional, for play mode)
    * @returns {boolean} - True if move is valid
    */
-  const validateMove = (from, to, count, owner, mode, boardState) => {
+  const validateMove = (from, to, count, owner, mode, boardState, turnState = null) => {
     // Always enforce bar drop rules: BLACK checkers can only go to point 0 (black bar), WHITE checkers can only go to point 25 (white bar)
     if (to === 0 && owner !== 'black') {
       return false // Can't drop non-black checker on black bar
@@ -1349,8 +1693,106 @@ export default function BackgammonBoard({
       return true
     }
     
-    // Play mode: placeholder - return true for now
-    // Future implementation will enforce backgammon rules
+    // Play mode: validate move according to backgammon rules
+    // Check if it's the current player's turn
+    const currentPlayer = boardState.player
+    if (currentPlayer === undefined) {
+      return false // Can't validate without knowing current player
+    }
+    const expectedOwner = currentPlayer === 1 ? 'white' : 'black'
+    if (owner !== expectedOwner) {
+      return false // Not the current player's turn
+    }
+
+    // Use turnState if available and matches current player, otherwise fall back to boardState.dice
+    let diceValues = []
+    
+    // Only use turnState if it exists and matches the current player
+    if (turnState && turnState.currentPlayer === owner) {
+      // Use available dice from turn state
+      diceValues = getAvailableDice(turnState.dice, turnState.usedDice || [])
+      
+      // Check bar entry requirement
+      if (turnState.mustEnterFromBar) {
+        // Bars are physical locations: 0 = black bar (top), 25 = white bar (bottom)
+        // Check if moving from the correct bar for this owner
+        const correctBar = owner === 'white' ? 25 : 0
+        if (from !== correctBar) {
+          return false // Must enter from bar first
+        }
+      }
+    } else {
+      // Fall back to checking all dice from boardState (no turn state or mismatch)
+      const dice = boardState.dice
+      if (!dice || dice === '00') {
+        return false // No dice rolled yet
+      }
+
+      // Parse dice values
+      const die1 = parseInt(dice[0])
+      const die2 = parseInt(dice[1])
+      if (isNaN(die1) || isNaN(die2) || die1 === 0 || die2 === 0) {
+        return false // Invalid dice
+      }
+      diceValues = [die1, die2]
+    }
+
+    if (diceValues.length === 0) {
+      return false // No available dice
+    }
+
+    // Calculate move distance (from and to are in relative coordinates)
+    const distance = calculateMoveDistance(from, to, owner)
+    if (distance === null || distance <= 0) {
+      return false // Invalid move distance
+    }
+
+    // Check if distance matches a die value
+    // For bearing off, any die >= distance is valid
+    const isBearingOff = (to === -1 || to === -2)
+    const matchesDie = isBearingOff
+      ? diceValues.some(die => die >= distance)
+      : diceValues.some(die => die === distance)
+
+    if (!matchesDie) {
+      return false // Move distance doesn't match any die
+    }
+
+    // Validate source point has checkers (convert relative to absolute)
+    if (from >= 1 && from <= 24) {
+      const fromAbsolute = relativeToAbsolute(from, currentPlayer)
+      const fromIndex = fromAbsolute - 1
+      const fromPointData = boardState.points[fromIndex]
+      if (fromPointData.count === 0 || fromPointData.owner !== owner) {
+        return false // No checkers or wrong owner
+      }
+      if (fromPointData.count < count) {
+        return false // Not enough checkers
+      }
+    } else if (from === 0) {
+      // Moving from black bar
+      if (boardState.blackBar === 0 || owner !== 'black') {
+        return false
+      }
+    } else if (from === 25) {
+      // Moving from white bar
+      if (boardState.whiteBar === 0 || owner !== 'white') {
+        return false
+      }
+    }
+
+    // Validate destination point (if not bearing off) - convert relative to absolute
+    if (!isBearingOff && to >= 1 && to <= 24) {
+      const toAbsolute = relativeToAbsolute(to, currentPlayer)
+      const toIndex = toAbsolute - 1
+      const toPointData = boardState.points[toIndex]
+      
+      // Can't move to point with 2+ opponent checkers
+      if (toPointData.count > 1 && toPointData.owner && toPointData.owner !== owner) {
+        return false // Point is blocked
+      }
+    }
+
     return true
   }
   
@@ -1369,6 +1811,9 @@ export default function BackgammonBoard({
     const boardState = parseXGID(currentXGID)
     const xgidParts = currentXGID.split(':')
     
+    // Get current player for coordinate conversion
+    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    
     // Handle tray moves
     if (from === -1 || from === -2) {
       // Moving from tray
@@ -1381,9 +1826,10 @@ export default function BackgammonBoard({
       // Can't move more than available
       if (count > trayCount) return currentXGID
       
-      // Moving to a point
+      // Moving to a point (to is in relative coordinates)
       if (to >= 1 && to <= 24) {
-        const toIndex = to - 1
+        const toAbsolute = relativeToAbsolute(to, currentPlayer)
+        const toIndex = toAbsolute - 1
         const toPointData = boardState.points[toIndex]
         
         // Prevent moving to a point occupied by opponent checkers (unless it's a single blot that can be hit)
@@ -1435,9 +1881,10 @@ export default function BackgammonBoard({
         return currentXGID // Invalid move - can't drop checker on wrong tray
       }
       
-      // Remove checkers from source
+      // Remove checkers from source (from is in relative coordinates)
       if (from >= 1 && from <= 24) {
-        const fromIndex = from - 1
+        const fromAbsolute = relativeToAbsolute(from, currentPlayer)
+        const fromIndex = fromAbsolute - 1
         const fromPointData = boardState.points[fromIndex]
         if (fromPointData.count < count || fromPointData.owner !== owner) {
           return currentXGID // Invalid move
@@ -1460,9 +1907,10 @@ export default function BackgammonBoard({
     }
     
     // Regular point-to-point or bar-to-point move
-    // Remove from source
+    // Remove from source (from is in relative coordinates)
     if (from >= 1 && from <= 24) {
-      const fromIndex = from - 1
+      const fromAbsolute = relativeToAbsolute(from, currentPlayer)
+      const fromIndex = fromAbsolute - 1
       const fromPointData = boardState.points[fromIndex]
       if (fromPointData.count < count || (effectiveEditingMode === 'play' && fromPointData.owner !== owner)) {
         return currentXGID // Invalid move
@@ -1481,9 +1929,10 @@ export default function BackgammonBoard({
       boardState.whiteBar -= count
     }
     
-    // Add to destination
+    // Add to destination (to is in relative coordinates)
     if (to >= 1 && to <= 24) {
-      const toIndex = to - 1
+      const toAbsolute = relativeToAbsolute(to, currentPlayer)
+      const toIndex = toAbsolute - 1
       const toPointData = boardState.points[toIndex]
       
       // Prevent moving to a point occupied by opponent checkers (unless it's a single blot that can be hit)
@@ -1690,7 +2139,19 @@ export default function BackgammonBoard({
       const pointBottom = Math.max(baseY, tipY)
       
       if (x >= pointLeft && x <= pointRight && y >= pointTop && y <= pointBottom) {
-        return pointNum
+        // pointNum is in white's absolute perspective, convert to current player's relative perspective
+        // Use the actual current player from boardState, not the display player
+        const currentXGID = editableXGID || effectiveXGID || xgid
+        let currentPlayer = 1 // Default to white
+        if (currentXGID) {
+          const boardState = parseXGID(currentXGID)
+          currentPlayer = boardState.player !== undefined ? boardState.player : 1
+        }
+        if (currentPlayer === 1) {
+          return pointNum // Already in white's perspective
+        } else {
+          return 25 - pointNum // Convert to black's relative perspective
+        }
       }
     }
     
@@ -1818,8 +2279,25 @@ export default function BackgammonBoard({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     
+    // Convert point to relative coordinates (point comes in as white's absolute perspective)
+    // Use the actual current player from boardState, not the display player
+    const currentXGID = editableXGID || effectiveXGID || xgid
+    let currentPlayer = 1 // Default to white
+    if (currentXGID) {
+      const boardState = parseXGID(currentXGID)
+      currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    }
+    
+    const relativePoint = isTray 
+      ? (trayOwner === 'black' ? -1 : -2)  // Trays don't need conversion
+      : (point === 0 || point === 25 
+          ? point  // Bars don't need conversion
+          : (currentPlayer === 1 
+              ? point  // White's turn - already relative
+              : 25 - point))  // Black's turn - convert to relative
+    
     setDraggedChecker({
-      point: isTray ? (trayOwner === 'black' ? -1 : -2) : point,
+      point: relativePoint,
       stackPosition,
       owner,
       count,
@@ -1852,18 +2330,96 @@ export default function BackgammonBoard({
     
     const boardState = parseXGID(currentXGID)
     
+    // Convert point to relative coordinates (point comes in as white's absolute perspective)
+    // Use the actual current player from boardState, not the display player
+    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    const relativePoint = (point === 0 || point === 25) 
+      ? point  // Bars don't need conversion
+      : (currentPlayer === 1 
+          ? point  // White's turn - already relative
+          : 25 - point)  // Black's turn - convert to relative
+    
     // Use the count parameter directly - it already represents the clicked checker and all above it
     // (same as drag behavior)
     
     // Validate move (should always pass for tray moves of own checkers)
-    if (validateMove(point, targetTray, count, owner, effectiveEditingMode, boardState)) {
+    if (validateMove(relativePoint, targetTray, count, owner, effectiveEditingMode, boardState, turnState)) {
       // Update XGID - move only the clicked checker and checkers above it to tray
-      const newXGID = updateXGIDForMove(currentXGID, point, targetTray, count, owner)
+      const newXGID = updateXGIDForMove(currentXGID, relativePoint, targetTray, count, owner)
       setEditableXGID(newXGID)
       
-      // Notify parent
-      if (onChange) {
-        onChange(newXGID)
+      // Track dice usage in PLAY mode (same logic as handleGlobalMouseUp)
+      if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+        const distance = calculateMoveDistance(relativePoint, targetTray, owner)
+        if (distance !== null && distance > 0) {
+          const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+          const checkersToMove = count
+          
+          // For bearing off, find dice >= distance
+          const usableDice = availableDice.filter(d => d >= distance).sort((a, b) => a - b)
+          if (usableDice.length >= checkersToMove) {
+            const diceToUse = usableDice.slice(0, checkersToMove)
+            const newBoardState = parseXGID(newXGID)
+            const updatedTurnState = {
+              ...turnState,
+              usedDice: [...(turnState.usedDice || []), ...diceToUse],
+              noLegalMoves: false
+            }
+            
+            const barCount = updatedTurnState.currentPlayer === 'black' ? newBoardState.blackBar : newBoardState.whiteBar
+            updatedTurnState.mustEnterFromBar = barCount > 0
+            
+            const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
+            const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length
+
+            if (remainingLegalMoves.length === 0) {
+              updatedTurnState.isTurnComplete = true
+              updatedTurnState.noLegalMoves = true
+              
+              const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
+              const parts = newXGID.split(':')
+              parts[3] = String(nextPlayer)
+              parts[4] = '00'
+              const finalXGID = parts.join(':')
+              setEditableXGID(finalXGID)
+              setTurnState(null)
+              
+              if (onChange) {
+                onChange(finalXGID)
+              }
+            } else if (allDiceUsed) {
+              updatedTurnState.isTurnComplete = true
+              const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
+              const parts = newXGID.split(':')
+              parts[3] = String(nextPlayer)
+              parts[4] = '00'
+              const finalXGID = parts.join(':')
+              setEditableXGID(finalXGID)
+              setTurnState(null)
+              
+              if (onChange) {
+                onChange(finalXGID)
+              }
+            } else {
+              setTurnState(updatedTurnState)
+              if (onChange) {
+                onChange(newXGID)
+              }
+            }
+          } else {
+            if (onChange) {
+              onChange(newXGID)
+            }
+          }
+        } else {
+          if (onChange) {
+            onChange(newXGID)
+          }
+        }
+      } else {
+        if (onChange) {
+          onChange(newXGID)
+        }
       }
     }
   }
@@ -1919,14 +2475,111 @@ export default function BackgammonBoard({
             const boardState = parseXGID(currentXGID)
             
             // Validate move
-            if (validateMove(draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState)) {
+            if (validateMove(draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
               // Update XGID
               const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
               setEditableXGID(newXGID)
               
-              // Notify parent
-              if (onChange) {
-                onChange(newXGID)
+              // Track dice usage in PLAY mode
+              if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+                const distance = calculateMoveDistance(draggedChecker.point, dropPoint, draggedChecker.owner)
+                if (distance !== null && distance > 0) {
+                  const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+                  const isBearingOff = (dropPoint === -1 || dropPoint === -2)
+                  const checkersToMove = draggedChecker.count
+                  
+                  // Find dice that can be used for this move
+                  // For bearing off: any die >= distance
+                  // For regular moves: die === distance
+                  let diceToUse = []
+                  if (isBearingOff) {
+                    // For bearing off, find dice >= distance
+                    const usableDice = availableDice.filter(d => d >= distance).sort((a, b) => a - b)
+                    if (usableDice.length >= checkersToMove) {
+                      diceToUse = usableDice.slice(0, checkersToMove)
+                    }
+                  } else {
+                    // For regular moves, find dice === distance
+                    const usableDice = availableDice.filter(d => d === distance)
+                    if (usableDice.length >= checkersToMove) {
+                      diceToUse = usableDice.slice(0, checkersToMove)
+                    }
+                  }
+                  
+                  // Use one die per checker moved
+                  if (diceToUse.length >= checkersToMove) {
+                    const newBoardState = parseXGID(newXGID)
+                    const updatedTurnState = {
+                      ...turnState,
+                      usedDice: [...(turnState.usedDice || []), ...diceToUse],
+                      noLegalMoves: false // Reset when a move is made
+                    }
+                    
+                    // Check if player still has checkers on bar
+                    const barCount = updatedTurnState.currentPlayer === 'black' ? newBoardState.blackBar : newBoardState.whiteBar
+                    updatedTurnState.mustEnterFromBar = barCount > 0
+                    
+                    // Check if turn should be automatically completed (no legal moves remain)
+                    const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
+                    const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length
+
+                    // Update turn state FIRST before updating XGID to prevent useEffect from resetting it
+                    if (remainingLegalMoves.length === 0) {
+                      // No legal moves remain - turn is complete
+                      updatedTurnState.isTurnComplete = true
+                      updatedTurnState.noLegalMoves = true
+                      
+                      // Switch to next player and reset dice
+                      const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
+                      const parts = newXGID.split(':')
+                      parts[3] = String(nextPlayer) // Update player
+                      parts[4] = '00' // Reset dice
+                      const finalXGID = parts.join(':')
+                      setEditableXGID(finalXGID)
+                      setTurnState(null) // Reset turn state for next player
+                      
+                      if (onChange) {
+                        onChange(finalXGID)
+                      }
+                    } else if (allDiceUsed) {
+                      // All dice used but moves still available - shouldn't happen, but handle it
+                      updatedTurnState.isTurnComplete = true
+                      const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
+                      const parts = newXGID.split(':')
+                      parts[3] = String(nextPlayer)
+                      parts[4] = '00'
+                      const finalXGID = parts.join(':')
+                      setEditableXGID(finalXGID)
+                      setTurnState(null)
+                      
+                      if (onChange) {
+                        onChange(finalXGID)
+                      }
+                    } else {
+                      // Update turn state with used dice
+                      setTurnState(updatedTurnState)
+                      
+                      if (onChange) {
+                        onChange(newXGID)
+                      }
+                    }
+                  } else {
+                    // Not enough dice - shouldn't happen if validation worked, but notify anyway
+                    if (onChange) {
+                      onChange(newXGID)
+                    }
+                  }
+                } else {
+                  // Invalid distance - shouldn't happen if validation worked
+                  if (onChange) {
+                    onChange(newXGID)
+                  }
+                }
+              } else {
+                // Not play mode or no turn state - just notify
+                if (onChange) {
+                  onChange(newXGID)
+                }
               }
             }
           }
@@ -2788,31 +3441,31 @@ export default function BackgammonBoard({
         
         {/* Drag feedback - rendered last so it appears on top */}
         {isEditable && draggedChecker && (
-          <>
-            {/* Highlight valid drop zones */}
-            {dragOverPoint !== null && dragOverPoint !== draggedChecker.point && (
-              <g>
-                {dragOverPoint >= 1 && dragOverPoint <= 24 && (() => {
-                  const pos = getPointPosition(dragOverPoint)
-                  if (!pos) return null
-                  const { quadrantIndex, pointIndex } = pos
-                  const isTopHalf = quadrantIndex === 0 || quadrantIndex === 1
-                  const isRight = quadrantIndex === 0 || quadrantIndex === 3
-                  const quadrantX = isRight ? rightQuadrantX : leftQuadrantX
-                  const quadrantY = isTopHalf ? topBorderWidth : topBorderWidth + quadrantHeight
-                  const pointX = quadrantX + pointIndex * pointWidth
-                  const baseY = isTopHalf ? quadrantY : quadrantY + quadrantHeight
-                  const tipY = isTopHalf ? baseY + pointHeight : baseY - pointHeight
-                  
-                  // Validate if this is a valid drop zone
+            <>
+              {/* Highlight valid drop zones */}
+              {dragOverPoint !== null && dragOverPoint !== draggedChecker.point && (
+                <g>
+                  {dragOverPoint >= 1 && dragOverPoint <= 24 && (() => {
+                    const pos = getPointPosition(dragOverPoint)
+                    if (!pos) return null
+                    const { quadrantIndex, pointIndex } = pos
+                    const isTopHalf = quadrantIndex === 0 || quadrantIndex === 1
+                    const isRight = quadrantIndex === 0 || quadrantIndex === 3
+                    const quadrantX = isRight ? rightQuadrantX : leftQuadrantX
+                    const quadrantY = isTopHalf ? topBorderWidth : topBorderWidth + quadrantHeight
+                    const pointX = quadrantX + pointIndex * pointWidth
+                    const baseY = isTopHalf ? quadrantY : quadrantY + quadrantHeight
+                    const tipY = isTopHalf ? baseY + pointHeight : baseY - pointHeight
+                    
+                    // Validate if this is a valid drop zone
                   const isValid = validateMove(
-                    draggedChecker.point,
-                    dragOverPoint,
-                    draggedChecker.count,
-                    draggedChecker.owner,
-                    effectiveEditingMode,
-                    boardState
-                  )
+                        draggedChecker.point,
+                        dragOverPoint,
+                        draggedChecker.count,
+                        draggedChecker.owner,
+                        effectiveEditingMode,
+                        boardState
+                      )
                   
                   return (
                     <polygon
@@ -2828,13 +3481,13 @@ export default function BackgammonBoard({
                 {(dragOverPoint === 0 || dragOverPoint === 25) && (() => {
                   const barX = leftBorderWidth + (innerWidth - BAR_WIDTH) / 2
                   const isValid = validateMove(
-                    draggedChecker.point,
-                    dragOverPoint,
-                    draggedChecker.count,
-                    draggedChecker.owner,
-                    effectiveEditingMode,
-                    boardState
-                  )
+                      draggedChecker.point,
+                      dragOverPoint,
+                      draggedChecker.count,
+                      draggedChecker.owner,
+                      effectiveEditingMode,
+                      boardState
+                    )
                   
                   return (
                     <rect
@@ -2859,13 +3512,13 @@ export default function BackgammonBoard({
                   
                   // Validate tray drop (must match owner in play mode)
                   const isValid = validateMove(
-                    draggedChecker.point,
-                    dragOverPoint,
-                    draggedChecker.count,
-                    draggedChecker.owner,
-                    effectiveEditingMode,
-                    boardState
-                  )
+                      draggedChecker.point,
+                      dragOverPoint,
+                      draggedChecker.count,
+                      draggedChecker.owner,
+                      effectiveEditingMode,
+                      boardState
+                    )
                   
                   return (
                     <rect
