@@ -178,7 +178,7 @@ export default function BackgammonBoard({
           const initialTurnState = {
             currentPlayer: owner,
             dice: diceArray,
-            usedDice: [],
+        usedDice: [],
             isTurnComplete: false,
             mustEnterFromBar: barCount > 0,
             noLegalMoves: false
@@ -1195,7 +1195,10 @@ export default function BackgammonBoard({
       const fillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
       const isLastNormalChecker = i === normalDisplayCount - 1 && ghostCount === 0
       const stackPosition = i + 1 // 1-based position from top
-      const checkersToMove = normalCount - i // Number of checkers including and above this one
+      // When there are more than 5 checkers, only 5 are displayed visually.
+      // The 5th checker (i=4) shows the count and represents the top checker.
+      // It should always move 1 checker, not normalCount - 4.
+      const checkersToMove = (normalCount > 5 && i === 4) ? 1 : (normalCount - i) // Number of checkers including and above this one
       
       // Add drag and double-click handlers if editable
       const ownerStr = effectiveOwner === 'bottom' ? 'white' : 'black'
@@ -1508,11 +1511,14 @@ export default function BackgammonBoard({
    * @returns {boolean} - True if player can bear off
    */
   const canBearOff = (boardState, owner, currentPlayer) => {
-    // Must have no checkers on bar
+    // Rule: All checkers in play must be in the player's home board
+    // Checkers on the bar are "in play" but not in home board, so bearing off is not allowed
     const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
-    if (barCount > 0) return false
+    if (barCount > 0) {
+      return false
+    }
     
-    // All checkers must be in home board (relative points 1-6)
+    // All checkers on points must be in home board (relative points 1-6)
     const homeBoardAbsolute = currentPlayer === 1 
       ? [1, 2, 3, 4, 5, 6]  // White's home board
       : [19, 20, 21, 22, 23, 24]  // Black's home board (relative 1-6 = absolute 19-24)
@@ -1539,19 +1545,20 @@ export default function BackgammonBoard({
    * @returns {number|null} - Highest occupied relative point number (1-6), or null if none
    */
   const getHighestOccupiedPoint = (boardState, owner, currentPlayer) => {
-    // Convert relative points 1-6 to absolute points based on current player
-    const homeBoardAbsolute = currentPlayer === 1
-      ? [1, 2, 3, 4, 5, 6]  // White's home board
-      : [19, 20, 21, 22, 23, 24]  // Black's home board (relative 1-6 = absolute 19-24)
-
-    // Iterate from highest to lowest absolute point
-    for (let i = homeBoardAbsolute.length - 1; i >= 0; i--) {
-      const absolutePoint = homeBoardAbsolute[i]
+    // Rules are identical for both players - just convert absolute points to relative and find max
+    // Home board is relative points 1-6 for both players
+    let highestRelativePoint = null
+    
+    // Check all relative points 1-6
+    for (let relativePoint = 6; relativePoint >= 1; relativePoint--) {
+      // Convert relative point to absolute point
+      const absolutePoint = relativeToAbsolute(relativePoint, currentPlayer)
       const pointIndex = absolutePoint - 1
       const pointData = boardState.points[pointIndex]
+      
       if (pointData.count > 0 && pointData.owner === owner) {
-        // Return relative point number (1-6)
-        return i + 1
+        // Found an occupied point - return it (we're iterating from highest to lowest)
+        return relativePoint
       }
     }
     
@@ -1669,27 +1676,32 @@ export default function BackgammonBoard({
           // Bearing off distance: point 1 = 6, point 2 = 5, ..., point 6 = 1
           const bearOffDistance = 7 - fromPointRelative
 
-          if (fromPointRelative >= 1 && fromPointRelative <= 6 && bearOffDistance <= die) {
-              // Rule: If die exceeds highest occupied point's distance, must bear off from highest point
-              if (highestOccupiedPoint !== null) {
-              const highestBearOffDistance = 7 - highestOccupiedPoint
-
-                if (die > highestBearOffDistance) {
-                  // Only allow bearing off from highest occupied point
-                if (fromPointRelative === highestOccupiedPoint) {
+          if (fromPointRelative >= 1 && fromPointRelative <= 6) {
+            // Bearing off rules:
+            // 1. Point N can only bear off with die N (exact match: point number = die number)
+            // 2. Exception: If lowest remaining die > highest occupied point, MUST bear off from highest occupied point
+            if (highestOccupiedPoint !== null && availableDice.length > 0) {
+              const lowestRemainingDie = Math.min(...availableDice)
+              if (lowestRemainingDie > highestOccupiedPoint) {
+                // Rule 2: Lowest remaining die exceeds highest occupied point - must bear off from highest point only with lowest die
+                if (fromPointRelative === highestOccupiedPoint && die === lowestRemainingDie) {
                   const tray = owner === 'white' ? -2 : -1
                   legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
-                  }
-                } else {
-                  // Normal bearing off: can bear off from any point if die >= distance
-                const tray = owner === 'white' ? -2 : -1
-                legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
                 }
               } else {
-                // Fallback: normal bearing off
-              const tray = owner === 'white' ? -2 : -1
-              legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+                // Rule 1: Exact match - point number must equal die number
+                if (fromPointRelative === die) {
+                  const tray = owner === 'white' ? -2 : -1
+                  legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+                }
               }
+                  } else {
+              // Rule 1: Exact match - point number must equal die number
+              if (fromPointRelative === die) {
+                const tray = owner === 'white' ? -2 : -1
+                legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+              }
+            }
             }
             continue
         }
@@ -1787,7 +1799,7 @@ export default function BackgammonBoard({
     }
     
     // In play mode, you can only move one checker per die
-    if (effectiveEditingMode === 'play' && count !== 1) {
+    if (mode === 'play' && count !== 1) {
       return false // Can only move one checker at a time in play mode
     }
 
@@ -1836,11 +1848,35 @@ export default function BackgammonBoard({
     }
 
     // Check if distance matches a die value
-    // For bearing off, any die >= distance is valid
     const isBearingOff = (to === -1 || to === -2)
-    const matchesDie = isBearingOff
-      ? diceValues.some(die => die >= distance)
-      : diceValues.some(die => die === distance)
+    
+    // For bearing off: check if point number equals die number OR if die exceeds highest occupied point
+    let matchesDie = false
+    if (isBearingOff && from >= 1 && from <= 6) {
+      // First check if bearing off is allowed (all checkers must be in home board)
+      const bearingOffAllowed = canBearOff(boardState, owner, currentPlayer)
+      if (!bearingOffAllowed) {
+        return false // Cannot bear off if checkers are still outside home board
+      }
+      
+      // Rule 1: Point N can only bear off with die N (point number = die number)
+      matchesDie = diceValues.some(die => die === from)
+      
+      // Rule 2: Exception - if lowest remaining die > highest occupied point, must bear off from highest point
+      if (!matchesDie) {
+        const highestOccupiedPoint = getHighestOccupiedPoint(boardState, owner, currentPlayer)
+        if (highestOccupiedPoint !== null && diceValues.length > 0) {
+          const lowestRemainingDie = Math.min(...diceValues)
+          // Check if lowest remaining die exceeds highest occupied point and we're bearing off from highest point
+          if (lowestRemainingDie > highestOccupiedPoint && from === highestOccupiedPoint) {
+            matchesDie = diceValues.includes(lowestRemainingDie)
+          }
+        }
+      }
+    } else {
+      // Regular moves: exact match required (distance = die)
+      matchesDie = diceValues.some(die => die === distance)
+    }
 
     if (!matchesDie) {
       return false // Move distance doesn't match any die
@@ -1884,6 +1920,25 @@ export default function BackgammonBoard({
       // Can't move to point with 2+ opponent checkers
       if (toPointData.count > 1 && toPointData.owner && toPointData.owner !== owner) {
         return false // Point is blocked
+      }
+    }
+    
+    // Validate bearing off rule: if lowest remaining die exceeds highest occupied point, must bear off from highest point
+    // (This is already checked in matchesDie above, but we verify here for consistency)
+    if (isBearingOff && from >= 1 && from <= 6) {
+      const bearingOff = canBearOff(boardState, owner, currentPlayer)
+      if (bearingOff) {
+        const highestOccupiedPoint = getHighestOccupiedPoint(boardState, owner, currentPlayer)
+        if (highestOccupiedPoint !== null && diceValues.length > 0) {
+          const lowestRemainingDie = Math.min(...diceValues)
+          
+          if (lowestRemainingDie > highestOccupiedPoint) {
+            // Lowest remaining die exceeds highest occupied point - must bear off from highest point only with lowest die
+            if (from !== highestOccupiedPoint || !diceValues.includes(lowestRemainingDie)) {
+              return false // Can only bear off from highest occupied point with lowest die when it exceeds highest point
+            }
+          }
+        }
       }
     }
     
@@ -2234,13 +2289,23 @@ export default function BackgammonBoard({
       
       if (x >= pointLeft && x <= pointRight && y >= pointTop && y <= pointBottom) {
         // pointNum is in white's absolute perspective, convert to current player's relative perspective
-        // Use the actual current player from boardState, not the display player
-        const currentXGID = editableXGID || effectiveXGID || xgid
+        // Determine current player for coordinate conversion:
+        // - In PLAY mode: use turnState.currentPlayer (most accurate for game logic)
+        // - In EDIT mode: use finalEffectivePlayer (display player, allows moving any checker)
         let currentPlayer = 1 // Default to white
-        if (currentXGID) {
-          const boardState = parseXGID(currentXGID)
-          currentPlayer = boardState.player !== undefined ? boardState.player : 1
+        if (effectiveEditingMode === 'play') {
+          // Play mode: use turnState which tracks the actual current player
+          if (turnState && turnState.currentPlayer) {
+            currentPlayer = turnState.currentPlayer === 'black' ? -1 : 1
+          } else if (draggedChecker && draggedChecker.owner) {
+            // Fallback: derive from owner (in play mode you can only move your own pieces)
+            currentPlayer = draggedChecker.owner === 'black' ? -1 : 1
+          }
+        } else {
+          // Edit mode: use display player (allows moving any checker from any perspective)
+          currentPlayer = finalEffectivePlayer !== undefined ? finalEffectivePlayer : 1
         }
+        
         if (currentPlayer === 1) {
           return pointNum // Already in white's perspective
         } else {
@@ -2374,12 +2439,21 @@ export default function BackgammonBoard({
     const y = e.clientY - rect.top
     
     // Convert point to relative coordinates (point comes in as white's absolute perspective)
-    // Use the actual current player from boardState, not the display player
-    const currentXGID = editableXGID || effectiveXGID || xgid
+    // Determine current player for coordinate conversion:
+    // - In PLAY mode: use turnState.currentPlayer (most accurate for game logic)
+    // - In EDIT mode: use finalEffectivePlayer (display player, allows moving any checker)
     let currentPlayer = 1 // Default to white
-    if (currentXGID) {
-      const boardState = parseXGID(currentXGID)
-      currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    if (effectiveEditingMode === 'play') {
+      // Play mode: use turnState which tracks the actual current player
+      if (turnState && turnState.currentPlayer) {
+        currentPlayer = turnState.currentPlayer === 'black' ? -1 : 1
+      } else {
+        // Fallback: derive from owner (in play mode you can only move your own pieces)
+        currentPlayer = owner === 'black' ? -1 : 1
+      }
+    } else {
+      // Edit mode: use display player (allows moving any checker from any perspective)
+      currentPlayer = finalEffectivePlayer !== undefined ? finalEffectivePlayer : 1
     }
     
     const relativePoint = isTray 
@@ -2448,11 +2522,47 @@ export default function BackgammonBoard({
         if (distance !== null && distance > 0) {
           const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
           const checkersToMove = count
+          const isBearingOff = (targetTray === -1 || targetTray === -2)
           
-          // For bearing off, find dice >= distance
-          const usableDice = availableDice.filter(d => d >= distance).sort((a, b) => a - b)
-          if (usableDice.length >= checkersToMove) {
-            const diceToUse = usableDice.slice(0, checkersToMove)
+          let diceToUse = []
+          if (isBearingOff) {
+            // For bearing off: point N can only bear off with die N (point number = die number)
+            // Exception: if lowest remaining die > highest occupied point, must bear off from highest point
+            const fromPoint = relativePoint
+            const bearingOff = canBearOff(boardState, owner, boardState.player)
+            const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, owner, boardState.player) : null
+            
+            if (highestOccupiedPoint !== null && availableDice.length > 0) {
+              const lowestRemainingDie = Math.min(...availableDice)
+              if (lowestRemainingDie > highestOccupiedPoint) {
+                // Exception: lowest remaining die exceeds highest occupied point - must use lowest die to bear off from highest point
+                if (fromPoint === highestOccupiedPoint) {
+                  // Use the lowest die (which exceeds highest occupied point)
+                  diceToUse = [lowestRemainingDie]
+                }
+              } else {
+                // Normal bearing off: point number must equal die number
+                const matchingDice = availableDice.filter(d => d === fromPoint)
+                if (matchingDice.length >= checkersToMove) {
+                  diceToUse = matchingDice.slice(0, checkersToMove)
+                }
+              }
+            } else {
+              // Normal bearing off: point number must equal die number
+              const matchingDice = availableDice.filter(d => d === fromPoint)
+              if (matchingDice.length >= checkersToMove) {
+                diceToUse = matchingDice.slice(0, checkersToMove)
+              }
+            }
+          } else {
+            // For regular moves, find dice === distance
+            const usableDice = availableDice.filter(d => d === distance)
+            if (usableDice.length >= checkersToMove) {
+              diceToUse = usableDice.slice(0, checkersToMove)
+            }
+          }
+          
+          if (diceToUse.length >= checkersToMove) {
             const newBoardState = parseXGID(newXGID)
             const updatedTurnState = {
               ...turnState,
@@ -2583,14 +2693,35 @@ export default function BackgammonBoard({
                   const checkersToMove = draggedChecker.count
                   
                   // Find dice that can be used for this move
-                  // For bearing off: any die >= distance
-                  // For regular moves: die === distance
                   let diceToUse = []
                   if (isBearingOff) {
-                    // For bearing off, find dice >= distance
-                    const usableDice = availableDice.filter(d => d >= distance).sort((a, b) => a - b)
-                    if (usableDice.length >= checkersToMove) {
-                      diceToUse = usableDice.slice(0, checkersToMove)
+                    // For bearing off: point N can only bear off with die N (point number = die number)
+                    // Exception: if lowest remaining die > highest occupied point, must bear off from highest point
+                    const fromPoint = draggedChecker.point
+                    const bearingOff = canBearOff(boardState, draggedChecker.owner, boardState.player)
+                    const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, draggedChecker.owner, boardState.player) : null
+                    
+                    if (highestOccupiedPoint !== null && availableDice.length > 0) {
+                      const lowestRemainingDie = Math.min(...availableDice)
+                      if (lowestRemainingDie > highestOccupiedPoint) {
+                        // Exception: lowest remaining die exceeds highest occupied point - must use lowest die to bear off from highest point
+                        if (fromPoint === highestOccupiedPoint) {
+                          // Use the lowest die (which exceeds highest occupied point)
+                          diceToUse = [lowestRemainingDie]
+                        }
+                      } else {
+                        // Normal bearing off: point number must equal die number
+                        const matchingDice = availableDice.filter(d => d === fromPoint)
+                        if (matchingDice.length >= checkersToMove) {
+                          diceToUse = matchingDice.slice(0, checkersToMove)
+                        }
+                      }
+                    } else {
+                      // Normal bearing off: point number must equal die number
+                      const matchingDice = availableDice.filter(d => d === fromPoint)
+                      if (matchingDice.length >= checkersToMove) {
+                        diceToUse = matchingDice.slice(0, checkersToMove)
+                      }
                     }
                   } else {
                     // For regular moves, find dice === distance
@@ -3175,10 +3306,65 @@ export default function BackgammonBoard({
     if (localSettings && (!localSettings.dice || localSettings.dice.length === 0)) {
       setLocalSettings(prev => ({ ...prev, dice: '00' }))
     }
+    
+    // Update editableXGID if player, dice, cubeValue, or cubeOwner changed
+    if (localSettings && isEditable) {
+      const currentXGID = editableXGID || effectiveXGID || xgid
+      if (currentXGID) {
+      const parts = currentXGID.split(':')
+        let updated = false
+        
+        // Update xg4 (player) if changed
+        if (localSettings.player !== undefined) {
+          const newPlayer = String(localSettings.player)
+          if (parts[3] !== newPlayer) {
+            parts[3] = newPlayer
+            updated = true
+          }
+        }
+        
+        // Update xg5 (dice) if changed
+        if (localSettings.dice !== undefined) {
+          const newDice = localSettings.dice || '00'
+          if (parts[4] !== newDice) {
+            parts[4] = newDice
+            updated = true
+          }
+        }
+      
+      // Update xg2 (cubeValue) if changed
+      if (localSettings.cubeValue !== undefined) {
+          const newCubeValue = String(localSettings.cubeValue)
+          if (parts[1] !== newCubeValue) {
+            parts[1] = newCubeValue
+            updated = true
+          }
+      }
+      
+      // Update xg3 (cubeOwner) if changed
+      if (localSettings.cubeOwner !== undefined) {
+          const newCubeOwner = String(localSettings.cubeOwner)
+          if (parts[2] !== newCubeOwner) {
+            parts[2] = newCubeOwner
+            updated = true
+          }
+        }
+        
+        if (updated) {
+          const newXGID = parts.join(':')
+          setEditableXGID(newXGID)
+          if (onChange) {
+            onChange(newXGID)
+          }
+        }
+      }
+    }
+    
     // Notify parent if player changed
     if (localSettings && onPlayerChange && localSettings.player !== undefined) {
       onPlayerChange(localSettings.player)
     }
+    
     // Settings are now applied via localSettings override
     setShowOptionsDialog(false)
   }
