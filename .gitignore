@@ -43,6 +43,7 @@ next-env.d.ts
 
 #cursor
 conversation_summary.md
+.cursor/
 
 # documentation
 PROJECT_STATUS.md

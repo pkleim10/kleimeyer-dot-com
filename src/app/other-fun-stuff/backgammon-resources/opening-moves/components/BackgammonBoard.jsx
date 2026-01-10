@@ -174,14 +174,23 @@ export default function BackgammonBoard({
           const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
           const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
           
-      setTurnState({
+          // Create initial turn state
+          const initialTurnState = {
             currentPlayer: owner,
             dice: diceArray,
-        usedDice: [],
+            usedDice: [],
             isTurnComplete: false,
             mustEnterFromBar: barCount > 0,
             noLegalMoves: false
-          })
+          }
+          
+          // Check if there are any legal moves available
+          const legalMoves = getLegalMoves(boardState, initialTurnState)
+          if (legalMoves.length === 0) {
+            initialTurnState.noLegalMoves = true
+          }
+          
+          setTurnState(initialTurnState)
         }
       }
     } else {
@@ -775,6 +784,78 @@ export default function BackgammonBoard({
     }
     
     return <g>{diceElements}</g>
+  }
+  
+  // Helper: Render "No legal moves" message and "End Turn" button
+  const renderNoLegalMoves = () => {
+    // Only show in play mode when there are no legal moves
+    if (effectiveEditingMode !== 'play' || !turnState || !turnState.noLegalMoves) {
+      return null
+    }
+    
+    const diceY = topBorderWidth + innerHeight / 2
+    const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
+    const dieSize = BAR_WIDTH * 0.8
+    const messageY = diceY + dieSize + 20 // Below the dice
+    
+    const handleEndTurn = () => {
+      if (!turnState) return
+      
+      const currentXGID = editableXGID || effectiveXGID || xgid
+      if (!currentXGID) return
+      
+      const nextPlayer = turnState.currentPlayer === 'white' ? -1 : 1
+      const parts = currentXGID.split(':')
+      parts[3] = String(nextPlayer) // Update player
+      parts[4] = '00' // Reset dice
+      const finalXGID = parts.join(':')
+      setEditableXGID(finalXGID)
+      setTurnState(null)
+      
+      if (onChange) {
+        onChange(finalXGID)
+      }
+    }
+    
+    return (
+      <g>
+        {/* "No legal moves" message */}
+        <text
+          x={rightHalfCenterX}
+          y={messageY}
+          textAnchor="middle"
+          fontSize="14"
+          fill={COLORS.stroke}
+          fontWeight="bold"
+        >
+          No legal moves
+        </text>
+        {/* "End Turn" button */}
+        <rect
+          x={rightHalfCenterX - 50}
+          y={messageY + 15}
+          width={100}
+          height={30}
+          rx={5}
+          fill={COLORS.checkerWhite}
+          stroke={COLORS.stroke}
+          strokeWidth={2}
+          style={{ cursor: 'pointer' }}
+          onClick={handleEndTurn}
+        />
+        <text
+          x={rightHalfCenterX}
+          y={messageY + 35}
+          textAnchor="middle"
+          fontSize="12"
+          fill={COLORS.stroke}
+          fontWeight="bold"
+          style={{ cursor: 'pointer', pointerEvents: 'none' }}
+        >
+          End Turn
+        </text>
+      </g>
+    )
   }
   
   // Helper: Render board label
@@ -3439,6 +3520,9 @@ export default function BackgammonBoard({
         
         {/* Dice */}
         {renderDice()}
+        
+        {/* No legal moves message and End Turn button */}
+        {renderNoLegalMoves()}
         
         {/* Board labels */}
         {activeShowBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
