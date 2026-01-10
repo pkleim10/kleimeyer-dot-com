@@ -444,7 +444,7 @@ export default function BackgammonBoard({
       for (let i = 0; i < checkerCount; i++) {
         const checkerY = trayY + i * checkerThickness
         const stackPosition = i + 1 // 1-based from top
-        const checkersToMove = checkerCount - i // Number of checkers including and above this one
+        const checkersToMove = 1 // Always move 1 checker from bar
         
         // Add drag handlers if editable
         const dragHandlers = isEditable ? {
@@ -473,7 +473,7 @@ export default function BackgammonBoard({
       for (let i = 0; i < checkerCount; i++) {
         const checkerY = trayY + trayHeight - (i + 1) * checkerThickness
         const stackPosition = i + 1 // 1-based from bottom (but we count from top for consistency)
-        const checkersToMove = checkerCount - i // Number of checkers including and above this one (from bottom perspective)
+        const checkersToMove = 1 // Always move 1 checker from bar
         
         // Add drag handlers if editable
         const dragHandlers = isEditable ? {
@@ -2839,7 +2839,7 @@ export default function BackgammonBoard({
   
   // Dice click handler - single click cycles the die value
   const handleDiceClick = (e, dieIndex) => {
-    if (!isEditable) return
+    if (!isEditable || effectiveEditingMode !== 'free') return
     
     e.preventDefault()
     e.stopPropagation()
@@ -3706,19 +3706,19 @@ export default function BackgammonBoard({
         
         {/* Dice */}
         {renderDice()}
-        
-        {/* No legal moves message and End Turn button */}
-        {renderNoLegalMoves()}
-        
+
         {/* Board labels */}
         {activeShowBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
-        
+
         {/* Points */}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(0, i, true))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(1, i, true))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(2, i, false))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(3, i, false))}
-        
+
+        {/* No legal moves message and End Turn button - rendered after points so they appear on top */}
+        {renderNoLegalMoves()}
+
         {/* Move arrows - rendered last so they appear on top */}
         {renderMoveArrows()}
         
