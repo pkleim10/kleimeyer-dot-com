@@ -170,13 +170,14 @@ export default function BackgammonBoard({
       if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
         // Only initialize if we don't have turn state, or if player changed, or if turn was completed
         if (!turnState || turnState.currentPlayer !== owner || turnState.isTurnComplete) {
-          const diceArray = [die1, die2]
+          // Doubles: if both dice are the same, allow 4 moves of that number
+          const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
           const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
           
-          setTurnState({
+      setTurnState({
             currentPlayer: owner,
             dice: diceArray,
-            usedDice: [],
+        usedDice: [],
             isTurnComplete: false,
             mustEnterFromBar: barCount > 0,
             noLegalMoves: false
@@ -604,10 +605,10 @@ export default function BackgammonBoard({
     const usedDice = (effectiveEditingMode === 'play' && turnState && turnState.usedDice) ? turnState.usedDice : []
     let die1Used, die2Used
     if (die1 === die2) {
-      // Both dice show the same value - count total uses of that value
+      // Doubles: allow 4 moves, so grey dice progressively for visual feedback
       const totalUsedCount = usedDice.filter(d => d === die1).length
-      die1Used = totalUsedCount >= 1
-      die2Used = totalUsedCount >= 2
+      die1Used = totalUsedCount >= 1 // Grey first die after 1 use
+      die2Used = totalUsedCount >= 2 // Grey second die after 2 uses (both stay greyed for moves 3-4)
     } else {
       // Different values - check each independently
       die1Used = usedDice.filter(d => d === die1).length >= 1
@@ -1417,7 +1418,7 @@ export default function BackgammonBoard({
     }
     return available
   }
-
+  
   /**
    * Check if player can bear off
    * @param {Object} boardState - Current board state
@@ -1429,12 +1430,12 @@ export default function BackgammonBoard({
     // Must have no checkers on bar
     const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
     if (barCount > 0) return false
-
+    
     // All checkers must be in home board (relative points 1-6)
     const homeBoardAbsolute = currentPlayer === 1 
       ? [1, 2, 3, 4, 5, 6]  // White's home board
       : [19, 20, 21, 22, 23, 24]  // Black's home board (relative 1-6 = absolute 19-24)
-
+    
     for (let i = 0; i < 24; i++) {
       const pointData = boardState.points[i]
       if (pointData.count > 0 && pointData.owner === owner) {
@@ -1444,10 +1445,10 @@ export default function BackgammonBoard({
         }
       }
     }
-
+    
     return true
   }
-
+  
   /**
    * Get the highest occupied point in player's home board when bearing off
    * Returns relative point number (1-6) in current player's perspective
@@ -1472,10 +1473,10 @@ export default function BackgammonBoard({
         return i + 1
       }
     }
-
+    
     return null
   }
-
+  
   /**
    * Check if player can enter from bar
    * @param {Object} boardState - Current board state
@@ -1485,13 +1486,13 @@ export default function BackgammonBoard({
   const canEnterFromBar = (boardState, turnState) => {
     if (!turnState.mustEnterFromBar) return false
     if (turnState.dice.length === 0) return false
-
+    
     const owner = turnState.currentPlayer
     const currentPlayer = owner === 'white' ? 1 : -1
     const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
-
+    
     if (availableDice.length === 0) return false
-
+    
     // Check if any entry point is available
     // Bar entry: always enter to opponent's home board (relative points 19-24)
     // Roll 1→24, 2→23, 3→22, 4→21, 5→20, 6→19
@@ -1509,10 +1510,10 @@ export default function BackgammonBoard({
         }
       }
     }
-
+    
     return false
   }
-
+  
   /**
    * Get all legal moves for the current player
    * @param {Object} boardState - Current board state
@@ -1521,25 +1522,25 @@ export default function BackgammonBoard({
    */
   const getLegalMoves = (boardState, turnState) => {
     const legalMoves = []
-
+    
     if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
       return legalMoves
     }
-
+    
     const owner = turnState.currentPlayer
     const currentPlayer = owner === 'white' ? 1 : -1
     const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
-
+    
     if (availableDice.length === 0) {
       return legalMoves
     }
-
+    
     // Check if must enter from bar
     if (turnState.mustEnterFromBar) {
       if (!canEnterFromBar(boardState, turnState)) {
         return legalMoves
       }
-
+      
       // Check bar entry moves
       // Bar entry: always enter to opponent's home board (relative points 19-24)
       // Roll 1→24, 2→23, 3→22, 4→21, 5→20, 6→19
@@ -1557,30 +1558,30 @@ export default function BackgammonBoard({
           }
         }
       }
-
+      
       return legalMoves
     }
-
+    
     // Check if can bear off
     const bearingOff = canBearOff(boardState, owner, currentPlayer)
     const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, owner, currentPlayer) : null
-
+    
     // Check all points for possible moves
     for (let fromPointRelative = 1; fromPointRelative <= 24; fromPointRelative++) {
       const fromPointAbsolute = relativeToAbsolute(fromPointRelative, currentPlayer)
       const fromIndex = fromPointAbsolute - 1
       const fromPointData = boardState.points[fromIndex]
-
+      
       // Must have checkers owned by current player
       if (fromPointData.count === 0 || fromPointData.owner !== owner) {
         continue
       }
-
+      
       // Try each available die
       for (const die of availableDice) {
         // Calculate destination (always from higher to lower relative points)
         let toPointRelative = fromPointRelative - die
-
+        
         // Check bearing off
         if (bearingOff && toPointRelative < 1) {
           // Bearing off happens when moving past point 1
@@ -1588,36 +1589,36 @@ export default function BackgammonBoard({
           const bearOffDistance = 7 - fromPointRelative
 
           if (fromPointRelative >= 1 && fromPointRelative <= 6 && bearOffDistance <= die) {
-            // Rule: If die exceeds highest occupied point's distance, must bear off from highest point
-            if (highestOccupiedPoint !== null) {
+              // Rule: If die exceeds highest occupied point's distance, must bear off from highest point
+              if (highestOccupiedPoint !== null) {
               const highestBearOffDistance = 7 - highestOccupiedPoint
 
-              if (die > highestBearOffDistance) {
-                // Only allow bearing off from highest occupied point
+                if (die > highestBearOffDistance) {
+                  // Only allow bearing off from highest occupied point
                 if (fromPointRelative === highestOccupiedPoint) {
                   const tray = owner === 'white' ? -2 : -1
                   legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
-                }
-              } else {
-                // Normal bearing off: can bear off from any point if die >= distance
+                  }
+                } else {
+                  // Normal bearing off: can bear off from any point if die >= distance
                 const tray = owner === 'white' ? -2 : -1
                 legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
-              }
-            } else {
-              // Fallback: normal bearing off
+                }
+              } else {
+                // Fallback: normal bearing off
               const tray = owner === 'white' ? -2 : -1
               legalMoves.push({ from: fromPointRelative, to: tray, dieUsed: die })
+              }
             }
-          }
-          continue
+            continue
         }
-
+        
         // Regular move to point
         if (toPointRelative >= 1 && toPointRelative <= 24) {
           const toPointAbsolute = relativeToAbsolute(toPointRelative, currentPlayer)
           const toIndex = toPointAbsolute - 1
           const toPointData = boardState.points[toIndex]
-
+          
           // Can move if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
           if (toPointData.count === 0 || 
               toPointData.owner === owner || 
@@ -1627,10 +1628,10 @@ export default function BackgammonBoard({
         }
       }
     }
-
+    
     return legalMoves
   }
-
+  
   /**
    * Calculate move distance for a given move (using relative coordinates)
    * @param {number} from - Source point (1-24 relative, 0 for black bar, 25 for white bar)
@@ -1703,6 +1704,11 @@ export default function BackgammonBoard({
     if (owner !== expectedOwner) {
       return false // Not the current player's turn
     }
+    
+    // In play mode, you can only move one checker per die
+    if (effectiveEditingMode === 'play' && count !== 1) {
+      return false // Can only move one checker at a time in play mode
+    }
 
     // Use turnState if available and matches current player, otherwise fall back to boardState.dice
     let diceValues = []
@@ -1711,9 +1717,9 @@ export default function BackgammonBoard({
     if (turnState && turnState.currentPlayer === owner) {
       // Use available dice from turn state
       diceValues = getAvailableDice(turnState.dice, turnState.usedDice || [])
-      
-      // Check bar entry requirement
-      if (turnState.mustEnterFromBar) {
+    
+    // Check bar entry requirement
+    if (turnState.mustEnterFromBar) {
         // Bars are physical locations: 0 = black bar (top), 25 = white bar (bottom)
         // Check if moving from the correct bar for this owner
         const correctBar = owner === 'white' ? 25 : 0
@@ -1734,7 +1740,8 @@ export default function BackgammonBoard({
       if (isNaN(die1) || isNaN(die2) || die1 === 0 || die2 === 0) {
         return false // Invalid dice
       }
-      diceValues = [die1, die2]
+      // Doubles: if both dice are the same, allow 4 moves of that number
+      diceValues = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
     }
 
     if (diceValues.length === 0) {
@@ -1774,10 +1781,16 @@ export default function BackgammonBoard({
       if (boardState.blackBar === 0 || owner !== 'black') {
         return false
       }
+      if (boardState.blackBar < count) {
+        return false // Not enough checkers on bar
+      }
     } else if (from === 25) {
       // Moving from white bar
       if (boardState.whiteBar === 0 || owner !== 'white') {
-        return false
+      return false
+      }
+      if (boardState.whiteBar < count) {
+        return false // Not enough checkers on bar
       }
     }
 
@@ -1792,7 +1805,7 @@ export default function BackgammonBoard({
         return false // Point is blocked
       }
     }
-
+    
     return true
   }
   
@@ -2402,8 +2415,8 @@ export default function BackgammonBoard({
               }
             } else {
               setTurnState(updatedTurnState)
-              if (onChange) {
-                onChange(newXGID)
+      if (onChange) {
+        onChange(newXGID)
               }
             }
           } else {
@@ -2522,7 +2535,7 @@ export default function BackgammonBoard({
                     // Check if turn should be automatically completed (no legal moves remain)
                     const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
                     const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length
-
+                    
                     // Update turn state FIRST before updating XGID to prevent useEffect from resetting it
                     if (remainingLegalMoves.length === 0) {
                       // No legal moves remain - turn is complete
@@ -2535,7 +2548,7 @@ export default function BackgammonBoard({
                       parts[3] = String(nextPlayer) // Update player
                       parts[4] = '00' // Reset dice
                       const finalXGID = parts.join(':')
-                      setEditableXGID(finalXGID)
+                        setEditableXGID(finalXGID)
                       setTurnState(null) // Reset turn state for next player
                       
                       if (onChange) {
@@ -2554,16 +2567,16 @@ export default function BackgammonBoard({
                       
                       if (onChange) {
                         onChange(finalXGID)
-                      }
-                    } else {
+                    }
+                  } else {
                       // Update turn state with used dice
                       setTurnState(updatedTurnState)
                       
                       if (onChange) {
                         onChange(newXGID)
                       }
-                    }
-                  } else {
+                  }
+                } else {
                     // Not enough dice - shouldn't happen if validation worked, but notify anyway
                     if (onChange) {
                       onChange(newXGID)
@@ -2577,7 +2590,7 @@ export default function BackgammonBoard({
                 }
               } else {
                 // Not play mode or no turn state - just notify
-                if (onChange) {
+              if (onChange) {
                   onChange(newXGID)
                 }
               }
