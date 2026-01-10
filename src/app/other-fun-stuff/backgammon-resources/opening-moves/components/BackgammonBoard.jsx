@@ -737,8 +737,10 @@ export default function BackgammonBoard({
             y={resetAreaTop}
             width={resetAreaWidth}
             height={resetAreaHeight}
-            fill="transparent"
-            stroke="none"
+            fill="red"
+            stroke="red"
+            strokeWidth={1}
+            opacity={0.3}
             pointerEvents="all"
             style={{ cursor: 'pointer' }}
             onClick={(e) => {
@@ -768,8 +770,10 @@ export default function BackgammonBoard({
             y={resetAreaTop}
             width={resetAreaWidth}
             height={resetAreaHeight}
-            fill="transparent"
-            stroke="none"
+            fill="red"
+            stroke="red"
+            strokeWidth={1}
+            opacity={0.3}
             pointerEvents="all"
             style={{ cursor: 'pointer' }}
             onClick={(e) => {
@@ -2404,14 +2408,15 @@ export default function BackgammonBoard({
     const resetAreaHeight = dieSize * 1.5 // Slightly taller than dice for easier clicking
     const resetAreaTop = diceY - resetAreaHeight / 2
     const resetAreaBottom = diceY + resetAreaHeight / 2
-    
-    // Left reset area (to the left of leftmost die)
-    const leftResetAreaLeft = die1X - dieRadius - resetAreaWidth
-    const leftResetAreaRight = die1X - dieRadius
-    
-    // Right reset area (to the right of rightmost die)
-    const rightResetAreaLeft = die2X + dieRadius
-    const rightResetAreaRight = die2X + dieRadius + resetAreaWidth
+    const resetAreaGap = 5 // Gap between reset areas and dice
+
+    // Left reset area (to the left of leftmost die, with gap)
+    const leftResetAreaLeft = die1X - dieRadius - resetAreaWidth - resetAreaGap
+    const leftResetAreaRight = die1X - dieRadius - resetAreaGap
+
+    // Right reset area (to the right of rightmost die, with gap)
+    const rightResetAreaLeft = die2X + dieRadius + resetAreaGap
+    const rightResetAreaRight = die2X + dieRadius + resetAreaWidth + resetAreaGap
     
     // Check if click is in either reset area
     const inLeftArea = x >= leftResetAreaLeft && x <= leftResetAreaRight &&
