@@ -1798,18 +1798,18 @@ export default function BackgammonBoard({
       return false // Not the current player's turn
     }
     
-    // In play mode, you can only move one checker per die
-    if (mode === 'play' && count !== 1) {
-      return false // Can only move one checker at a time in play mode
-    }
-
     // Use turnState if available and matches current player, otherwise fall back to boardState.dice
     let diceValues = []
+    let isDoubles = false
+    let allDice = [] // All dice (including used) to detect doubles
     
     // Only use turnState if it exists and matches the current player
     if (turnState && turnState.currentPlayer === owner) {
       // Use available dice from turn state
       diceValues = getAvailableDice(turnState.dice, turnState.usedDice || [])
+      allDice = turnState.dice || []
+      // Detect doubles: all 4 dice are the same value
+      isDoubles = allDice.length === 4 && allDice[0] === allDice[1] && allDice[1] === allDice[2] && allDice[2] === allDice[3]
     
     // Check bar entry requirement
     if (turnState.mustEnterFromBar) {
@@ -1834,11 +1834,28 @@ export default function BackgammonBoard({
         return false // Invalid dice
       }
       // Doubles: if both dice are the same, allow 4 moves of that number
-      diceValues = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
+      isDoubles = die1 === die2
+      diceValues = isDoubles ? [die1, die1, die1, die1] : [die1, die2]
+      allDice = isDoubles ? [die1, die1, die1, die1] : [die1, die2]
     }
 
     if (diceValues.length === 0) {
       return false // No available dice
+    }
+
+    // In play mode, validate checker count based on whether doubles are rolled
+    if (mode === 'play') {
+      if (isDoubles) {
+        // Doubles: allow 1-4 checkers
+        if (count < 1 || count > 4) {
+          return false // Invalid count for doubles
+        }
+      } else {
+        // Non-doubles: enforce one checker per die
+        if (count !== 1) {
+          return false // Can only move one checker at a time for non-doubles
+        }
+      }
     }
 
     // Calculate move distance (from and to are in relative coordinates)
@@ -1880,6 +1897,22 @@ export default function BackgammonBoard({
 
     if (!matchesDie) {
       return false // Move distance doesn't match any die
+    }
+
+    // For multi-checker moves in play mode with doubles, validate enough matching dice are available
+    if (mode === 'play' && count > 1 && isDoubles) {
+      // Determine which die value matches this move
+      const matchingDieValue = isBearingOff && from >= 1 && from <= 6 
+        ? from // For bearing off, the die value equals the point number
+        : distance // For regular moves, the die value equals the distance
+      
+      // Count how many dice of the matching value are available
+      const availableMatchingDice = diceValues.filter(d => d === matchingDieValue)
+      
+      // Ensure we have enough dice to move this many checkers
+      if (availableMatchingDice.length < count) {
+        return false // Not enough matching dice available
+      }
     }
 
     // Validate source point has checkers (convert relative to absolute)
@@ -2535,10 +2568,13 @@ export default function BackgammonBoard({
             if (highestOccupiedPoint !== null && availableDice.length > 0) {
               const lowestRemainingDie = Math.min(...availableDice)
               if (lowestRemainingDie > highestOccupiedPoint) {
-                // Exception: lowest remaining die exceeds highest occupied point - must use lowest die to bear off from highest point
+                // Exception: lowest remaining die exceeds highest occupied point - must use dice to bear off from highest point
                 if (fromPoint === highestOccupiedPoint) {
-                  // Use the lowest die (which exceeds highest occupied point)
-                  diceToUse = [lowestRemainingDie]
+                  // Use multiple dice of the lowest die value (which exceeds highest occupied point) for multi-checker moves
+                  const matchingDice = availableDice.filter(d => d === lowestRemainingDie)
+                  if (matchingDice.length >= checkersToMove) {
+                    diceToUse = matchingDice.slice(0, checkersToMove)
+                  }
                 }
               } else {
                 // Normal bearing off: point number must equal die number
@@ -2704,10 +2740,13 @@ export default function BackgammonBoard({
                     if (highestOccupiedPoint !== null && availableDice.length > 0) {
                       const lowestRemainingDie = Math.min(...availableDice)
                       if (lowestRemainingDie > highestOccupiedPoint) {
-                        // Exception: lowest remaining die exceeds highest occupied point - must use lowest die to bear off from highest point
+                        // Exception: lowest remaining die exceeds highest occupied point - must use dice to bear off from highest point
                         if (fromPoint === highestOccupiedPoint) {
-                          // Use the lowest die (which exceeds highest occupied point)
-                          diceToUse = [lowestRemainingDie]
+                          // Use multiple dice of the lowest die value (which exceeds highest occupied point) for multi-checker moves
+                          const matchingDice = availableDice.filter(d => d === lowestRemainingDie)
+                          if (matchingDice.length >= checkersToMove) {
+                            diceToUse = matchingDice.slice(0, checkersToMove)
+                          }
                         }
                       } else {
                         // Normal bearing off: point number must equal die number
@@ -3706,10 +3745,10 @@ export default function BackgammonBoard({
         
         {/* Dice */}
         {renderDice()}
-
+        
         {/* Board labels */}
         {activeShowBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
-
+        
         {/* Points */}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(0, i, true))}
         {Array.from({ length: POINT_COUNT }, (_, i) => renderPoint(1, i, true))}
@@ -3718,7 +3757,7 @@ export default function BackgammonBoard({
 
         {/* No legal moves message and End Turn button - rendered after points so they appear on top */}
         {renderNoLegalMoves()}
-
+        
         {/* Move arrows - rendered last so they appear on top */}
         {renderMoveArrows()}
         
