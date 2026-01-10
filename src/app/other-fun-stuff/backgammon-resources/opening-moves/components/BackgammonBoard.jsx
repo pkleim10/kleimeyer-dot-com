@@ -212,7 +212,7 @@ export default function BackgammonBoard({
         }
       }
     }
-  }, [effectiveXGID, effectiveEditingMode, localSettings?.player])
+  }, [effectiveXGID, effectiveEditingMode]) // Removed localSettings?.player to prevent clearing while user is editing
   
   // Use localSettings for rendering if user has overridden, otherwise use XGID/props
   const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
