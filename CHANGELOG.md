@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-01-11
+
+### Added
+- Add editable XGID input field with validation: Replace read-only XGID display with editable input field
+- Add no legal moves UI and update .gitignore: Add .cursor/ to .gitignore
+
+### Fixed
+- Disable dice reset in PLAY mode: Added check to prevent dice reset when effectiveEditingMode is 'play'
+- Fix dice reset areas to not overlap with dice and make them visible: Added 5px gap between reset areas and dice boundaries to prevent overlap
+- Fix options dialog player selection not working in PLAY mode: Removed localSettings.player from useEffect dependency array to prevent clearing while user edits
+- Fix UI player display inconsistency in PLAY mode: Added useEffect to clear localSettings.player when XGID player changes in PLAY mode
+- Fix black checker highlighting and coordinate conversion in EDIT mode: Modified getPointFromCoordinates to return absolute coordinates for rendering
+- Allow multi-checker moves on doubles in play mode: Modified validateMove to detect doubles and allow 1-4 checkers per move
+- Fix bar checker drag to always move 1 checker: Bar checkers now always move exactly 1 checker regardless of which checker is clicked or how many are in the bar
+- Fix remaining backgammon UI issues: Dice cycling now only available in EDIT mode, not PLAY mode
+- Fix backgammon bearing off and coordinate conversion bugs: Fix bearing off validation: require all checkers in play to be in home board before allowing bearing off
+- Fix checker count validation and doubles handling in backgammon: Enforce one checker per move in play mode (one checker per die)
+- Fix black player moves and dice greying in backgammon board: Fix updateXGIDForMove to convert relative coordinates to absolute before accessing boardState.points
+
 ## [1.31.0] - 2026-01-09
 
 ### Added
