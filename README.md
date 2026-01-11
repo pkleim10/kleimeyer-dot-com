@@ -37,7 +37,7 @@ The backgammon board editor includes an AI-powered move suggestion system using 
    XAI_API_KEY=your_actual_xai_api_key_here
    ```
 
-   **Note**: If you don't have an xAI API key yet, the AI features will gracefully fall back to basic heuristics with a confidence score of ~10%.
+   **Note**: The backgammon AI uses server-side API calls to access the xAI key securely. If you don't have an xAI API key yet, the AI features will gracefully fall back to basic heuristics with a confidence score of ~10%.
 
 ### Usage
 
