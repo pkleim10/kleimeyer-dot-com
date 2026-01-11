@@ -27,34 +27,28 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
       return cached.result
     }
 
-    // Step 1: Parse position and generate legal moves locally
-    const { parseXGID } = await import('./xgidParser.js')
-    const { getLegalMoves } = await import('./gameLogic.js')
+    // Call the server-side AI API
+    const response = await fetch('/api/backgammon-ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        xgid,
+        player,
+        difficulty,
+        maxMoves
+      })
+    })
 
-    const boardState = parseXGID(xgid)
-
-    // Create turn state for legal move generation
-    const turnState = createTurnState(boardState, player)
-    const allLegalMoves = getLegalMoves(boardState, turnState)
-
-    if (allLegalMoves.length === 0) {
-      const result = { move: null, reasoning: "No legal moves available", confidence: 1.0, source: 'local' }
-      analysisCache.set(cacheKey, { result, timestamp: Date.now() })
-      return result
+    if (!response.ok) {
+      throw new Error(`AI API error: ${response.status}`)
     }
 
-    // Step 2: Get top legal moves (prioritize diversity)
-    const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
-
-    // Step 3: Get AI strategic analysis
-    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty)
-
-    // Step 4: Validate and return best AI suggestion
-    const result = validateAndReturnMove(aiAnalysis, topMoves)
+    const result = await response.json()
 
     // Cache the result
     analysisCache.set(cacheKey, { result, timestamp: Date.now() })
-
     return result
 
   } catch (error) {

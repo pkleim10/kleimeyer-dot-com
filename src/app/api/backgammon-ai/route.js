@@ -113,7 +113,7 @@ function parseXGID(xgid) {
   }
 }
 
-// Simplified getLegalMoves for basic functionality
+// Basic getLegalMoves implementation for backgammon
 function getLegalMoves(boardState, turnState) {
   const legalMoves = []
 
@@ -122,6 +122,7 @@ function getLegalMoves(boardState, turnState) {
   }
 
   const owner = turnState.currentPlayer
+  const currentPlayer = owner === 'white' ? 1 : -1
   const availableDice = turnState.dice.filter(die =>
     !turnState.usedDice || !turnState.usedDice.includes(die)
   )
@@ -130,15 +131,59 @@ function getLegalMoves(boardState, turnState) {
     return legalMoves
   }
 
-  // For now, just return a simple move for testing
-  // This is a simplified version - in production we'd need the full logic
-  if (availableDice.length > 0) {
-    legalMoves.push({
-      from: 24, // White's bar
-      to: 24 - availableDice[0], // Move forward
-      count: 1,
-      die: availableDice[0]
-    })
+  // Generate moves for each die
+  for (const die of availableDice) {
+    // Check all points that have the current player's checkers
+    for (let point = 1; point <= 24; point++) {
+      const pointData = boardState.points[point - 1]
+
+      if (pointData.owner === owner && pointData.count > 0) {
+        // Calculate target point (moving forward for white, backward for black)
+        const direction = currentPlayer === 1 ? -1 : 1 // White moves down (negative), black moves up (positive)
+        const targetPoint = point + (direction * die)
+
+        // Check if target is valid
+        if (targetPoint >= 1 && targetPoint <= 24) {
+          const targetData = boardState.points[targetPoint - 1]
+
+          // Can move if target is empty or has 1 opponent checker (hit)
+          if (targetData.count === 0 || (targetData.count === 1 && targetData.owner !== owner)) {
+            legalMoves.push({
+              from: point,
+              to: targetPoint,
+              count: 1,
+              die: die
+            })
+          }
+        }
+        // Bearing off moves (when all checkers are in home board)
+        else if ((currentPlayer === 1 && targetPoint <= 0) || (currentPlayer === -1 && targetPoint >= 25)) {
+          // Check if all checkers are in home board (points 1-6 for white, 19-24 for black)
+          const homeBoardStart = currentPlayer === 1 ? 1 : 19
+          const homeBoardEnd = currentPlayer === 1 ? 6 : 24
+          let allInHome = true
+
+          for (let p = 1; p <= 24; p++) {
+            if (p < homeBoardStart || p > homeBoardEnd) {
+              const checkPoint = boardState.points[p - 1]
+              if (checkPoint.owner === owner && checkPoint.count > 0) {
+                allInHome = false
+                break
+              }
+            }
+          }
+
+          if (allInHome) {
+            legalMoves.push({
+              from: point,
+              to: -1, // Bearing off
+              count: 1,
+              die: die
+            })
+          }
+        }
+      }
+    }
   }
 
   return legalMoves
@@ -190,7 +235,7 @@ export async function POST(request) {
     const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
 
     // Get AI strategic analysis
-    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty)
+    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty, player)
 
     // Validate and return best AI suggestion
     const result = validateAndReturnMove(aiAnalysis, topMoves)
@@ -265,10 +310,10 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 /**
  * Call xAI for strategic analysis
  */
-async function analyzeMovesWithAI(xgid, moves, difficulty) {
+async function analyzeMovesWithAI(xgid, moves, difficulty, player) {
   const XAI_API_KEY = process.env.XAI_API_KEY
 
-  const prompt = buildAnalysisPrompt(xgid, moves, difficulty)
+  const prompt = buildAnalysisPrompt(xgid, moves, difficulty, player)
 
   const response = await fetch(XAI_API_URL, {
     method: 'POST',
@@ -295,23 +340,38 @@ async function analyzeMovesWithAI(xgid, moves, difficulty) {
 /**
  * Build strategic analysis prompt
  */
-function buildAnalysisPrompt(xgid, moves, difficulty) {
+function buildAnalysisPrompt(xgid, moves, difficulty, player) {
+  // Parse XGID to get player and dice info
+  const parts = xgid.split(':')
+  const playerNum = parseInt(parts[3] || '1')
+  const dice = parts[4] || '00'
+  const playerColor = playerNum === 1 ? 'WHITE' : 'BLACK'
+  const opponentColor = playerNum === 1 ? 'BLACK' : 'WHITE'
+
   const moveList = moves.map((move, i) =>
     `${i + 1}. ${formatMove(move)}`
   ).join('\n')
 
-  return `You are a ${difficulty} level backgammon expert. Analyze this position:
+  return `You are a ${difficulty} level backgammon expert analyzing from ${playerColor}'s perspective.
 
+Current position:
 XGID: ${xgid}
+${playerColor} to move with dice: ${dice}
 
 Legal moves to consider:
 ${moveList}
 
-Focus on: blot safety, board control, timing, race position.
+IMPORTANT: 
+- You are playing as ${playerColor}, so analyze from ${playerColor}'s viewpoint
+- ${playerColor} must use both dice when possible (unless blocked)
+- Points are numbered 1-24 from ${playerColor}'s perspective
+- Higher point numbers are closer to ${playerColor}'s home board
+
+Focus on: blot safety, board control, timing, race position, and using both dice efficiently.
 
 Respond with format:
 BEST_MOVE: [move number]
-REASONING: [2-3 sentence strategic analysis]
+REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
 CONFIDENCE: [0.0-1.0]`
 }
 

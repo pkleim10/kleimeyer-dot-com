@@ -3434,7 +3434,7 @@ export default function BackgammonBoard({
       
       {/* AI Analysis Panel */}
       {aiAnalysis && (
-        <div className="absolute top-4 right-4 z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-xs">
+        <div className="absolute bottom-4 left-4 z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-sm">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
               AI Move ({aiDifficulty})
