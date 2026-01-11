@@ -1457,6 +1457,12 @@ export default function BackgammonBoard({
   const formatMoveForDisplay = (move) => {
     if (!move) return 'No move available'
 
+    // Handle move combinations
+    if (move.moves) {
+      return move.description
+    }
+
+    // Handle single moves
     const from = move.from === 0 ? 'bar' : move.from === 25 ? 'bar' : move.from
     const to = move.to === -1 ? 'off' : move.to === -2 ? 'off' : move.to
     return `${from}/${to}`
@@ -1468,12 +1474,22 @@ export default function BackgammonBoard({
     const currentXGID = editableXGID || effectiveXGID || xgid
     if (!currentXGID) return
 
-    // Apply the move using existing logic
-    const newXGID = updateXGIDForMove(currentXGID, move.from, move.to, move.count || 1, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
-    setEditableXGID(newXGID)
+    let updatedXGID = currentXGID
+
+    // Handle move combinations
+    if (move.moves) {
+      for (const singleMove of move.moves) {
+        updatedXGID = updateXGIDForMove(updatedXGID, singleMove.from, singleMove.to, singleMove.count || 1, singleMove.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+      }
+    } else {
+      // Handle single move
+      updatedXGID = updateXGIDForMove(updatedXGID, move.from, move.to, move.count || 1, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+    }
+
+    setEditableXGID(updatedXGID)
 
     if (onChange) {
-      onChange(newXGID)
+      onChange(updatedXGID)
     }
 
     // Clear the AI analysis after applying

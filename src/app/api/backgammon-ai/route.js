@@ -113,72 +113,66 @@ function parseXGID(xgid) {
   }
 }
 
-// Basic getLegalMoves implementation for backgammon
+// Generate move combinations that use both dice when possible
 function getLegalMoves(boardState, turnState) {
-  const legalMoves = []
+  const moveCombinations = []
 
   if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
-    return legalMoves
+    return moveCombinations
   }
 
   const owner = turnState.currentPlayer
   const currentPlayer = owner === 'white' ? 1 : -1
-  const availableDice = turnState.dice.filter(die =>
-    !turnState.usedDice || !turnState.usedDice.includes(die)
-  )
+  const dice = [...turnState.dice].sort((a, b) => b - a) // Sort dice descending for better combinations
 
-  if (availableDice.length === 0) {
-    return legalMoves
+  // Get points with current player's checkers
+  const playerPoints = []
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === owner && pointData.count > 0) {
+      playerPoints.push(point)
+    }
   }
 
-  // Generate moves for each die
-  for (const die of availableDice) {
-    // Check all points that have the current player's checkers
-    for (let point = 1; point <= 24; point++) {
-      const pointData = boardState.points[point - 1]
+  if (playerPoints.length === 0) return moveCombinations
 
-      if (pointData.owner === owner && pointData.count > 0) {
-        // Calculate target point (moving forward for white, backward for black)
-        const direction = currentPlayer === 1 ? -1 : 1 // White moves down (negative), black moves up (positive)
-        const targetPoint = point + (direction * die)
+  const [die1, die2] = dice
 
-        // Check if target is valid
-        if (targetPoint >= 1 && targetPoint <= 24) {
-          const targetData = boardState.points[targetPoint - 1]
+  // Generate combinations using both dice
+  // Try different strategies:
 
-          // Can move if target is empty or has 1 opponent checker (hit)
-          if (targetData.count === 0 || (targetData.count === 1 && targetData.owner !== owner)) {
-            legalMoves.push({
-              from: point,
-              to: targetPoint,
-              count: 1,
-              die: die
-            })
-          }
-        }
-        // Bearing off moves (when all checkers are in home board)
-        else if ((currentPlayer === 1 && targetPoint <= 0) || (currentPlayer === -1 && targetPoint >= 25)) {
-          // Check if all checkers are in home board (points 1-6 for white, 19-24 for black)
-          const homeBoardStart = currentPlayer === 1 ? 1 : 19
-          const homeBoardEnd = currentPlayer === 1 ? 6 : 24
-          let allInHome = true
+  // 1. Move same checker twice (if possible)
+  for (const point of playerPoints) {
+    const move1 = canMakeMove(boardState, owner, currentPlayer, point, die1)
+    if (move1) {
+      // Create a temporary board state after first move
+      const tempBoard = applyMoveToBoard(boardState, move1)
+      const move2 = canMakeMove(tempBoard, owner, currentPlayer, move1.to, die2)
+      if (move2) {
+        moveCombinations.push({
+          moves: [move1, move2],
+          description: `${point}/${move1.to}, ${move1.to}/${move2.to}`,
+          totalPips: die1 + die2
+        })
+      }
+    }
+  }
 
-          for (let p = 1; p <= 24; p++) {
-            if (p < homeBoardStart || p > homeBoardEnd) {
-              const checkPoint = boardState.points[p - 1]
-              if (checkPoint.owner === owner && checkPoint.count > 0) {
-                allInHome = false
-                break
-              }
-            }
-          }
+  // 2. Move different checkers with each die
+  if (playerPoints.length >= 2) {
+    for (let i = 0; i < playerPoints.length; i++) {
+      for (let j = 0; j < playerPoints.length; j++) {
+        if (i === j) continue // Skip same checker
 
-          if (allInHome) {
-            legalMoves.push({
-              from: point,
-              to: -1, // Bearing off
-              count: 1,
-              die: die
+        const move1 = canMakeMove(boardState, owner, currentPlayer, playerPoints[i], die1)
+        if (move1) {
+          const tempBoard = applyMoveToBoard(boardState, move1)
+          const move2 = canMakeMove(tempBoard, owner, currentPlayer, playerPoints[j], die2)
+          if (move2) {
+            moveCombinations.push({
+              moves: [move1, move2],
+              description: `${playerPoints[i]}/${move1.to}, ${playerPoints[j]}/${move2.to}`,
+              totalPips: die1 + die2
             })
           }
         }
@@ -186,7 +180,101 @@ function getLegalMoves(boardState, turnState) {
     }
   }
 
-  return legalMoves
+  // 3. If no combinations work, generate partial moves (using one die only)
+  if (moveCombinations.length === 0) {
+    // Try to use the larger die first
+    for (const point of playerPoints) {
+      const move = canMakeMove(boardState, owner, currentPlayer, point, die1)
+      if (move) {
+        moveCombinations.push({
+          moves: [move],
+          description: `${point}/${move.to}`,
+          totalPips: die1
+        })
+        break
+      }
+    }
+
+    // If that doesn't work, try the smaller die
+    if (moveCombinations.length === 0) {
+      for (const point of playerPoints) {
+        const move = canMakeMove(boardState, owner, currentPlayer, point, die2)
+        if (move) {
+          moveCombinations.push({
+            moves: [move],
+            description: `${point}/${move.to}`,
+            totalPips: die2
+          })
+          break
+        }
+      }
+    }
+  }
+
+  return moveCombinations
+}
+
+// Helper function to check if a move is valid
+function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
+  const direction = currentPlayer === 1 ? -1 : 1 // White moves down, black moves up
+  const toPoint = fromPoint + (direction * die)
+
+  if (toPoint < 1 || toPoint > 24) return null
+
+  const fromData = boardState.points[fromPoint - 1]
+  const toData = boardState.points[toPoint - 1]
+
+  // Must have checker on from point
+  if (fromData.owner !== owner || fromData.count === 0) return null
+
+  // Can move to empty point or hit single opponent checker
+  if (toData.count === 0 || (toData.count === 1 && toData.owner !== owner)) {
+    return {
+      from: fromPoint,
+      to: toPoint,
+      count: 1,
+      die: die
+    }
+  }
+
+  return null
+}
+
+// Helper function to apply a move to board state (for checking subsequent moves)
+function applyMoveToBoard(boardState, move) {
+  const newBoard = {
+    ...boardState,
+    points: boardState.points.map(point => ({ ...point }))
+  }
+
+  const fromIndex = move.from - 1
+  const toIndex = move.to - 1
+
+  // Remove checker from source
+  newBoard.points[fromIndex].count -= move.count
+  if (newBoard.points[fromIndex].count === 0) {
+    newBoard.points[fromIndex].owner = null
+  }
+
+  // Add checker to destination
+  if (newBoard.points[toIndex].count === 0) {
+    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
+    newBoard.points[toIndex].count = move.count
+  } else if (newBoard.points[toIndex].count === 1 && newBoard.points[toIndex].owner !== (move.owner || boardState.points[fromIndex].owner)) {
+    // Hit opponent's blot - move to bar
+    const opponent = newBoard.points[toIndex].owner
+    if (opponent === 'white') {
+      newBoard.whiteBar += 1
+    } else {
+      newBoard.blackBar += 1
+    }
+    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
+    newBoard.points[toIndex].count = move.count
+  } else {
+    newBoard.points[toIndex].count += move.count
+  }
+
+  return newBoard
 }
 
 export async function POST(request) {
@@ -275,36 +363,12 @@ function createTurnState(boardState, player) {
 }
 
 /**
- * Select diverse top legal moves for AI analysis
+ * Select diverse top legal move combinations for AI analysis
  */
 function selectTopLegalMoves(allMoves, maxMoves) {
-  // Group moves by strategic categories
-  const categories = {
-    bearingOff: [],
-    entering: [],
-    developing: []
-  }
-
-  // Categorize moves (simplified logic)
-  allMoves.forEach(move => {
-    if (move.to === -1 || move.to === -2) {
-      categories.bearingOff.push(move)
-    } else if (move.from === 0 || move.from === 25) {
-      categories.entering.push(move)
-    } else {
-      categories.developing.push(move)
-    }
-  })
-
-  // Select top moves from each category
-  const selected = []
-  const movesPerCategory = Math.ceil(maxMoves / 3)
-
-  Object.values(categories).forEach(cat => {
-    selected.push(...cat.slice(0, movesPerCategory))
-  })
-
-  return selected.slice(0, maxMoves)
+  // For now, just return the best combinations
+  // In a full implementation, this would prioritize by strategic value
+  return allMoves.slice(0, Math.min(maxMoves, allMoves.length))
 }
 
 /**
@@ -398,24 +462,25 @@ function parseAIResponse(response) {
 }
 
 /**
- * Validate AI suggestion and return move
+ * Validate AI suggestion and return move combination
  */
 function validateAndReturnMove(aiAnalysis, moves) {
   const { bestMoveIndex, reasoning, confidence } = aiAnalysis
 
   if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
+    const selectedCombination = moves[bestMoveIndex]
     return {
-      move: moves[bestMoveIndex],
+      move: selectedCombination,
       reasoning: reasoning,
       confidence: confidence,
       source: 'ai'
     }
   }
 
-  // Fallback to first move if AI gave invalid index
+  // Fallback to first combination if AI gave invalid index
   return {
     move: moves[0],
-    reasoning: "AI suggestion invalid, using conservative move",
+    reasoning: "AI suggestion invalid, using conservative move combination",
     confidence: 0.3,
     source: 'fallback'
   }
@@ -425,6 +490,10 @@ function validateAndReturnMove(aiAnalysis, moves) {
  * Format move for display
  */
 function formatMove(move) {
+  if (move.moves) {
+    // This is a combination of moves
+    return move.description
+  }
   const from = move.from === 0 ? 'bar' : move.from === 25 ? 'bar' : move.from
   const to = move.to === -1 ? 'off' : move.to === -2 ? 'off' : move.to
   return `${from}/${to}`
