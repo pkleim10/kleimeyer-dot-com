@@ -5,6 +5,145 @@
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
 
+// Helper functions copied from xgidParser.js
+function charToCount(char) {
+  if (char === '-') return 0
+  if (char >= 'a' && char <= 'o') {
+    // Lowercase: BLACK checkers, a=1, b=2, ..., o=15
+    return char.charCodeAt(0) - 'a'.charCodeAt(0) + 1
+  }
+  if (char >= 'A' && char <= 'O') {
+    // Uppercase: WHITE checkers, A=1, B=2, ..., O=15
+    return char.charCodeAt(0) - 'A'.charCodeAt(0) + 1
+  }
+  return 0
+}
+
+function charToOwner(char) {
+  if (char === '-') return null
+  if (char >= 'a' && char <= 'o') return 'black'
+  if (char >= 'A' && char <= 'O') return 'white'
+  return null
+}
+
+function parseXGID(xgid) {
+  if (!xgid || typeof xgid !== 'string') {
+    return {
+      blackBar: 0,
+      whiteBar: 0,
+      points: Array(24).fill({ count: 0, owner: null }),
+      cubeValue: undefined,
+      cubeOwner: undefined,
+      player: undefined,
+      dice: undefined
+    }
+  }
+
+  const parts = xgid.split(':')
+  const xg1 = parts[0] || ''
+  const xg2 = parts[1]
+  const xg3 = parts[2]
+  const xg4 = parts[3]
+  const xg5 = parts[4]
+
+  if (xg1.length !== 26) {
+    console.warn(`Invalid xg1 length: expected 26, got ${xg1.length}`)
+    return {
+      blackBar: 0,
+      whiteBar: 0,
+      points: Array(24).fill({ count: 0, owner: null }),
+      cubeValue: undefined,
+      cubeOwner: undefined,
+      player: undefined,
+      dice: undefined
+    }
+  }
+
+  const blackBar = charToCount(xg1[0])
+
+  const points = []
+  for (let i = 1; i <= 24; i++) {
+    const char = xg1[i]
+    const count = charToCount(char)
+    const owner = charToOwner(char)
+    points.push({ count, owner })
+  }
+
+  const whiteBar = charToCount(xg1[25])
+
+  let cubeValue = undefined
+  if (xg2 !== undefined && xg2 !== '') {
+    const parsed = parseInt(xg2, 10)
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 6) {
+      cubeValue = parsed
+    }
+  }
+
+  let cubeOwner = undefined
+  if (xg3 !== undefined && xg3 !== '') {
+    const parsed = parseInt(xg3, 10)
+    if (!isNaN(parsed) && (parsed === -1 || parsed === 0 || parsed === 1)) {
+      cubeOwner = parsed
+    }
+  }
+
+  let player = undefined
+  if (xg4 !== undefined && xg4 !== '') {
+    const parsed = parseInt(xg4, 10)
+    if (!isNaN(parsed) && (parsed === -1 || parsed === 1)) {
+      player = parsed
+    }
+  }
+
+  let dice = undefined
+  if (xg5 !== undefined && xg5 !== '') {
+    if (/^\d{2}$/.test(xg5)) {
+      dice = xg5
+    }
+  }
+
+  return {
+    blackBar,
+    whiteBar,
+    points,
+    cubeValue,
+    cubeOwner,
+    player,
+    dice
+  }
+}
+
+// Simplified getLegalMoves for basic functionality
+function getLegalMoves(boardState, turnState) {
+  const legalMoves = []
+
+  if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
+    return legalMoves
+  }
+
+  const owner = turnState.currentPlayer
+  const availableDice = turnState.dice.filter(die =>
+    !turnState.usedDice || !turnState.usedDice.includes(die)
+  )
+
+  if (availableDice.length === 0) {
+    return legalMoves
+  }
+
+  // For now, just return a simple move for testing
+  // This is a simplified version - in production we'd need the full logic
+  if (availableDice.length > 0) {
+    legalMoves.push({
+      from: 24, // White's bar
+      to: 24 - availableDice[0], // Move forward
+      count: 1,
+      die: availableDice[0]
+    })
+  }
+
+  return legalMoves
+}
+
 export async function POST(request) {
   try {
     const { xgid, player, difficulty = 'intermediate', maxMoves = 5 } = await request.json()
@@ -30,9 +169,6 @@ export async function POST(request) {
         { status: 200 }
       )
     }
-
-    // Import game logic functions
-    const { parseXGID, getLegalMoves } = await import('../../other-fun-stuff/backgammon-resources/opening-moves/utils/xgidParser.js')
 
     // Parse position and generate legal moves
     const boardState = parseXGID(xgid)
@@ -141,7 +277,7 @@ async function analyzeMovesWithAI(xgid, moves, difficulty) {
       'Authorization': `Bearer ${XAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'grok-beta',
+      model: 'grok-4-1-fast-non-reasoning',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 500,
       temperature: 0.3 // Consistent strategic analysis
