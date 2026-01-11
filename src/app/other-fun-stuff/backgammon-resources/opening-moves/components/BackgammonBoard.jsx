@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { parseXGID } from '../utils/xgidParser'
+import { getAIMove } from '../utils/aiBackgammon'
 
 export default function BackgammonBoard({ 
   direction = 0, 
@@ -47,6 +48,11 @@ export default function BackgammonBoard({
   
   // Turn state for play mode
   const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
+
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [aiDifficulty, setAiDifficulty] = useState('intermediate')
   
   // Use editableXGID if in editable mode, otherwise use xgid prop
   const effectiveXGID = isEditable && editableXGID ? editableXGID : xgid
@@ -1418,6 +1424,61 @@ export default function BackgammonBoard({
     return { x: centerX, y: checkerY }
   }
   
+  // AI move suggestion function
+  const getAISuggestion = async () => {
+    if (!isEditable || effectiveEditingMode !== 'play') return
+
+    setIsAnalyzing(true)
+    setAiAnalysis(null)
+    try {
+      const currentXGID = editableXGID || effectiveXGID || xgid
+      const suggestion = await getAIMove(currentXGID, finalEffectivePlayer, aiDifficulty)
+      setAiAnalysis(suggestion)
+    } catch (error) {
+      console.error('AI suggestion failed:', error)
+      setAiAnalysis({
+        move: null,
+        reasoning: 'AI analysis unavailable - check API key and network connection',
+        confidence: 0,
+        source: 'error'
+      })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  // Clear AI analysis when board changes
+  useEffect(() => {
+    setAiAnalysis(null)
+  }, [editableXGID, effectiveXGID, xgid])
+
+  // Helper functions for AI analysis
+  const formatMoveForDisplay = (move) => {
+    if (!move) return 'No move available'
+
+    const from = move.from === 0 ? 'bar' : move.from === 25 ? 'bar' : move.from
+    const to = move.to === -1 ? 'off' : move.to === -2 ? 'off' : move.to
+    return `${from}/${to}`
+  }
+
+  const applyAIMove = (move) => {
+    if (!move) return
+
+    const currentXGID = editableXGID || effectiveXGID || xgid
+    if (!currentXGID) return
+
+    // Apply the move using existing logic
+    const newXGID = updateXGIDForMove(currentXGID, move.from, move.to, move.count || 1, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+    setEditableXGID(newXGID)
+
+    if (onChange) {
+      onChange(newXGID)
+    }
+
+    // Clear the AI analysis after applying
+    setAiAnalysis(null)
+  }
+
   // ========== EDITABLE MODE UTILITY FUNCTIONS ==========
   
   /**
@@ -3585,6 +3646,52 @@ export default function BackgammonBoard({
                   Show Board Labels
                 </label>
               </div>
+
+              {/* AI Analysis */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Analysis</h3>
+
+                {/* Difficulty Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    AI Difficulty
+                  </label>
+                  <select
+                    value={aiDifficulty}
+                    onChange={(e) => setAiDifficulty(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                    <option value="grandmaster">Grandmaster</option>
+                  </select>
+                </div>
+
+                {/* AI Analysis Button */}
+                <button
+                  onClick={getAISuggestion}
+                  disabled={isAnalyzing || effectiveEditingMode !== 'play'}
+                  className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      🤖 Get AI Move
+                    </>
+                  )}
+                </button>
+
+                {effectiveEditingMode !== 'play' && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Switch to PLAY mode to use AI analysis
+                  </p>
+                )}
+              </div>
             </div>
             
             <div className="flex justify-end gap-3 mt-6">
@@ -3829,8 +3936,60 @@ export default function BackgammonBoard({
         
       </svg>
       
+      {/* AI Analysis Panel */}
+      {aiAnalysis && (
+        <div className="absolute top-4 right-4 z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+              AI Move ({aiDifficulty})
+            </h3>
+            <button
+              onClick={() => setAiAnalysis(null)}
+              className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-700 dark:text-purple-300">
+                {Math.round(aiAnalysis.confidence * 100)}% confident
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                aiAnalysis.source === 'ai' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                aiAnalysis.source === 'fallback' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {aiAnalysis.source === 'ai' ? 'AI' : aiAnalysis.source === 'fallback' ? 'Fallback' : 'Error'}
+              </span>
+            </div>
+
+            {aiAnalysis.move && (
+              <p className="text-purple-800 dark:text-purple-200 text-sm">
+                <strong>Move:</strong> {formatMoveForDisplay(aiAnalysis.move)}
+              </p>
+            )}
+            <p className="text-purple-700 dark:text-purple-300 text-xs leading-relaxed">
+              {aiAnalysis.reasoning}
+            </p>
+
+            {aiAnalysis.move && (
+              <button
+                onClick={() => applyAIMove(aiAnalysis.move)}
+                className="w-full mt-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs font-medium"
+              >
+                Apply Move
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Information bar */}
-      <div 
+      <div
         className="w-full text-center py-3 px-4"
         style={{
           backgroundColor: '#4b5563', // dark grey

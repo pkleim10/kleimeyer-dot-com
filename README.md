@@ -20,6 +20,36 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Backgammon AI Feature
+
+The backgammon board editor includes an AI-powered move suggestion system using xAI's Grok model.
+
+### Setup
+
+1. Get an API key from [x.ai](https://x.ai/)
+2. Create a `.env.local` file in the project root
+3. Add your API key:
+   ```
+   XAI_API_KEY=your_xai_api_key_here
+   ```
+
+### Usage
+
+1. Go to `/other-fun-stuff/backgammon-resources/board-editor`
+2. Switch to PLAY mode
+3. Roll dice or set a position with dice
+4. Click the gear icon to open board settings
+5. Select AI difficulty level
+6. Click "🤖 Get AI Move" to get strategic analysis
+7. Apply the suggested move or continue manually
+
+### How It Works
+
+The system uses a hybrid approach:
+- **Local validation**: Ensures all AI suggestions are legal moves
+- **AI analysis**: Provides strategic reasoning for the best moves
+- **Fallback system**: Uses conservative heuristics if AI is unavailable
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
