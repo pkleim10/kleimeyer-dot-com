@@ -126,7 +126,12 @@ function selectTopLegalMoves(allMoves, maxMoves) {
  */
 async function analyzeMovesWithAI(xgid, moves, difficulty) {
   if (!XAI_API_KEY) {
-    throw new Error('XAI_API_KEY not configured')
+    // Return a fallback response indicating AI is not available
+    return {
+      bestMoveIndex: 0, // Default to first move
+      reasoning: 'AI analysis not available - XAI_API_KEY not configured. Add your xAI API key to .env.local file.',
+      confidence: 0.1
+    }
   }
 
   const prompt = buildAnalysisPrompt(xgid, moves, difficulty)

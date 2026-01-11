@@ -27,11 +27,17 @@ The backgammon board editor includes an AI-powered move suggestion system using 
 ### Setup
 
 1. Get an API key from [x.ai](https://x.ai/)
-2. Create a `.env.local` file in the project root
-3. Add your API key:
+2. Create a `.env.local` file in the project root:
+   ```bash
+   # Create the environment file
+   touch .env.local
    ```
-   XAI_API_KEY=your_xai_api_key_here
+3. Add your API key to `.env.local`:
    ```
+   XAI_API_KEY=your_actual_xai_api_key_here
+   ```
+
+   **Note**: If you don't have an xAI API key yet, the AI features will gracefully fall back to basic heuristics with a confidence score of ~10%.
 
 ### Usage
 
