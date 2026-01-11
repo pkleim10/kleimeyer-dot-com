@@ -737,15 +737,16 @@ export default function BackgammonBoard({
             y={resetAreaTop}
             width={resetAreaWidth}
             height={resetAreaHeight}
-            fill="red"
-            stroke="red"
-            strokeWidth={1}
-            opacity={0.3}
+            fill="transparent"
             pointerEvents="all"
             style={{ cursor: 'pointer' }}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
+
+              // Disable dice reset in PLAY mode
+              if (effectiveEditingMode === 'play') return;
+
               const currentXGID = editableXGID || effectiveXGID || xgid
               if (!currentXGID) return
               const parts = currentXGID.split(':')
@@ -770,15 +771,16 @@ export default function BackgammonBoard({
             y={resetAreaTop}
             width={resetAreaWidth}
             height={resetAreaHeight}
-            fill="red"
-            stroke="red"
-            strokeWidth={1}
-            opacity={0.3}
+            fill="transparent"
             pointerEvents="all"
             style={{ cursor: 'pointer' }}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
+
+              // Disable dice reset in PLAY mode
+              if (effectiveEditingMode === 'play') return;
+
               const currentXGID = editableXGID || effectiveXGID || xgid
               if (!currentXGID) return
               const parts = currentXGID.split(':')
@@ -2381,53 +2383,6 @@ export default function BackgammonBoard({
   }
   
   /**
-   * Check if click coordinates are in the dice reset area (left or right of dice)
-   * @param {number} x - X coordinate
-   * @param {number} y - Y coordinate
-   * @returns {boolean} - True if click is in reset area (1/2 die width left of left die or right of right die)
-   */
-  const isClickInDiceResetArea = (x, y) => {
-    if (!isEditable) return false
-    
-    // Check if dice are currently shown (not "00")
-    const currentXGID = editableXGID || effectiveXGID || xgid
-    if (!currentXGID) return false
-    const boardState = parseXGID(currentXGID)
-    if (!boardState.dice || boardState.dice === "00") return false // No dice to reset
-    
-    // Dice size and positions (same as renderDice)
-    const dieSize = BAR_WIDTH * 0.8
-    const dieRadius = dieSize / 2
-    const diceY = topBorderWidth + innerHeight / 2
-    const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
-    const die1X = rightHalfCenterX - dieSize * 0.6 // First die (leftmost)
-    const die2X = rightHalfCenterX + dieSize * 0.6 // Second die (rightmost)
-    
-    // Reset areas: 1/2 die width to the left of left die, or to the right of right die
-    const resetAreaWidth = dieSize / 2
-    const resetAreaHeight = dieSize * 1.5 // Slightly taller than dice for easier clicking
-    const resetAreaTop = diceY - resetAreaHeight / 2
-    const resetAreaBottom = diceY + resetAreaHeight / 2
-    const resetAreaGap = 5 // Gap between reset areas and dice
-
-    // Left reset area (to the left of leftmost die, with gap)
-    const leftResetAreaLeft = die1X - dieRadius - resetAreaWidth - resetAreaGap
-    const leftResetAreaRight = die1X - dieRadius - resetAreaGap
-
-    // Right reset area (to the right of rightmost die, with gap)
-    const rightResetAreaLeft = die2X + dieRadius + resetAreaGap
-    const rightResetAreaRight = die2X + dieRadius + resetAreaWidth + resetAreaGap
-    
-    // Check if click is in either reset area
-    const inLeftArea = x >= leftResetAreaLeft && x <= leftResetAreaRight &&
-                       y >= resetAreaTop && y <= resetAreaBottom
-    const inRightArea = x >= rightResetAreaLeft && x <= rightResetAreaRight &&
-                        y >= resetAreaTop && y <= resetAreaBottom
-    
-    return inLeftArea || inRightArea
-  }
-  
-  /**
    * Check if click coordinates are in the dice area (where dice would be displayed)
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
@@ -2900,6 +2855,7 @@ export default function BackgammonBoard({
   // Dice click handler - single click cycles the die value
   const handleDiceClick = (e, dieIndex) => {
     if (!isEditable || effectiveEditingMode !== 'free') return
+
     
     e.preventDefault()
     e.stopPropagation()
@@ -2911,33 +2867,6 @@ export default function BackgammonBoard({
     const rect = svg.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    
-    // Check if click is in reset area - if so, reset dice instead of cycling
-    if (isClickInDiceResetArea(x, y)) {
-      const currentXGID = editableXGID || effectiveXGID || xgid
-      if (!currentXGID) return
-      
-      // Set dice to "00" to hide them
-      const parts = currentXGID.split(':')
-      parts[4] = '00'
-      
-      // Ensure all parts exist
-      while (parts.length < 10) {
-        if (parts.length === 9) {
-          parts.push('10')
-        } else {
-          parts.push('0')
-        }
-      }
-      
-      const newXGID = parts.join(':')
-      setEditableXGID(newXGID)
-      
-      if (onChange) {
-        onChange(newXGID)
-      }
-      return
-    }
     
     const currentXGID = editableXGID || effectiveXGID || xgid
     if (!currentXGID) return
@@ -2982,37 +2911,7 @@ export default function BackgammonBoard({
     const rect = svg.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    
-    // Check if click is in dice reset area (left or right of dice)
-    if (isClickInDiceResetArea(x, y)) {
-      e.preventDefault()
-      e.stopPropagation()
-      
-      const currentXGID = editableXGID || effectiveXGID || xgid
-      if (!currentXGID) return
-      
-      // Set dice to "00" to hide them
-      const parts = currentXGID.split(':')
-      parts[4] = '00'
-      
-      // Ensure all parts exist
-      while (parts.length < 10) {
-        if (parts.length === 9) {
-          parts.push('10')
-        } else {
-          parts.push('0')
-        }
-      }
-      
-      const newXGID = parts.join(':')
-      setEditableXGID(newXGID)
-      
-      if (onChange) {
-        onChange(newXGID)
-      }
-      return
-    }
-    
+  
     // Check if click is in dice area (empty area to roll dice)
     if (isClickInDiceArea(x, y)) {
       e.preventDefault()
