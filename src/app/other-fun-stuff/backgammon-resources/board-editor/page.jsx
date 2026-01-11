@@ -17,11 +17,84 @@ export default function BoardEditorPage() {
   const [xgidInputValue, setXgidInputValue] = useState(STARTING_XGID) // Current input value
   const [xgidError, setXgidError] = useState(null) // Validation error message
 
+  // AI analysis state
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState(null)
+  const [aiDebug, setAiDebug] = useState(null) // Debug/trace information
+  const [aiDifficulty, setAiDifficulty] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('backgammonAiDifficulty') || 'intermediate'
+    }
+    return 'intermediate'
+  })
+
+  // Get AI move analysis
+  const handleAiAnalysis = async () => {
+    if (editingMode !== 'play') return
+
+    setIsAnalyzing(true)
+    setAiAnalysis(null)
+    setAiDebug(null)
+
+    try {
+      const response = await fetch('/api/backgammon-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          xgid: boardXGID,
+          player: currentPlayer,
+          difficulty: aiDifficulty,
+          maxMoves: 5,
+          debug: true // Request debug information
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.debug) {
+        setAiDebug(result.debug)
+      }
+
+      setAiAnalysis(result)
+    } catch (error) {
+      console.error('AI analysis failed:', error)
+      setAiAnalysis({
+        move: null,
+        reasoning: 'AI analysis failed due to technical error',
+        confidence: 0,
+        source: 'error'
+      })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  // Clear AI analysis
+  const handleClearAiAnalysis = () => {
+    setAiAnalysis(null)
+    setAiDebug(null)
+  }
+
+  // Handle AI difficulty changes
+  const handleAiDifficultyChange = (difficulty) => {
+    setAiDifficulty(difficulty)
+  }
+
   // Sync input value when boardXGID changes externally
   useEffect(() => {
+    console.log('boardXGID changed to:', boardXGID, 'updating xgidInputValue')
     setXgidInputValue(boardXGID)
     setXgidError(null)
   }, [boardXGID])
+
+  // Save AI difficulty to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonAiDifficulty', aiDifficulty)
+    }
+  }, [aiDifficulty])
 
   // Validate XGID string components
   const validateXGID = (xgid) => {
@@ -172,6 +245,23 @@ export default function BoardEditorPage() {
                   >
                     Start
                   </button>
+                  <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                  <button
+                    onClick={handleAiAnalysis}
+                    disabled={isAnalyzing || editingMode !== 'play'}
+                    className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        🤖 Get AI Move
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -195,6 +285,12 @@ export default function BoardEditorPage() {
                     isEditable={true}
                     editingMode={editingMode}
                     onChange={setBoardXGID}
+                    aiAnalysis={aiAnalysis}
+                    aiDebug={aiDebug}
+                    aiDifficulty={aiDifficulty}
+                    onAiDifficultyChange={handleAiDifficultyChange}
+                    onAiAnalysis={handleAiAnalysis}
+                    onClearAiAnalysis={handleClearAiAnalysis}
                   />
                 </div>
               </div>

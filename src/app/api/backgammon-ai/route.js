@@ -279,7 +279,7 @@ function applyMoveToBoard(boardState, move) {
 
 export async function POST(request) {
   try {
-    const { xgid, player, difficulty = 'intermediate', maxMoves = 5 } = await request.json()
+    const { xgid, player, difficulty = 'intermediate', maxMoves = 5, debug = false } = await request.json()
 
     // Validate input
     if (!xgid) {
@@ -310,6 +310,17 @@ export async function POST(request) {
     const turnState = createTurnState(boardState, player)
     const allLegalMoves = getLegalMoves(boardState, turnState)
 
+    // Collect debug information
+    const debugInfo = debug ? {
+      xgid,
+      legalMoves: allLegalMoves.map(move => ({
+        description: formatMove(move),
+        totalPips: move.totalPips || 0
+      })),
+      prompt: '',
+      response: ''
+    } : null
+
     if (allLegalMoves.length === 0) {
       return Response.json({
         move: null,
@@ -323,10 +334,15 @@ export async function POST(request) {
     const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
 
     // Get AI strategic analysis
-    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty, player)
+    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty, player, debugInfo)
 
     // Validate and return best AI suggestion
     const result = validateAndReturnMove(aiAnalysis, topMoves)
+
+    // Include debug info if requested
+    if (debugInfo) {
+      result.debug = debugInfo
+    }
 
     return Response.json(result)
 
@@ -374,10 +390,15 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 /**
  * Call xAI for strategic analysis
  */
-async function analyzeMovesWithAI(xgid, moves, difficulty, player) {
+async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = null) {
   const XAI_API_KEY = process.env.XAI_API_KEY
 
   const prompt = buildAnalysisPrompt(xgid, moves, difficulty, player)
+
+  // Store prompt in debug info
+  if (debugInfo) {
+    debugInfo.prompt = prompt
+  }
 
   const response = await fetch(XAI_API_URL, {
     method: 'POST',
@@ -398,7 +419,14 @@ async function analyzeMovesWithAI(xgid, moves, difficulty, player) {
   }
 
   const data = await response.json()
-  return parseAIResponse(data.choices[0].message.content)
+  const aiResponse = data.choices[0].message.content
+
+  // Store response in debug info
+  if (debugInfo) {
+    debugInfo.response = aiResponse
+  }
+
+  return parseAIResponse(aiResponse)
 }
 
 /**
@@ -425,11 +453,12 @@ ${playerColor} to move with dice: ${dice}
 Legal moves to consider:
 ${moveList}
 
-IMPORTANT: 
+IMPORTANT:
 - You are playing as ${playerColor}, so analyze from ${playerColor}'s viewpoint
 - ${playerColor} must use both dice when possible (unless blocked)
-- Points are numbered 1-24 from ${playerColor}'s perspective
-- Higher point numbers are closer to ${playerColor}'s home board
+- Points are numbered 1-24 from ${playerColor}'s perspective (1-6 = ${playerColor}'s home board, 19-24 = opponent's home board)
+- Lower point numbers (1-6) are ${playerColor}'s home board where pieces bear off
+- Higher point numbers (19-24) are opponent's home board
 
 Focus on: blot safety, board control, timing, race position, and using both dice efficiently.
 

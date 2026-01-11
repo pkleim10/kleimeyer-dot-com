@@ -25,7 +25,13 @@ export default function BackgammonBoard({
   showOptions = true, // Controls visibility of options gear icon
   isEditable = false, // Enables interactive features (drag-and-drop, clickable dice/cube)
   editingMode = 'free', // 'free' = any checker anywhere, 'play' = legal moves only
-  onChange = null // Callback when board state changes: (xgid: string) => void
+  onChange = null, // Callback when board state changes: (xgid: string) => void
+  aiAnalysis = null, // AI analysis result object
+  aiDebug = null, // Debug/trace information from AI
+  aiDifficulty = 'intermediate', // AI difficulty level: 'beginner', 'intermediate', 'advanced', 'grandmaster'
+  onAiDifficultyChange = null, // Callback for AI difficulty changes: (difficulty) => void
+  onAiAnalysis = null, // Callback to trigger AI analysis: () => Promise<void>
+  onClearAiAnalysis = null // Callback to clear AI analysis: () => void
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
@@ -50,10 +56,7 @@ export default function BackgammonBoard({
   // Turn state for play mode
   const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
 
-  // AI analysis state
-  const [aiAnalysis, setAiAnalysis] = useState(null)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [aiDifficulty, setAiDifficulty] = useState('intermediate')
+  // AI analysis state (managed by parent component)
   
   // Use editableXGID if in editable mode, otherwise use xgid prop
   const effectiveXGID = isEditable && editableXGID ? editableXGID : xgid
@@ -151,6 +154,50 @@ export default function BackgammonBoard({
       localStorage.setItem('backgammonBoardDialogPosition', JSON.stringify(dialogPosition))
     }
   }, [dialogPosition])
+
+  // AI suggestion window position and drag state
+  const [aiWindowPosition, setAiWindowPosition] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('backgammonAiWindowPosition')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Ensure the saved position is still valid
+        return {
+          x: Math.max(0, Math.min(window.innerWidth - 400, parsed.x)),
+          y: Math.max(0, Math.min(window.innerHeight - 300, parsed.y))
+        }
+      }
+      // Default position: center-right, not too low
+      return { x: Math.max(16, window.innerWidth - 450), y: Math.max(100, window.innerHeight - 400) }
+    }
+    return { x: 16, y: 100 }
+  })
+  const [isDraggingAi, setIsDraggingAi] = useState(false)
+  const [aiDragStart, setAiDragStart] = useState({ x: 0, y: 0 })
+
+  // Save AI window position to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonAiWindowPosition', JSON.stringify(aiWindowPosition))
+    }
+  }, [aiWindowPosition])
+
+  // AI window drag handlers
+  const handleAiMouseDown = (e) => {
+    setIsDraggingAi(true)
+    setAiDragStart({
+      x: e.clientX - aiWindowPosition.x,
+      y: e.clientY - aiWindowPosition.y
+    })
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+
+  const handleGlobalMouseUp = () => {
+    setIsDraggingAi(false)
+    // ... existing mouse up logic ...
+  }
   
   // Initialize turn state when dice are rolled (in play mode)
   // Only initialize when dice change from "00" to actual values, or when player changes
@@ -208,18 +255,25 @@ export default function BackgammonBoard({
     }
   }, [effectiveXGID, effectiveEditingMode, isEditable]) // Note: intentionally not including turnState to avoid loops
 
-  // Clear localSettings.player when XGID player changes in PLAY mode to ensure UI consistency
+  // Clear localSettings.player and dice when XGID changes in PLAY mode to ensure UI consistency
   useEffect(() => {
-    if (effectiveEditingMode === 'play' && localSettings?.player !== undefined) {
+    if (effectiveEditingMode === 'play') {
       const boardState = effectiveXGID ? parseXGID(effectiveXGID) : null
-      if (boardState && boardState.player !== undefined) {
-        const xgidPlayer = boardState.player === 1 ? 1 : -1
-        if (localSettings.player !== xgidPlayer) {
-          setLocalSettings(prev => prev ? { ...prev, player: undefined } : null)
+      if (boardState) {
+        // Clear player setting if it doesn't match XGID
+        if (localSettings?.player !== undefined) {
+          const xgidPlayer = boardState.player === 1 ? 1 : -1
+          if (localSettings.player !== xgidPlayer) {
+            setLocalSettings(prev => prev ? { ...prev, player: undefined } : null)
+          }
+        }
+        // Clear dice setting if XGID dice is "00" (turn complete)
+        if (localSettings?.dice !== undefined && boardState.dice === '00') {
+          setLocalSettings(prev => prev ? { ...prev, dice: undefined } : null)
         }
       }
     }
-  }, [effectiveXGID, effectiveEditingMode]) // Removed localSettings?.player to prevent clearing while user is editing
+  }, [effectiveXGID, effectiveEditingMode]) // Removed localSettings dependencies to prevent clearing while user is editing
   
   // Use localSettings for rendering if user has overridden, otherwise use XGID/props
   const activeDirection = localSettings?.direction !== undefined ? localSettings.direction : direction
@@ -1425,33 +1479,7 @@ export default function BackgammonBoard({
     return { x: centerX, y: checkerY }
   }
   
-  // AI move suggestion function
-  const getAISuggestion = async () => {
-    if (!isEditable || effectiveEditingMode !== 'play') return
-
-    setIsAnalyzing(true)
-    setAiAnalysis(null)
-    try {
-      const currentXGID = editableXGID || effectiveXGID || xgid
-      const suggestion = await getAIMove(currentXGID, finalEffectivePlayer, aiDifficulty)
-      setAiAnalysis(suggestion)
-    } catch (error) {
-      console.error('AI suggestion failed:', error)
-      setAiAnalysis({
-        move: null,
-        reasoning: 'AI analysis unavailable - check API key and network connection',
-        confidence: 0,
-        source: 'error'
-      })
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
-
-  // Clear AI analysis when board changes
-  useEffect(() => {
-    setAiAnalysis(null)
-  }, [editableXGID, effectiveXGID, xgid])
+  // Note: AI analysis is cleared manually by user or when new analysis starts
 
   // Helper functions for AI analysis
   const formatMoveForDisplay = (move) => {
@@ -1486,16 +1514,84 @@ export default function BackgammonBoard({
       updatedXGID = updateXGIDForMove(updatedXGID, move.from, move.to, move.count || 1, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
     }
 
-    setEditableXGID(updatedXGID)
+    // Don't call setEditableXGID yet - wait until after turn state handling
 
-    if (onChange) {
-      onChange(updatedXGID)
+    // Handle turn state updates like regular moves
+    if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+      // For AI moves, identify which specific dice are used by each move
+      const usedDiceValues = []
+      let availableDice = [...getAvailableDice(turnState.dice, turnState.usedDice || [])]
+
+      if (move.moves) {
+        // Handle move combinations - each move should use exactly one die
+        for (const singleMove of move.moves) {
+          const distance = calculateMoveDistance(singleMove.from, singleMove.to, singleMove.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+          if (distance !== null && distance > 0) {
+            // Find an available die that matches this distance
+            const matchingDieIndex = availableDice.indexOf(distance)
+            if (matchingDieIndex !== -1) {
+              usedDiceValues.push(distance)
+              availableDice.splice(matchingDieIndex, 1) // Remove this die from available dice
+            }
+          }
+        }
+      } else {
+        // Handle single move
+        const distance = calculateMoveDistance(move.from, move.to, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+        if (distance !== null && distance > 0) {
+          // Find an available die that matches this distance
+          const matchingDieIndex = availableDice.indexOf(distance)
+          if (matchingDieIndex !== -1) {
+            usedDiceValues.push(distance)
+          }
+        }
+      }
+
+      // Update turn state with used dice
+      const newUsedDice = [...(turnState.usedDice || []), ...usedDiceValues]
+
+      // Check if turn is complete (all dice used)
+      const allDiceUsed = newUsedDice.length >= turnState.dice.length
+
+      if (allDiceUsed) {
+        // End turn - switch to next player and clear dice
+
+        // Update XGID to switch player and clear dice
+        const parts = updatedXGID.split(':')
+        const currentPlayer = parseInt(parts[3])
+        const nextPlayer = currentPlayer === 1 ? -1 : 1
+        parts[3] = nextPlayer.toString()
+        parts[4] = '00' // Clear dice
+        const finalXGID = parts.join(':')
+
+        setEditableXGID(finalXGID)
+        setTurnState(null)
+
+        if (onChange) {
+          onChange(finalXGID)
+        }
+      } else {
+        // Partial turn - update board but don't switch player
+        setEditableXGID(updatedXGID)
+        setTurnState({
+          ...turnState,
+          usedDice: newUsedDice
+        })
+
+        if (onChange) {
+          onChange(updatedXGID)
+        }
+      }
+    } else {
+      // Not in PLAY mode or no turn state - just update XGID
     }
 
     // Clear the AI analysis after applying
-    setAiAnalysis(null)
+    if (onClearAiAnalysis) {
+      onClearAiAnalysis()
+    }
   }
-
+  
   // ========== EDITABLE MODE UTILITY FUNCTIONS ==========
   
   /**
@@ -2194,9 +2290,21 @@ export default function BackgammonBoard({
   
   // Global mouse move handler for drag (works even when mouse leaves SVG)
   useEffect(() => {
-    if (!isEditable || !draggedChecker) return
+    // Set up handlers for AI dragging or regular checker dragging
+    if (!isEditable || (!draggedChecker && !isDraggingAi)) return
     
     const handleGlobalMouseMove = (e) => {
+      // Handle AI window dragging
+      if (isDraggingAi) {
+        const newX = Math.max(0, Math.min(window.innerWidth - 400, e.clientX - aiDragStart.x))
+        const newY = Math.max(0, Math.min(window.innerHeight - 200, e.clientY - aiDragStart.y))
+        setAiWindowPosition({
+          x: newX,
+          y: newY
+        })
+        return
+      }
+    
       // Find the SVG element
       const svg = document.querySelector('.backgammon-board')
       if (!svg) return
@@ -2221,6 +2329,11 @@ export default function BackgammonBoard({
     }
     
     const handleGlobalMouseUp = (e) => {
+      // Always reset AI dragging on mouse up
+      if (isDraggingAi) {
+        setIsDraggingAi(false)
+      }
+
       if (!draggedChecker) return
       
       // Find the SVG element
@@ -2260,14 +2373,14 @@ export default function BackgammonBoard({
               : dropPointAbsolute
               
             if (dropPointForValidation !== draggedChecker.point) {
-              // Validate move
+            // Validate move
               if (validateMove(draggedChecker.point, dropPointForValidation, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
                 // Update XGID - use dropPoint (relative to boardState.player) for updateXGIDForMove
-                const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
+              const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
                 setEditableXGID(newXGID)
-                
-                // Track dice usage in PLAY mode
-                if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+              
+              // Track dice usage in PLAY mode
+              if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
                   const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
                 if (distance !== null && distance > 0) {
                   const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
@@ -2345,7 +2458,7 @@ export default function BackgammonBoard({
                       parts[3] = String(nextPlayer) // Update player
                       parts[4] = '00' // Reset dice
                       const finalXGID = parts.join(':')
-                      setEditableXGID(finalXGID)
+                        setEditableXGID(finalXGID)
                       setTurnState(null) // Reset turn state for next player
                       
                       if (onChange) {
@@ -2364,16 +2477,16 @@ export default function BackgammonBoard({
                       
                       if (onChange) {
                         onChange(finalXGID)
-                      }
-                    } else {
+                    }
+                  } else {
                       // Update turn state with used dice
                       setTurnState(updatedTurnState)
                       
                       if (onChange) {
                         onChange(newXGID)
                       }
-                    }
-                  } else {
+                  }
+                } else {
                     // Not enough dice - shouldn't happen if validation worked, but notify anyway
                     if (onChange) {
                       onChange(newXGID)
@@ -2387,7 +2500,7 @@ export default function BackgammonBoard({
                 }
               } else {
                 // Not play mode or no turn state - just notify
-                if (onChange) {
+              if (onChange) {
                   onChange(newXGID)
                 }
               }
@@ -2406,14 +2519,21 @@ export default function BackgammonBoard({
       setDragScreenPosition({ x: 0, y: 0 })
     }
     
-    document.addEventListener('mousemove', handleGlobalMouseMove)
-    document.addEventListener('mouseup', handleGlobalMouseUp)
-    
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove)
-      document.removeEventListener('mouseup', handleGlobalMouseUp)
+    const mouseMoveHandler = (e) => {
+      handleGlobalMouseMove(e)
     }
-  }, [isEditable, draggedChecker, editableXGID, effectiveXGID, xgid, effectiveEditingMode, onChange, turnState])
+    const mouseUpHandler = (e) => {
+      handleGlobalMouseUp(e)
+    }
+
+    document.addEventListener('mousemove', mouseMoveHandler)
+    document.addEventListener('mouseup', mouseUpHandler)
+
+    return () => {
+      document.removeEventListener('mousemove', mouseMoveHandler)
+      document.removeEventListener('mouseup', mouseUpHandler)
+    }
+  }, [isEditable, draggedChecker, isDraggingAi, aiDragStart, editableXGID, effectiveXGID, xgid, effectiveEditingMode, onChange, turnState])
   
   // Local mouse move handler (for SVG only, but global handler above takes precedence)
   const handleMouseMove = (e) => {
@@ -2428,7 +2548,7 @@ export default function BackgammonBoard({
   // Dice click handler - single click cycles the die value
   const handleDiceClick = (e, dieIndex) => {
     if (!isEditable || effectiveEditingMode !== 'free') return
-
+    
     
     e.preventDefault()
     e.stopPropagation()
@@ -2484,7 +2604,7 @@ export default function BackgammonBoard({
     const rect = svg.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-  
+    
     // Check if click is in dice area (empty area to roll dice)
     if (isClickInDiceArea(x, y)) {
       e.preventDefault()
@@ -2897,7 +3017,7 @@ export default function BackgammonBoard({
         }
       }
     }
-
+    
     // Notify parent if player changed
     if (localSettings && onPlayerChange && localSettings.player !== undefined) {
       onPlayerChange(localSettings.player)
@@ -3130,6 +3250,23 @@ export default function BackgammonBoard({
                   placeholder="00"
                 />
               </div>
+
+              {/* AI Difficulty */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  AI Difficulty
+                </label>
+                <select
+                  value={aiDifficulty}
+                  onChange={(e) => onAiDifficultyChange && onAiDifficultyChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                  <option value="grandmaster">Grandmaster</option>
+                </select>
+              </div>
               
               {/* Show Trays */}
               <div className="flex items-center">
@@ -3159,51 +3296,6 @@ export default function BackgammonBoard({
                 </label>
               </div>
 
-              {/* AI Analysis */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Analysis</h3>
-
-                {/* Difficulty Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    AI Difficulty
-                  </label>
-                  <select
-                    value={aiDifficulty}
-                    onChange={(e) => setAiDifficulty(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                    <option value="grandmaster">Grandmaster</option>
-                  </select>
-                </div>
-
-                {/* AI Analysis Button */}
-                <button
-                  onClick={getAISuggestion}
-                  disabled={isAnalyzing || effectiveEditingMode !== 'play'}
-                  className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      🤖 Get AI Move
-                    </>
-                  )}
-                </button>
-
-                {effectiveEditingMode !== 'play' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Switch to PLAY mode to use AI analysis
-                  </p>
-                )}
-              </div>
             </div>
             
             <div className="flex justify-end gap-3 mt-6">
@@ -3450,13 +3542,22 @@ export default function BackgammonBoard({
       
       {/* AI Analysis Panel */}
       {aiAnalysis && (
-        <div className="absolute bottom-4 left-4 z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-sm">
+        <div
+          className="fixed z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-sm cursor-move select-none"
+          style={{
+            left: `${aiWindowPosition.x}px`,
+            top: `${aiWindowPosition.y}px`,
+            maxWidth: '400px'
+          }}
+          onMouseDown={handleAiMouseDown}
+          onDragStart={(e) => e.preventDefault()} // Prevent default drag behavior
+        >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
               AI Move ({aiDifficulty})
             </h3>
             <button
-              onClick={() => setAiAnalysis(null)}
+              onClick={() => onClearAiAnalysis && onClearAiAnalysis()}
               className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3494,14 +3595,14 @@ export default function BackgammonBoard({
                 className="w-full mt-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs font-medium"
               >
                 Apply Move
-              </button>
+            </button>
             )}
           </div>
         </div>
       )}
-
+      
       {/* Information bar */}
-      <div
+      <div 
         className="w-full text-center py-3 px-4"
         style={{
           backgroundColor: '#4b5563', // dark grey
@@ -3512,6 +3613,49 @@ export default function BackgammonBoard({
       >
         <span className="text-lg font-semibold">{infoText}</span>
       </div>
+
+      {/* AI Debug/Trace Area */}
+      {aiDebug && (
+        <div className="w-full bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700 p-4" style={{ width: `${BOARD_WIDTH}px`, maxWidth: '100%' }}>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Analysis Debug</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">XGID Sent to AI:</h4>
+                <code className="block p-2 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 break-all">
+                  {aiDebug.xgid}
+                </code>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legal Moves Generated:</h4>
+                <div className="max-h-32 overflow-y-auto">
+                  {aiDebug.legalMoves && aiDebug.legalMoves.map((move, i) => (
+                    <code key={i} className="block p-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono text-gray-900 dark:text-gray-100 mb-1">
+                      {move.description}
+                    </code>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Full Prompt Sent to AI:</h4>
+              <div className="max-h-40 overflow-y-auto p-3 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                {aiDebug.prompt}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Complete AI Response:</h4>
+              <div className="max-h-40 overflow-y-auto p-3 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                {aiDebug.response}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
