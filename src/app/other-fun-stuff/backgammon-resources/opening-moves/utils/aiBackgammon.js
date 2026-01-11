@@ -1,11 +1,7 @@
 /**
  * Hybrid AI Backgammon System
- * Combines local rule validation with AI strategic analysis
+ * Combines local rule validation with AI strategic analysis via API
  */
-
-// xAI API Configuration
-const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
-const XAI_API_KEY = process.env.XAI_API_KEY
 
 // Difficulty levels map to different analysis depths
 const DIFFICULTY_PROMPTS = {
@@ -122,88 +118,51 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 }
 
 /**
- * Call xAI for strategic analysis
+ * Call AI analysis API route
  */
 async function analyzeMovesWithAI(xgid, moves, difficulty) {
-  if (!XAI_API_KEY) {
-    // Return a fallback response indicating AI is not available
-    return {
-      bestMoveIndex: 0, // Default to first move
-      reasoning: 'AI analysis not available - XAI_API_KEY not configured. Add your xAI API key to .env.local file.',
-      confidence: 0.1
-    }
-  }
-
-  const prompt = buildAnalysisPrompt(xgid, moves, difficulty)
-
-  const response = await fetch(XAI_API_URL, {
+  const response = await fetch('/api/backgammon-ai', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${XAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'grok-beta',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 500,
-      temperature: 0.3 // Consistent strategic analysis
+      xgid,
+      player: 1, // Default to white for now, could be parameterized
+      difficulty,
+      maxMoves: moves.length
     })
   })
 
   if (!response.ok) {
-    throw new Error(`xAI API error: ${response.status}`)
+    throw new Error(`AI API error: ${response.status}`)
   }
 
-  const data = await response.json()
-  return parseAIResponse(data.choices[0].message.content)
-}
+  const result = await response.json()
 
-/**
- * Build strategic analysis prompt
- */
-function buildAnalysisPrompt(xgid, moves, difficulty) {
-  const moveList = moves.map((move, i) =>
-    `${i + 1}. ${formatMove(move)}`
-  ).join('\n')
+  // Convert the API response format to internal format
+  if (result.source === 'ai') {
+    // Find the index of the returned move in our moves array
+    const moveIndex = moves.findIndex(move =>
+      move.from === result.move.from && move.to === result.move.to
+    )
 
-  return `You are a ${difficulty} level backgammon expert. Analyze this position:
-
-XGID: ${xgid}
-
-Legal moves to consider:
-${moveList}
-
-${DIFFICULTY_PROMPTS[difficulty]}
-
-Respond with format:
-BEST_MOVE: [move number]
-REASONING: [2-3 sentence strategic analysis]
-CONFIDENCE: [0.0-1.0]
-
-Focus on: blot safety, board control, timing, race position.`
-}
-
-/**
- * Parse AI response
- */
-function parseAIResponse(response) {
-  const lines = response.split('\n')
-  let bestMove = null
-  let reasoning = ''
-  let confidence = 0.5
-
-  lines.forEach(line => {
-    if (line.startsWith('BEST_MOVE:')) {
-      bestMove = parseInt(line.split(':')[1].trim())
-    } else if (line.startsWith('REASONING:')) {
-      reasoning = line.substring(10).trim()
-    } else if (line.startsWith('CONFIDENCE:')) {
-      confidence = parseFloat(line.split(':')[1].trim()) || 0.5
+    return {
+      bestMoveIndex: moveIndex >= 0 ? moveIndex : 0,
+      reasoning: result.reasoning,
+      confidence: result.confidence
     }
-  })
-
-  return { bestMoveIndex: bestMove - 1, reasoning, confidence }
+  } else {
+    // Fallback case
+    return {
+      bestMoveIndex: 0,
+      reasoning: result.reasoning,
+      confidence: result.confidence
+    }
+  }
 }
+
+
 
 /**
  * Validate AI suggestion and return move
