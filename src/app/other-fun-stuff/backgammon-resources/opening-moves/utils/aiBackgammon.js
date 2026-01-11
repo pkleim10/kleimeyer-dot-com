@@ -33,7 +33,7 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
 
     // Step 1: Parse position and generate legal moves locally
     const { parseXGID } = await import('./xgidParser.js')
-    const { getLegalMoves } = await import('../components/BackgammonBoard.jsx')
+    const { getLegalMoves } = await import('./gameLogic.js')
 
     const boardState = parseXGID(xgid)
 
