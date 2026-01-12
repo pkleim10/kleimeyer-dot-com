@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.0] - 2026-01-12
+
+### Added
+- Add experimental warning label to AI button: Add '** EXPERIMENTAL **' label in red bold text next to 'Get AI Move' button
+- Implement AI playability improvements: button relocation, debug display, and draggable window: Move 'Get AI Move' button from options dialog to main editor control bar next to Start button
+- Implement API-based AI system for backgammon: Create /api/backgammon-ai route for server-side AI analysis
+- Add hybrid AI backgammon opponent system: Implement xAI/Grok integration for strategic move analysis
+
+### Changed
+- Update README to clarify server-side AI API usage: Document that backgammon AI now uses server-side API calls for secure access to XAI_API_KEY, eliminating the client-side access issue.
+
+### Fixed
+- Fix AI backgammon analysis to properly use both dice in combinations: Implement proper move combination generation that uses both dice when possible
+- Fix AI analysis issues: player perspective, legal moves, and UI positioning: Fix AI analysis to provide correct player perspective (WHITE/BLACK)
+- Fix AI analysis by embedding core functions in API route: Resolve module import issues by copying parseXGID and getLegalMoves directly into /api/backgammon-ai
+- Improve AI error handling when XAI_API_KEY not configured: Add graceful fallback when xAI API key is missing
+- Complete hybrid AI backgammon opponent system: Create aiBackgammon.js with xAI/Grok integration for strategic analysis
+
 ## [1.32.0] - 2026-01-11
 
 ### Added
