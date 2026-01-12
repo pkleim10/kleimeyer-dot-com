@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import BackgammonBoard from '../opening-moves/components/BackgammonBoard'
+import { parseXGID } from '../opening-moves/utils/xgidParser'
 
 export default function BoardEditorPage() {
   const { user } = useAuth()
@@ -246,22 +247,32 @@ export default function BoardEditorPage() {
                     Start
                   </button>
                   <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                  <button
-                    onClick={handleAiAnalysis}
-                    disabled={isAnalyzing || editingMode !== 'play'}
-                    className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        🤖 Get AI Move
-                      </>
-                    )}
-                  </button>
+                  {(() => {
+                    // Check if player needs to roll dice (dice are "00")
+                    const boardState = boardXGID ? parseXGID(boardXGID) : null
+                    const needsToRoll = boardState && boardState.dice === '00'
+                    return (
+                      <button
+                        onClick={handleAiAnalysis}
+                        disabled={isAnalyzing || editingMode !== 'play' || needsToRoll}
+                        className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            🤖 Get AI Move
+                          </>
+                        )}
+                      </button>
+                    )
+                  })()}
+                  <span className="text-red-600 font-bold text-sm ml-2">
+                    ** EXPERIMENTAL **
+                  </span>
                 </div>
               </div>
 
