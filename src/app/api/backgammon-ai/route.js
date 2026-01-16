@@ -4,6 +4,7 @@
  */
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
+const XAI_MODEL = 'grok-4-fast-reasoning'
 // Toggle for context-based weighting adjustments (easy on/off without code rollback)
 const ENABLE_CONTEXT_ADJUSTMENTS = true
 
@@ -136,90 +137,136 @@ function getLegalMoves(boardState, turnState) {
 
   const owner = turnState.currentPlayer
   const currentPlayer = owner === 'white' ? 1 : -1
-  const dice = [...turnState.dice].sort((a, b) => b - a) // Sort dice descending for better combinations
-
-  // Get points with current player's checkers
-  const playerPoints = []
-  for (let point = 1; point <= 24; point++) {
-    const pointData = boardState.points[point - 1]
-    if (pointData.owner === owner && pointData.count > 0) {
-      playerPoints.push(point)
-    }
-  }
-
-  if (playerPoints.length === 0) return moveCombinations
-
+  const dice = [...turnState.dice]
   const [die1, die2] = dice
 
-  // Generate combinations using both dice
-  // Try different strategies:
+  const getPlayerPoints = state => {
+    const points = []
+    for (let point = 1; point <= 24; point++) {
+      const pointData = state.points[point - 1]
+      if (pointData.owner === owner && pointData.count > 0) {
+        points.push(point)
+      }
+    }
+    return points
+  }
 
-  // 1. Move same checker twice (if possible)
-  for (const point of playerPoints) {
-    const move1 = canMakeMove(boardState, owner, currentPlayer, point, die1)
-    if (move1) {
-      // Create a temporary board state after first move
+  const buildMove = (state, fromPoint, die) => {
+    const move = canMakeMove(state, owner, currentPlayer, fromPoint, die)
+    if (!move) return null
+    const toData = state.points[move.to - 1]
+    move.owner = owner
+    move.hitBlot = toData.count === 1 && toData.owner && toData.owner !== owner
+    return move
+  }
+
+  const orderPair = (first, second) => {
+    if (first.from !== second.from) {
+      return first.from > second.from ? [first, second] : [second, first]
+    }
+    return first.to >= second.to ? [first, second] : [second, first]
+  }
+
+  const buildDescription = moves => {
+    if (moves.length === 1) {
+      return `${moves[0].from}/${moves[0].to}`
+    }
+    const [m1, m2] = moves
+    const sameChecker = m2.from === m1.to
+    if (sameChecker && !m1.hitBlot) {
+      return `${m1.from}/${m2.to}`
+    }
+    if (!sameChecker) {
+      const [first, second] = orderPair(m1, m2)
+      return `${first.from}/${first.to}, ${second.from}/${second.to}`
+    }
+    const a = `${m1.from}/${m1.to}`
+    const b = `${m2.from}/${m2.to}`
+    return `${a}, ${b}`
+  }
+
+  const buildKey = moves => {
+    if (moves.length === 1) {
+      return `single:${moves[0].from}/${moves[0].to}`
+    }
+    const [m1, m2] = moves
+    const sameChecker = m2.from === m1.to
+    if (sameChecker && m1.hitBlot) {
+      return `seq:${m1.from}/${m1.to}>${m2.to}`
+    }
+    if (sameChecker) {
+      return `single:${m1.from}/${m2.to}`
+    }
+    const [first, second] = orderPair(m1, m2)
+    const a = `${first.from}/${first.to}`
+    const b = `${second.from}/${second.to}`
+    return `pair:${a}|${b}`
+  }
+
+  const diceOrders = die2 && die1 !== die2
+    ? [[die1, die2], [die2, die1]]
+    : [[die1, die2]]
+
+  const allCombos = []
+  for (const [firstDie, secondDie] of diceOrders) {
+    const pointsFirst = getPlayerPoints(boardState)
+    for (const point of pointsFirst) {
+      const move1 = buildMove(boardState, point, firstDie)
+      if (!move1) continue
       const tempBoard = applyMoveToBoard(boardState, move1)
-      const move2 = canMakeMove(tempBoard, owner, currentPlayer, move1.to, die2)
-      if (move2) {
-        moveCombinations.push({
+      const pointsSecond = getPlayerPoints(tempBoard)
+      for (const point2 of pointsSecond) {
+        const move2 = buildMove(tempBoard, point2, secondDie)
+        if (!move2) continue
+        allCombos.push({
           moves: [move1, move2],
-          description: `${point}/${move1.to}, ${move1.to}/${move2.to}`,
-          totalPips: die1 + die2
+          description: buildDescription([move1, move2]),
+          totalPips: firstDie + secondDie
         })
       }
     }
   }
 
-  // 2. Move different checkers with each die
-  if (playerPoints.length >= 2) {
-    for (let i = 0; i < playerPoints.length; i++) {
-      for (let j = 0; j < playerPoints.length; j++) {
-        if (i === j) continue // Skip same checker
-
-        const move1 = canMakeMove(boardState, owner, currentPlayer, playerPoints[i], die1)
-        if (move1) {
-          const tempBoard = applyMoveToBoard(boardState, move1)
-          const move2 = canMakeMove(tempBoard, owner, currentPlayer, playerPoints[j], die2)
-          if (move2) {
-            moveCombinations.push({
-              moves: [move1, move2],
-              description: `${playerPoints[i]}/${move1.to}, ${playerPoints[j]}/${move2.to}`,
-              totalPips: die1 + die2
-            })
-          }
-        }
-      }
+  const unique = new Map()
+  for (const combo of allCombos) {
+    const key = buildKey(combo.moves)
+    if (!unique.has(key)) {
+      unique.set(key, combo)
     }
   }
 
-  // 3. If no combinations work, generate partial moves (using one die only)
-  if (moveCombinations.length === 0) {
-    // Try to use the larger die first
+  if (unique.size > 0) {
+    return Array.from(unique.values())
+  }
+
+  const playerPoints = getPlayerPoints(boardState)
+  if (playerPoints.length === 0) return moveCombinations
+
+  const sortedDice = [...dice].sort((a, b) => b - a)
+  const [bigDie, smallDie] = sortedDice
+
+  for (const point of playerPoints) {
+    const move = buildMove(boardState, point, bigDie)
+    if (move) {
+        moveCombinations.push({
+        moves: [move],
+        description: `${point}/${move.to}`,
+        totalPips: bigDie
+      })
+      return moveCombinations
+    }
+  }
+
+  if (smallDie) {
     for (const point of playerPoints) {
-      const move = canMakeMove(boardState, owner, currentPlayer, point, die1)
+      const move = buildMove(boardState, point, smallDie)
       if (move) {
         moveCombinations.push({
           moves: [move],
           description: `${point}/${move.to}`,
-          totalPips: die1
+          totalPips: smallDie
         })
         break
-      }
-    }
-
-    // If that doesn't work, try the smaller die
-    if (moveCombinations.length === 0) {
-      for (const point of playerPoints) {
-        const move = canMakeMove(boardState, owner, currentPlayer, point, die2)
-        if (move) {
-          moveCombinations.push({
-            moves: [move],
-            description: `${point}/${move.to}`,
-            totalPips: die2
-          })
-          break
-        }
       }
     }
   }
@@ -356,6 +403,10 @@ export async function POST(request) {
     // Validate and return best AI suggestion
     const result = validateAndReturnMove(aiAnalysis, topMoves)
 
+    if (!debugInfo) {
+      delete result.factorScores
+    }
+
     // Include debug info if requested
     if (debugInfo) {
       result.debug = debugInfo
@@ -401,7 +452,8 @@ function createTurnState(boardState, player) {
 function selectTopLegalMoves(allMoves, maxMoves) {
   // For now, just return the best combinations
   // In a full implementation, this would prioritize by strategic value
-  return allMoves.slice(0, Math.min(maxMoves, allMoves.length))
+  const limit = Math.max(18, maxMoves)
+  return allMoves.slice(0, Math.min(limit, allMoves.length))
 }
 
 // ============================================================================
@@ -890,7 +942,8 @@ async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = n
     difficulty,
     player,
     gameContext,
-    adjustedWeights
+    adjustedWeights,
+    Boolean(debugInfo)
   )
 
   // Store prompt in debug info
@@ -908,7 +961,7 @@ async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = n
       'Authorization': `Bearer ${XAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'grok-4-1-fast-non-reasoning',
+      model: XAI_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1200,
       temperature: 0.3 // Consistent strategic analysis
@@ -981,7 +1034,8 @@ function buildHybridPrompt(
   difficulty,
   player,
   gameContext = null,
-  adjustedWeights = null
+  adjustedWeights = null,
+  includeFactorScores = false
 ) {
   const parts = xgid.split(':')
   const dice = parts[4] || '00'
@@ -1014,6 +1068,18 @@ function buildHybridPrompt(
     ? `\nGAME CONTEXT (VERIFIED): Stage=${gameContext.stage} | Type=${gameContext.type} | Contact=${gameContext.contact ? 'YES' : 'NO'}\n`
     : ''
 
+  const responseFormat = includeFactorScores
+    ? `Respond with format:
+BEST_MOVE: [move number]
+FACTOR_SCORES: For each move, output one concise line:
+MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
+REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
+CONFIDENCE: [0.0-1.0]`
+    : `Respond with format:
+BEST_MOVE: [move number]
+REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
+CONFIDENCE: [0.0-1.0]`
+
   return `You are a ${difficulty} level backgammon strategist analyzing from ${playerColor}'s perspective.
 ALL calculations below are VERIFIED and CORRECT - do NOT recalculate them.
 
@@ -1028,12 +1094,30 @@ Using the VERIFIED data above, rate each move using the 7 strategic factors (wit
 Hitting (${adjustedWeights?.H ?? BASE_FACTOR_WEIGHTS.H}), Development (${adjustedWeights?.D ?? BASE_FACTOR_WEIGHTS.D}), Safety (${adjustedWeights?.S ?? BASE_FACTOR_WEIGHTS.S}), Pressure (${adjustedWeights?.P ?? BASE_FACTOR_WEIGHTS.P}), Diversity (${adjustedWeights?.Dv ?? BASE_FACTOR_WEIGHTS.Dv}), Timing (${adjustedWeights?.T ?? BASE_FACTOR_WEIGHTS.T}), Flexibility (${adjustedWeights?.F ?? BASE_FACTOR_WEIGHTS.F}).
 Use these weights (already adjusted for context) to compute a weighted total for each move, then choose the best move.
 
-Respond with format:
-BEST_MOVE: [move number]
-FACTOR_SCORES: For each move, output one concise line:
-MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
-REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
-CONFIDENCE: [0.0-1.0]`
+EARLY OPENING GUIDANCE:
+In EARLY openings (money play), per XG rollouts, slightly favor aggressive slots or builders on golden/outer points (5pt, 4pt, 7pt, 11pt) when weighted risk <40% — the long-term prime/duplication/flex upside often outweighs the moderate hit risk.
+
+FEW-SHOT EXAMPLE FOR 21 (2-1):
+Best: 13/11 6/5 (slot 5pt + builder). Equity ~+0.506.
+D=9–10 (key slot), S=6–7 (med risk acceptable), P=6–7, TOTAL highest.
+Close alt: 13/11 24/23 (safer split). Equity ~+0.500.
+
+FEW-SHOT EXAMPLE FOR 32 (3-2):
+Best: 13/11 13/10 (aggressive double builder down, small blot on 11). Equity edge.
+D=9–10 (high flex), S=7–8 (low hit risk), TOTAL highest.
+Close alt: 13/11 24/21 (safer split + builder).
+
+FEW-SHOT EXAMPLE FOR 41 (4-1):
+Best: 24/23 13/9 (run + builder). Equity ~+0.45.
+D=9–10 (strong builder), P=7–8 (anchor pressure), S=8–9 (low risk), TOTAL highest.
+Close alt: 13/9 6/5 (5pt slot). Med risk, slightly lower equity.
+
+FEW-SHOT EXAMPLE FOR 62 (6-2):
+Best: 24/18 13/11 (deep run + builder down). Equity ~+0.49.
+D=9–10 (race + outer flex), S=9–10 (zero risk), P=7–8, TOTAL highest.
+Close alt: 13/5 (risky home run). High blot exposure, lower equity.
+
+${responseFormat}`
 }
 
 /**

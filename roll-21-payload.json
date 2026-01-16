@@ -1,0 +1,1007 @@
+{
+  "request": {
+    "model": "grok-4-1-fast-non-reasoning",
+    "messages": [
+      {
+        "role": "user",
+        "content": "You are a advanced level backgammon strategist analyzing from WHITE's perspective.\nALL calculations below are VERIFIED and CORRECT - do NOT recalculate them.\n\nPOSITION: WHITE to move | Dice: 21\n\nGAME CONTEXT (VERIFIED): Stage=EARLY | Type=HOLDING | Contact=YES\n\n\nVERIFIED MOVE ANALYSES (GOSPEL - TRUST THESE COMPLETELY):\nMOVE 1: 6/4, 4/3\n• Blots: 1 | Pt3[HOME_BOARD]: 33% hit × 94% impact\n• Weighted Risk: 31.3% (MEDIUM)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 2: 8/6, 6/5\n• Blots: 1 | Pt5[HOME_BOARD]: 42% hit × 88% impact\n• Weighted Risk: 36.7% (MEDIUM)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 3: 13/11, 11/10\n• Blots: 1 | Pt10[OUTER_BOARD]: 6% hit × 65% impact\n• Weighted Risk: 3.6% (LOW)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 4: 24/22, 22/21\n• Blots: 2 | Pt21[OPPONENT_HOME]: 83% hit × 16% impact; Pt24[OPPONENT_HOME]: 53% hit × 10% impact\n• Weighted Risk: 17.9% (LOW)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 5: 6/4, 8/7\n• Blots: 2 | Pt4[HOME_BOARD]: 39% hit × 91% impact; Pt7[OUTER_BOARD]: 47% hit × 80% impact\n• Weighted Risk: 59.8% (HIGH)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 6: 6/4, 24/23\n• Blots: 3 | Pt4[HOME_BOARD]: 39% hit × 91% impact; Pt23[OPPONENT_HOME]: 89% hit × 12% impact; Pt24[OPPONENT_HOME]: 53% hit × 10% impact\n• Weighted Risk: 45.3% (HIGH)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 7: 8/6, 6/5\n• Blots: 1 | Pt5[HOME_BOARD]: 42% hit × 88% impact\n• Weighted Risk: 36.7% (MEDIUM)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 8: 8/6, 24/23\n• Blots: 2 | Pt23[OPPONENT_HOME]: 89% hit × 12% impact; Pt24[OPPONENT_HOME]: 53% hit × 10% impact\n• Weighted Risk: 15.4% (LOW)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 9: 13/11, 6/5\n• Blots: 2 | Pt5[HOME_BOARD]: 42% hit × 88% impact; Pt11[OUTER_BOARD]: 3% hit × 60% impact\n• Weighted Risk: 37.7% (MEDIUM)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 10: 13/11, 8/7\n• Blots: 2 | Pt7[OUTER_BOARD]: 47% hit × 80% impact; Pt11[OUTER_BOARD]: 3% hit × 60% impact\n• Weighted Risk: 38.8% (MEDIUM)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 11: 13/11, 24/23\n• Blots: 3 | Pt11[OUTER_BOARD]: 3% hit × 60% impact; Pt23[OPPONENT_HOME]: 89% hit × 12% impact; Pt24[OPPONENT_HOME]: 53% hit × 10% impact\n• Weighted Risk: 16.8% (LOW)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nMOVE 12: 24/22, 6/5\n• Blots: 3 | Pt5[HOME_BOARD]: 42% hit × 88% impact; Pt22[OPPONENT_HOME]: 83% hit × 14% impact; Pt24[OPPONENT_HOME]: 53% hit × 10% impact\n• Weighted Risk: 47.0% (HIGH)\n• Points Made: No new points\n• Hits: No hits | Pip Gain: 3\n\nRATE EACH FACTOR ON A 1-10 SCALE (1 = very poor, 10 = excellent).\nUsing the VERIFIED data above, rate each move using the 7 strategic factors (with corresponding weight):\nHitting (10), Development (10), Safety (8), Pressure (10), Diversity (8), Timing (6), Flexibility (8).\nUse these weights (already adjusted for context) to compute a weighted total for each move, then choose the best move.\n\nRespond with format:\nBEST_MOVE: [move number]\nFACTOR_SCORES: For each move, output one concise line:\nMOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum\nREASONING: [2-3 sentence strategic analysis from WHITE's perspective]\nCONFIDENCE: [0.0-1.0]"
+      }
+    ],
+    "max_tokens": 1200,
+    "temperature": 0.3
+  },
+  "de_data": [
+    {
+      "moveNumber": 1,
+      "moveDescription": "6/4, 4/3",
+      "blots": {
+        "count": 1,
+        "positions": [
+          3
+        ],
+        "risks": [
+          {
+            "blotPoint": 3,
+            "totalProbability": 0.3333333333333333,
+            "totalRolls": 12,
+            "hitImpact": 0.94,
+            "pipsLost": 3,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3133333333333333,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 2,
+                "probability": 0.3333333333333333,
+                "rolls": 12
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.3333333333333333,
+        "combinedWeightedRisk": 0.3133333333333333,
+        "overallRiskLevel": "MEDIUM"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 2,
+      "moveDescription": "8/6, 6/5",
+      "blots": {
+        "count": 1,
+        "positions": [
+          5
+        ],
+        "risks": [
+          {
+            "blotPoint": 5,
+            "totalProbability": 0.4166666666666667,
+            "totalRolls": 15,
+            "hitImpact": 0.88,
+            "pipsLost": 5,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3666666666666667,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.4166666666666667,
+        "combinedWeightedRisk": 0.3666666666666667,
+        "overallRiskLevel": "MEDIUM"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 3,
+      "moveDescription": "13/11, 11/10",
+      "blots": {
+        "count": 1,
+        "positions": [
+          10
+        ],
+        "risks": [
+          {
+            "blotPoint": 10,
+            "totalProbability": 0.05555555555555555,
+            "totalRolls": 2,
+            "hitImpact": 0.65,
+            "pipsLost": 10,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.03611111111111111,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 9,
+                "probability": 0.05555555555555555,
+                "rolls": 2
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.05555555555555555,
+        "combinedWeightedRisk": 0.03611111111111111,
+        "overallRiskLevel": "LOW"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 4,
+      "moveDescription": "24/22, 22/21",
+      "blots": {
+        "count": 2,
+        "positions": [
+          21,
+          24
+        ],
+        "risks": [
+          {
+            "blotPoint": 21,
+            "totalProbability": 0.8333333333333334,
+            "totalRolls": 30,
+            "hitImpact": 0.16,
+            "pipsLost": 21,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.13333333333333333,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 20,
+                "probability": 0.027777777777777776,
+                "rolls": 1
+              },
+              {
+                "fromPoint": 12,
+                "distance": 9,
+                "probability": 0.05555555555555555,
+                "rolls": 2
+              },
+              {
+                "fromPoint": 17,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              },
+              {
+                "fromPoint": 19,
+                "distance": 2,
+                "probability": 0.3333333333333333,
+                "rolls": 12
+              }
+            ]
+          },
+          {
+            "blotPoint": 24,
+            "totalProbability": 0.5277777777777778,
+            "totalRolls": 19,
+            "hitImpact": 0.1,
+            "pipsLost": 24,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.052777777777777785,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 7,
+                "probability": 0.1111111111111111,
+                "rolls": 4
+              },
+              {
+                "fromPoint": 19,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.9212962962962963,
+        "combinedWeightedRisk": 0.17907407407407408,
+        "overallRiskLevel": "LOW"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13
+      ]
+    },
+    {
+      "moveNumber": 5,
+      "moveDescription": "6/4, 8/7",
+      "blots": {
+        "count": 2,
+        "positions": [
+          4,
+          7
+        ],
+        "risks": [
+          {
+            "blotPoint": 4,
+            "totalProbability": 0.3888888888888889,
+            "totalRolls": 14,
+            "hitImpact": 0.91,
+            "pipsLost": 4,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3538888888888889,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 3,
+                "probability": 0.3888888888888889,
+                "rolls": 14
+              }
+            ]
+          },
+          {
+            "blotPoint": 7,
+            "totalProbability": 0.4722222222222222,
+            "totalRolls": 17,
+            "hitImpact": 0.8,
+            "pipsLost": 7,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.37777777777777777,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 6,
+                "probability": 0.4722222222222222,
+                "rolls": 17
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.6774691358024691,
+        "combinedWeightedRisk": 0.5979753086419753,
+        "overallRiskLevel": "HIGH"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 6,
+      "moveDescription": "6/4, 24/23",
+      "blots": {
+        "count": 3,
+        "positions": [
+          4,
+          23,
+          24
+        ],
+        "risks": [
+          {
+            "blotPoint": 4,
+            "totalProbability": 0.3888888888888889,
+            "totalRolls": 14,
+            "hitImpact": 0.91,
+            "pipsLost": 4,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3538888888888889,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 3,
+                "probability": 0.3888888888888889,
+                "rolls": 14
+              }
+            ]
+          },
+          {
+            "blotPoint": 23,
+            "totalProbability": 0.8888888888888888,
+            "totalRolls": 32,
+            "hitImpact": 0.12000000000000001,
+            "pipsLost": 23,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.10666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 6,
+                "probability": 0.4722222222222222,
+                "rolls": 17
+              },
+              {
+                "fromPoint": 19,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          },
+          {
+            "blotPoint": 24,
+            "totalProbability": 0.5277777777777778,
+            "totalRolls": 19,
+            "hitImpact": 0.1,
+            "pipsLost": 24,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.052777777777777785,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 7,
+                "probability": 0.1111111111111111,
+                "rolls": 4
+              },
+              {
+                "fromPoint": 19,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.9679355281207133,
+        "combinedWeightedRisk": 0.4532703497942387,
+        "overallRiskLevel": "HIGH"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13
+      ]
+    },
+    {
+      "moveNumber": 7,
+      "moveDescription": "8/6, 6/5",
+      "blots": {
+        "count": 1,
+        "positions": [
+          5
+        ],
+        "risks": [
+          {
+            "blotPoint": 5,
+            "totalProbability": 0.4166666666666667,
+            "totalRolls": 15,
+            "hitImpact": 0.88,
+            "pipsLost": 5,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3666666666666667,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.4166666666666667,
+        "combinedWeightedRisk": 0.3666666666666667,
+        "overallRiskLevel": "MEDIUM"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 8,
+      "moveDescription": "8/6, 24/23",
+      "blots": {
+        "count": 2,
+        "positions": [
+          23,
+          24
+        ],
+        "risks": [
+          {
+            "blotPoint": 23,
+            "totalProbability": 0.8888888888888888,
+            "totalRolls": 32,
+            "hitImpact": 0.12000000000000001,
+            "pipsLost": 23,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.10666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 6,
+                "probability": 0.4722222222222222,
+                "rolls": 17
+              },
+              {
+                "fromPoint": 19,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          },
+          {
+            "blotPoint": 24,
+            "totalProbability": 0.5277777777777778,
+            "totalRolls": 19,
+            "hitImpact": 0.1,
+            "pipsLost": 24,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.052777777777777785,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 7,
+                "probability": 0.1111111111111111,
+                "rolls": 4
+              },
+              {
+                "fromPoint": 19,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.9475308641975309,
+        "combinedWeightedRisk": 0.15381481481481482,
+        "overallRiskLevel": "LOW"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [
+          6
+        ],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13
+      ]
+    },
+    {
+      "moveNumber": 9,
+      "moveDescription": "13/11, 6/5",
+      "blots": {
+        "count": 2,
+        "positions": [
+          5,
+          11
+        ],
+        "risks": [
+          {
+            "blotPoint": 5,
+            "totalProbability": 0.4166666666666667,
+            "totalRolls": 15,
+            "hitImpact": 0.88,
+            "pipsLost": 5,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3666666666666667,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          },
+          {
+            "blotPoint": 11,
+            "totalProbability": 0.027777777777777776,
+            "totalRolls": 1,
+            "hitImpact": 0.6000000000000001,
+            "pipsLost": 11,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.01666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 10,
+                "probability": 0.027777777777777776,
+                "rolls": 1
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.4328703703703704,
+        "combinedWeightedRisk": 0.37722222222222224,
+        "overallRiskLevel": "MEDIUM"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 10,
+      "moveDescription": "13/11, 8/7",
+      "blots": {
+        "count": 2,
+        "positions": [
+          7,
+          11
+        ],
+        "risks": [
+          {
+            "blotPoint": 7,
+            "totalProbability": 0.4722222222222222,
+            "totalRolls": 17,
+            "hitImpact": 0.8,
+            "pipsLost": 7,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.37777777777777777,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 6,
+                "probability": 0.4722222222222222,
+                "rolls": 17
+              }
+            ]
+          },
+          {
+            "blotPoint": 11,
+            "totalProbability": 0.027777777777777776,
+            "totalRolls": 1,
+            "hitImpact": 0.6000000000000001,
+            "pipsLost": 11,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.01666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 10,
+                "probability": 0.027777777777777776,
+                "rolls": 1
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.4868827160493827,
+        "combinedWeightedRisk": 0.38814814814814813,
+        "overallRiskLevel": "MEDIUM"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13,
+        24
+      ]
+    },
+    {
+      "moveNumber": 11,
+      "moveDescription": "13/11, 24/23",
+      "blots": {
+        "count": 3,
+        "positions": [
+          11,
+          23,
+          24
+        ],
+        "risks": [
+          {
+            "blotPoint": 11,
+            "totalProbability": 0.027777777777777776,
+            "totalRolls": 1,
+            "hitImpact": 0.6000000000000001,
+            "pipsLost": 11,
+            "zone": "OUTER_BOARD",
+            "weightedRisk": 0.01666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 10,
+                "probability": 0.027777777777777776,
+                "rolls": 1
+              }
+            ]
+          },
+          {
+            "blotPoint": 23,
+            "totalProbability": 0.8888888888888888,
+            "totalRolls": 32,
+            "hitImpact": 0.12000000000000001,
+            "pipsLost": 23,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.10666666666666667,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 6,
+                "probability": 0.4722222222222222,
+                "rolls": 17
+              },
+              {
+                "fromPoint": 19,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          },
+          {
+            "blotPoint": 24,
+            "totalProbability": 0.5277777777777778,
+            "totalRolls": 19,
+            "hitImpact": 0.1,
+            "pipsLost": 24,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.052777777777777785,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 7,
+                "probability": 0.1111111111111111,
+                "rolls": 4
+              },
+              {
+                "fromPoint": 19,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.9489883401920439,
+        "combinedWeightedRisk": 0.1679179012345679,
+        "overallRiskLevel": "LOW"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13
+      ]
+    },
+    {
+      "moveNumber": 12,
+      "moveDescription": "24/22, 6/5",
+      "blots": {
+        "count": 3,
+        "positions": [
+          5,
+          22,
+          24
+        ],
+        "risks": [
+          {
+            "blotPoint": 5,
+            "totalProbability": 0.4166666666666667,
+            "totalRolls": 15,
+            "hitImpact": 0.88,
+            "pipsLost": 5,
+            "zone": "HOME_BOARD",
+            "weightedRisk": 0.3666666666666667,
+            "riskLevel": "MEDIUM",
+            "attackSources": [
+              {
+                "fromPoint": 1,
+                "distance": 4,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          },
+          {
+            "blotPoint": 22,
+            "totalProbability": 0.8333333333333334,
+            "totalRolls": 30,
+            "hitImpact": 0.14,
+            "pipsLost": 22,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.11666666666666668,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 12,
+                "distance": 10,
+                "probability": 0.027777777777777776,
+                "rolls": 1
+              },
+              {
+                "fromPoint": 17,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              },
+              {
+                "fromPoint": 19,
+                "distance": 3,
+                "probability": 0.3888888888888889,
+                "rolls": 14
+              }
+            ]
+          },
+          {
+            "blotPoint": 24,
+            "totalProbability": 0.5277777777777778,
+            "totalRolls": 19,
+            "hitImpact": 0.1,
+            "pipsLost": 24,
+            "zone": "OPPONENT_HOME",
+            "weightedRisk": 0.052777777777777785,
+            "riskLevel": "LOW",
+            "attackSources": [
+              {
+                "fromPoint": 17,
+                "distance": 7,
+                "probability": 0.1111111111111111,
+                "rolls": 4
+              },
+              {
+                "fromPoint": 19,
+                "distance": 5,
+                "probability": 0.4166666666666667,
+                "rolls": 15
+              }
+            ]
+          }
+        ],
+        "combinedRisk": 0.9540895061728395,
+        "combinedWeightedRisk": 0.4700817901234568,
+        "overallRiskLevel": "HIGH"
+      },
+      "pointsMade": {
+        "newlyMade": [],
+        "strengthened": [],
+        "totalNewPoints": 0
+      },
+      "hits": {
+        "count": 0,
+        "details": []
+      },
+      "pips": {
+        "before": {
+          "white": 167,
+          "black": 167
+        },
+        "after": {
+          "white": 164,
+          "black": 167
+        },
+        "gain": 3
+      },
+      "madePoints": [
+        6,
+        8,
+        13
+      ]
+    }
+  ]
+}
