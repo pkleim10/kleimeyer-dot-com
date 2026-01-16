@@ -1,0 +1,837 @@
+[
+  {
+    "roll": "21",
+    "move": "13/11, 11/10",
+    "reasoning": "In this early holding game with contact, Move 3 (13/11, 11/10) excels by prioritizing development of the outer board with minimal risk (3.6% weighted, LOW), maintaining safety while improving structure for future builder potential. High safety and flexibility scores reflect low blot exposure on safer points versus riskier home board or opponent home moves, aligning with holding strategy needs. Avoiding medium/high-risk alternatives preserves tempo without unnecessary blots in high-impact zones.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "6/4, 4/3",
+        "scores": "H 1×10=10 | D 7×10=70 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=288"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/6, 6/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=280"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "13/11, 11/10",
+        "scores": "H 1×10=10 | D 9×10=90 | S 9×8=72 | P 5×10=50 | Dv 7×8=56 | T 8×6=48 | F 9×8=72 | TOTAL=398"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "24/22, 22/21",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 8×10=80 | Dv 5×8=40 | T 6×6=36 | F 6×8=48 | TOTAL=342"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "6/4, 8/7",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 4×10=40 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=232"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "6/4, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 7×10=70 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=238"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "8/6, 6/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=280"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "8/6, 24/23",
+        "scores": "H 1×10=10 | D 8×10=80 | S 7×8=56 | P 7×10=70 | Dv 5×8=40 | T 6×6=36 | F 6×8=48 | TOTAL=340"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "13/11, 6/5",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 4×10=40 | Dv 6×8=48 | T 7×6=42 | F 8×8=64 | TOTAL=308"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "13/11, 8/7",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 4×10=40 | Dv 6×8=48 | T 7×6=42 | F 8×8=64 | TOTAL=308"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "13/11, 24/23",
+        "scores": "H 1×10=10 | D 7×10=70 | S 6×8=48 | P 7×10=70 | Dv 5×8=40 | T 7×6=42 | F 7×8=56 | TOTAL=336"
+      },
+      {
+        "moveNumber": 12,
+        "moveDescription": "24/22, 6/5",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 7×10=70 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=264"
+      }
+    ]
+  },
+  {
+    "roll": "31",
+    "move": "8/5, 6/5",
+    "reasoning": "In this early holding game with contact, making the 5-point with 8/5, 6/5 is the clear standout as it achieves zero blots for perfect safety while advancing checkers effectively into the home board, enhancing structure without risk. Other moves either leave dangerous blots in the high-impact home board (e.g., Pt3 or Pt5) or fail to build key points despite lower risk, prioritizing development and safety over aggressive but vulnerable positioning. This move aligns perfectly with holding strategy by fortifying the anchor while maintaining flexibility for future rolls.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "6/3, 3/2",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=264"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/5, 5/4",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=266"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "13/10, 10/9",
+        "scores": "H 1×10=10 | D 8×10=80 | S 8×8=64 | P 2×10=20 | Dv 6×8=48 | T 6×6=36 | F 7×8=56 | TOTAL=314"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "24/21, 21/20",
+        "scores": "H 1×10=10 | D 6×10=60 | S 5×8=40 | P 7×10=70 | Dv 4×8=32 | T 5×6=30 | F 5×8=40 | TOTAL=282"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "6/3, 8/7",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 5×10=50 | Dv 4×8=32 | T 7×6=42 | F 4×8=32 | TOTAL=234"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "6/3, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 6×10=60 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=228"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "8/5, 6/5",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 5×10=50 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=398"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "8/5, 24/23",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 6×10=60 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=230"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "13/10, 6/5",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 3×10=30 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=274"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "13/10, 8/7",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 5×8=40 | TOTAL=258"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "13/10, 24/23",
+        "scores": "H 1×10=10 | D 7×10=70 | S 5×8=40 | P 6×10=60 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=288"
+      },
+      {
+        "moveNumber": 12,
+        "moveDescription": "24/21, 6/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 1×8=8 | P 7×10=70 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=250"
+      }
+    ]
+  },
+  {
+    "roll": "41",
+    "move": "13/9, 9/8",
+    "reasoning": "In this early holding game with contact, Move 2 stands out with zero blots and lowest risk (0.0%), maximizing safety while advancing both back checkers for superior development and flexibility without exposing White's position. All moves share equal pip gain and no hits/points, so prioritizing blot-free outer board strengthening pressures opponent subtly while preserving timing for future shots. High-risk home/opponent board moves like 3-6 and 10-11 waste equity in a holding stage.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "8/4, 4/3",
+        "scores": "H 1×10=10 | D 7×10=70 | S 5×8=40 | P 4×10=40 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=306"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "13/9, 9/8",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 6×10=60 | Dv 8×8=64 | T 8×6=48 | F 9×8=72 | TOTAL=424"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "6/2, 8/7",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 3×10=30 | Dv 5×8=40 | T 6×6=36 | F 5×8=40 | TOTAL=232"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "6/2, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 3×8=24 | P 5×10=50 | Dv 4×8=32 | T 5×6=30 | F 4×8=32 | TOTAL=228"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "8/4, 6/5",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=248"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "8/4, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 5×10=50 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=234"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/9, 6/5",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 5×10=50 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=310"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "13/9, 8/7",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 5×10=50 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=310"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "13/9, 24/23",
+        "scores": "H 1×10=10 | D 7×10=70 | S 6×8=48 | P 6×10=60 | Dv 7×8=56 | T 7×6=42 | F 8×8=64 | TOTAL=350"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "24/20, 6/5",
+        "scores": "H 1×10=10 | D 4×10=40 | S 2×8=16 | P 7×10=70 | Dv 3×8=24 | T 4×6=24 | F 3×8=24 | TOTAL=208"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "24/20, 8/7",
+        "scores": "H 1×10=10 | D 4×10=40 | S 2×8=16 | P 7×10=70 | Dv 3×8=24 | T 4×6=24 | F 3×8=24 | TOTAL=208"
+      }
+    ]
+  },
+  {
+    "roll": "51",
+    "move": "13/8, 24/23",
+    "reasoning": "In this early holding game with contact, Move 7 excels by slotting safely in opponent's home board (15.4% low weighted risk from distant blots with minimal impact) while advancing a back checker for superior development and flexibility. It applies strong pressure via the deep slot threatening blots or priming, outperforming riskier home/outer board blots in Moves 1-6 that expose higher-impact vulnerabilities without gains. Excellent safety and timing preserve White's position for future crosses while maintaining diversity in responses.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "8/3, 3/2",
+        "scores": "H 1×10=10 | D 7×10=70 | S 7×8=56 | P 3×10=30 | Dv 5×8=40 | T 8×6=48 | F 7×8=56 | TOTAL=310"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "13/8, 8/7",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 4×10=40 | Dv 6×8=48 | T 8×6=48 | F 6×8=48 | TOTAL=322"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/3, 6/5",
+        "scores": "H 1×10=10 | D 6×10=60 | S 4×8=32 | P 3×10=30 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=246"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/3, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 5×8=40 | P 6×10=60 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=252"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "13/8, 6/5",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 3×10=30 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=304"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/8, 8/7",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 4×10=40 | Dv 6×8=48 | T 8×6=48 | F 6×8=48 | TOTAL=322"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/8, 24/23",
+        "scores": "H 2×10=20 | D 9×10=90 | S 9×8=72 | P 7×10=70 | Dv 8×8=64 | T 9×6=54 | F 9×8=72 | TOTAL=442"
+      }
+    ]
+  },
+  {
+    "roll": "61",
+    "move": "13/7, 8/7",
+    "reasoning": "In this early holding game with contact, making the 7-point with 13/7, 8/7 is optimal as it provides blot-free safety while superbly developing the position into the outer board and applying strong pressure by owning a key builder point. All risky alternatives expose multiple blots with high weighted risk (40-60%), sacrificing safety and flexibility without hits or superior development. This move maximizes timing and diversity for future rolls in a contact holding structure.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/7, 7/6",
+        "scores": "H 1×10=10 | D 7×10=70 | S 10×8=80 | P 3×10=30 | Dv 5×8=40 | T 7×6=42 | F 8×8=64 | TOTAL=336"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/2, 6/5",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 3×10=30 | Dv 4×8=32 | T 7×6=42 | F 6×8=48 | TOTAL=238"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/2, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 3×8=24 | P 5×10=50 | Dv 3×8=24 | T 7×6=42 | F 5×8=40 | TOTAL=240"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "13/7, 6/5",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 4×10=40 | Dv 4×8=32 | T 7×6=42 | F 6×8=48 | TOTAL=240"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "13/7, 8/7",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 8×10=80 | Dv 7×8=56 | T 8×6=48 | F 9×8=72 | TOTAL=436"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/7, 24/23",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 5×10=50 | Dv 3×8=24 | T 7×6=42 | F 5×8=40 | TOTAL=232"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "24/18, 6/5",
+        "scores": "H 1×10=10 | D 4×10=40 | S 2×8=16 | P 4×10=40 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=208"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "24/18, 8/7",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 6×10=60 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=244"
+      }
+    ]
+  },
+  {
+    "roll": "32",
+    "move": "13/10, 10/8",
+    "reasoning": "In this early holding game with contact, Move 2 (13/10, 10/8) dominates by achieving zero blots for perfect safety while advancing checkers smoothly in the outer board for superior development and flexibility. No move hits, so all score equally low there, but avoiding medium/high risks (31-59%) preserves White's position without unnecessary home board blots that could be devastating at 88-94% impact. This balances pressure via positioning while maximizing timing in a non-racing pip-equal game.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "8/5, 5/3",
+        "scores": "H 1×10=10 | D 7×10=70 | S 4×8=32 | P 5×10=50 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=308"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "13/10, 10/8",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 7×10=70 | Dv 8×8=64 | T 8×6=48 | F 9×8=72 | TOTAL=434"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "6/3, 8/6",
+        "scores": "H 1×10=10 | D 8×10=80 | S 4×8=32 | P 5×10=50 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=318"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "6/3, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 6×10=60 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=304"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "6/3, 24/22",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 8×10=80 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=274"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "8/5, 6/4",
+        "scores": "H 1×10=10 | D 7×10=70 | S 1×8=8 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=258"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "8/5, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 6×10=60 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=320"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "8/5, 24/22",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 7×10=70 | Dv 4×8=32 | T 6×8=36 | F 5×8=40 | TOTAL=274"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "13/10, 6/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 6×10=60 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=320"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "13/10, 8/6",
+        "scores": "H 1×10=10 | D 9×10=90 | S 8×8=64 | P 6×10=60 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=392"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "13/10, 24/22",
+        "scores": "H 1×10=10 | D 8×10=80 | S 5×8=40 | P 8×10=80 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=340"
+      },
+      {
+        "moveNumber": 12,
+        "moveDescription": "24/21, 6/4",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 7×10=70 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=264"
+      }
+    ]
+  },
+  {
+    "roll": "42",
+    "move": "8/4, 6/4",
+    "reasoning": "In this early holding game with contact, making the 4-point (Move 7) is a top priority as it bolsters White's home board strength without any blots or risk, providing superior safety and pressure on Black's position. Other moves either leave dangerous blots in the home board (high-impact hit risks) or fail to build structure, diluting development and flexibility. The zero-risk profile and point-making edge dominate in a weighted evaluation favoring safety and pressure.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "8/4, 4/2",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=280"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "13/9, 9/7",
+        "scores": "H 1×10=10 | D 6×10=60 | S 4×8=32 | P 4×10=40 | Dv 5×8=40 | T 6×6=36 | F 6×8=48 | TOTAL=266"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "24/20, 20/18",
+        "scores": "H 1×10=10 | D 8×10=80 | S 5×8=40 | P 2×10=20 | Dv 4×8=32 | T 5×6=30 | F 5×8=40 | TOTAL=252"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "6/2, 8/6",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=280"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "6/2, 13/11",
+        "scores": "H 1×10=10 | D 7×10=70 | S 3×8=24 | P 3×10=30 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=264"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "6/2, 24/22",
+        "scores": "H 1×10=10 | D 8×10=80 | S 2×8=16 | P 2×10=20 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=218"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "8/4, 6/4",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 8×10=80 | Dv 8×8=64 | T 8×6=48 | F 9×8=72 | TOTAL=444"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "8/4, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=284"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "8/4, 24/22",
+        "scores": "H 1×10=10 | D 8×10=80 | S 1×8=8 | P 2×10=20 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=210"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "13/9, 6/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=284"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "13/9, 8/6",
+        "scores": "H 1×10=10 | D 6×10=60 | S 9×8=72 | P 5×10=50 | Dv 6×8=48 | T 6×6=36 | F 7×8=56 | TOTAL=332"
+      },
+      {
+        "moveNumber": 12,
+        "moveDescription": "13/9, 24/22",
+        "scores": "H 1×10=10 | D 7×10=70 | S 5×8=40 | P 3×10=30 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=258"
+      }
+    ]
+  },
+  {
+    "roll": "52",
+    "move": "13/8, 8/6",
+    "reasoning": "In this early holding game with contact, prioritizing safety is critical to avoid high-risk blots in the home board, and Moves 1 and 6 deliver perfect blot-free positions with strong development of inner board points. While Move 7 adds opponent home pressure, its low blot risk is slightly offset by exposure on their home board, making the zero-risk inner consolidation superior for maintaining flexibility and timing control. No hits are possible, so development and safety dominate over aggressive pressure plays with medium-high risks.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/8, 8/6",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 7×10=70 | Dv 8×8=64 | T 9×6=54 | F 9×8=72 | TOTAL=440"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/3, 6/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 1×8=8 | P 6×10=60 | Dv 7×8=56 | T 8×6=48 | F 7×8=56 | TOTAL=318"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/3, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 4×8=32 | P 7×10=70 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=360"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/3, 24/22",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 8×10=80 | Dv 6×8=48 | T 7×6=42 | F 6×8=48 | TOTAL=314"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "13/8, 6/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 4×8=32 | P 6×10=60 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=350"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/8, 8/6",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 7×10=70 | Dv 8×8=64 | T 9×6=54 | F 9×8=72 | TOTAL=440"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/8, 24/22",
+        "scores": "H 1×10=10 | D 9×10=90 | S 8×8=64 | P 8×10=80 | Dv 8×8=64 | T 9×6=54 | F 8×8=64 | TOTAL=426"
+      }
+    ]
+  },
+  {
+    "roll": "62",
+    "move": "24/18, 8/6",
+    "reasoning": "In this early holding game with contact, Move 10 (24/18, 8/6) excels by prioritizing development into the opponent outer board while maintaining excellent safety (lowest-medium risk at 23.7%) and high flexibility for future rolls. It avoids high-risk home board blots, applies solid pressure via outer field advancement, and balances timing without overcommitting, outperforming safer but less developmental options like Move 2 or 11.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/7, 7/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 6×8=48 | P 4×10=40 | Dv 7×8=56 | T 8×6=48 | F 7×8=56 | TOTAL=328"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "24/18, 18/16",
+        "scores": "H 1×10=10 | D 8×10=80 | S 8×8=64 | P 5×10=50 | Dv 6×8=48 | T 8×6=48 | F 8×8=64 | TOTAL=364"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/2, 6/4",
+        "scores": "H 1×10=10 | D 9×10=90 | S 2×8=16 | P 6×10=60 | Dv 5×8=40 | T 9×6=54 | F 4×8=32 | TOTAL=302"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/2, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 7×8=56 | P 5×10=50 | Dv 7×8=56 | T 8×6=48 | F 7×8=56 | TOTAL=356"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "8/2, 24/22",
+        "scores": "H 1×10=10 | D 6×10=60 | S 4×8=32 | P 3×10=30 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=246"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/7, 6/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 1×8=8 | P 6×10=60 | Dv 5×8=40 | T 9×6=54 | F 4×8=32 | TOTAL=284"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/7, 8/6",
+        "scores": "H 1×10=10 | D 7×10=70 | S 6×8=48 | P 4×10=40 | Dv 7×8=56 | T 8×6=48 | F 7×8=56 | TOTAL=328"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "13/7, 24/22",
+        "scores": "H 1×10=10 | D 6×10=60 | S 3×8=24 | P 3×10=30 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=238"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "24/18, 6/4",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 5×10=50 | Dv 5×8=40 | T 8×6=48 | F 5×8=40 | TOTAL=274"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "24/18, 8/6",
+        "scores": "H 1×10=10 | D 9×10=90 | S 8×8=64 | P 6×10=60 | Dv 8×8=64 | T 8×6=48 | F 9×8=72 | TOTAL=408"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "24/18, 13/11",
+        "scores": "H 1×10=10 | D 8×10=80 | S 8×8=64 | P 6×10=60 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=382"
+      }
+    ]
+  },
+  {
+    "roll": "43",
+    "move": "13/9, 9/6",
+    "reasoning": "In this early holding game with contact, Move 1 (13/9, 9/6) dominates by creating zero blots for perfect safety while advancing checkers deep in the outer board for excellent development and flexibility. All alternatives introduce medium-to-high blot risks that outweigh minor gains in pressure from opponent-home exposure, especially since no hits are possible. Prioritizing safety preserves White's positional edge without unnecessary volatility.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/9, 9/6",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 7×10=70 | Dv 8×8=64 | T 8×6=48 | F 9×8=72 | TOTAL=434"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "6/2, 8/5",
+        "scores": "H 1×10=10 | D 8×10=80 | S 1×8=8 | P 7×10=70 | Dv 6×8=48 | T 8×6=48 | F 7×8=56 | TOTAL=320"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "6/2, 13/10",
+        "scores": "H 1×10=10 | D 8×10=80 | S 4×8=32 | P 7×10=70 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=360"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "6/2, 24/21",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 8×10=80 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=312"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "8/4, 6/3",
+        "scores": "H 1×10=10 | D 8×10=80 | S 1×8=8 | P 7×10=70 | Dv 6×8=48 | T 8×6=48 | F 7×8=56 | TOTAL=320"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "8/4, 13/10",
+        "scores": "H 1×10=10 | D 8×10=80 | S 3×8=24 | P 7×10=70 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=352"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "8/4, 24/21",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 8×10=80 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=312"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "13/9, 6/3",
+        "scores": "H 1×10=10 | D 9×10=90 | S 4×8=32 | P 7×10=70 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=370"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "13/9, 8/5",
+        "scores": "H 1×10=10 | D 9×10=90 | S 3×8=24 | P 7×10=70 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=362"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "13/9, 24/21",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 8×10=80 | Dv 6×8=48 | T 8×6=48 | F 7×8=56 | TOTAL=370"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "24/20, 6/3",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 8×10=80 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=312"
+      },
+      {
+        "moveNumber": 12,
+        "moveDescription": "24/20, 8/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 8×10=80 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=312"
+      }
+    ]
+  },
+  {
+    "roll": "53",
+    "move": "8/3, 6/3",
+    "reasoning": "In this early holding game with contact, making the 3-point blotlessly maximizes home board strength and safety (zero risk), outperforming blot-leaving alternatives despite equal pip gains. Development and pressure surge from securing a critical inner board point, enhancing future flexibility without exposing checkers to high-impact hits on the 3pt or risky opponent home board blots. Other moves either leave dangerous home board blots (31-37% weighted risk) or underdevelop by running prematurely.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/8, 8/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 8×6=48 | F 7×8=56 | TOTAL=294"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/3, 6/3",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 8×10=80 | Dv 7×8=56 | T 9×6=54 | F 9×8=72 | TOTAL=442"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/3, 13/10",
+        "scores": "H 1×10=10 | D 6×10=60 | S 3×8=24 | P 4×10=40 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=270"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/3, 24/21",
+        "scores": "H 1×10=10 | D 5×10=50 | S 2×8=16 | P 5×10=50 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=240"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "13/8, 6/3",
+        "scores": "H 1×10=10 | D 8×10=80 | S 5×8=40 | P 6×10=60 | Dv 6×8=48 | T 8×6=48 | F 8×8=64 | TOTAL=350"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/8, 8/5",
+        "scores": "H 1×10=10 | D 7×10=70 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 8×6=48 | F 7×8=56 | TOTAL=294"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/8, 24/21",
+        "scores": "H 1×10=10 | D 4×10=40 | S 8×8=64 | P 2×10=20 | Dv 3×8=24 | T 6×6=36 | F 4×8=32 | TOTAL=226"
+      }
+    ]
+  },
+  {
+    "roll": "63",
+    "move": "13/7, 7/4",
+    "reasoning": "In this early holding game with contact, prioritizing safety in the high-impact home board while developing the position is key, and Move 1 excels with the lowest weighted risk (35.4%) and a single blot only on the less vulnerable outer board point. It balances strong home board reinforcement (Pt4) with decent flexibility for future rolls, outperforming safer-but-passive outer advances like Move 11 or 2 that concede pressure and invite opponent priming in their home field. High-risk home board shots on moves like 3-10 are suboptimal given the holding stage demands positional integrity over aggressive blots.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/7, 7/4",
+        "scores": "H 10×10=100 | D 7×10=70 | S 7×8=56 | P 8×10=80 | Dv 8×8=64 | T 9×6=54 | F 9×8=72 | TOTAL=496"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "24/18, 18/15",
+        "scores": "H 10×10=100 | D 9×10=90 | S 8×8=64 | P 4×10=40 | Dv 7×8=56 | T 9×6=54 | F 8×8=64 | TOTAL=468"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/2, 6/3",
+        "scores": "H 10×10=100 | D 5×10=50 | S 4×8=32 | P 9×10=90 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=430"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/2, 13/10",
+        "scores": "H 10×10=100 | D 6×10=60 | S 7×8=56 | P 7×10=70 | Dv 7×8=56 | T 9×6=54 | F 8×8=64 | TOTAL=460"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "8/2, 24/21",
+        "scores": "H 10×10=100 | D 8×10=80 | S 6×8=48 | P 3×10=30 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=416"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/7, 6/3",
+        "scores": "H 10×10=100 | D 6×10=60 | S 3×8=24 | P 7×10=70 | Dv 7×8=56 | T 9×6=54 | F 7×8=56 | TOTAL=420"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/7, 8/5",
+        "scores": "H 10×10=100 | D 5×10=50 | S 3×8=24 | P 8×10=80 | Dv 7×8=56 | T 9×6=54 | F 7×8=56 | TOTAL=420"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "13/7, 24/21",
+        "scores": "H 10×10=100 | D 8×10=80 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=416"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "24/18, 6/3",
+        "scores": "H 10×10=100 | D 7×10=70 | S 4×8=32 | P 5×10=50 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=410"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "24/18, 8/5",
+        "scores": "H 10×10=100 | D 6×10=60 | S 4×8=32 | P 5×10=50 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=400"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "24/18, 13/10",
+        "scores": "H 10×10=100 | D 9×10=90 | S 8×8=64 | P 4×10=40 | Dv 8×8=64 | T 9×6=54 | F 8×8=64 | TOTAL=476"
+      }
+    ]
+  },
+  {
+    "roll": "54",
+    "move": "13/8, 24/20",
+    "reasoning": "In this early holding game with contact, Move 7 excels by prioritizing safety (lowest risk at 18.5%) and applying opponent pressure via blots in their home board, while advancing a back checker for flexibility without home board exposure. Although it lags slightly in raw development, the superior safety and pressure profiles outweigh this in a contact position where avoiding hits is paramount. All moves share equal pip gain and no hits/points, making risk-safety the tiebreaker.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/8, 8/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 3×10=30 | Dv 5×8=40 | T 9×6=54 | F 7×8=56 | TOTAL=318"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "8/3, 6/2",
+        "scores": "H 1×10=10 | D 9×10=90 | S 3×8=24 | P 4×10=40 | Dv 4×8=32 | T 9×6=54 | F 6×8=48 | TOTAL=298"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/3, 13/9",
+        "scores": "H 1×10=10 | D 7×10=70 | S 6×8=48 | P 3×10=30 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=316"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/3, 24/20",
+        "scores": "H 1×10=10 | D 6×10=60 | S 4×8=32 | P 7×10=70 | Dv 3×8=24 | T 9×6=54 | F 5×8=40 | TOTAL=290"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "13/8, 6/2",
+        "scores": "H 1×10=10 | D 9×10=90 | S 7×8=56 | P 3×10=30 | Dv 5×8=40 | T 9×6=54 | F 7×8=56 | TOTAL=336"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/8, 8/4",
+        "scores": "H 1×10=10 | D 8×10=80 | S 6×8=48 | P 3×10=30 | Dv 5×8=40 | T 9×6=54 | F 7×8=56 | TOTAL=318"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/8, 24/20",
+        "scores": "H 1×10=10 | D 5×10=50 | S 9×8=72 | P 8×10=80 | Dv 7×8=56 | T 9×6=54 | F 8×8=64 | TOTAL=386"
+      }
+    ]
+  },
+  {
+    "roll": "64",
+    "move": "8/2, 6/2",
+    "reasoning": "In this early holding game with contact, Move 3 stands out by making a critical 2-point in the home board with zero blots and zero risk, dramatically boosting safety, pressure on opponent's blots, and flexibility while advancing checkers efficiently. All other moves leave 2-3 blots with medium-to-high risk (19.5-59.8%), exposing White to unnecessary hits in opponent's outer/home boards during contact. Prioritizing blot-free structure over mere pip gain maximizes White's positional edge without gambling on low-impact development plays.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/7, 7/3",
+        "scores": "H 1×10=10 | D 6×10=60 | S 5×8=40 | P 3×10=30 | Dv 5×8=40 | T 7×6=42 | F 6×8=48 | TOTAL=270"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "24/18, 18/14",
+        "scores": "H 1×10=10 | D 8×10=80 | S 8×8=64 | P 4×10=40 | Dv 7×8=56 | T 8×6=48 | F 8×8=64 | TOTAL=362"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/2, 6/2",
+        "scores": "H 1×10=10 | D 9×10=90 | S 10×8=80 | P 7×10=70 | Dv 9×8=72 | T 9×6=54 | F 9×8=72 | TOTAL=448"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "8/2, 13/9",
+        "scores": "H 1×10=10 | D 7×10=70 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 7×6=42 | F 7×8=56 | TOTAL=288"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "8/2, 24/20",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 5×10=50 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=282"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "13/7, 6/2",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 4×10=40 | Dv 4×8=32 | T 7×6=42 | F 5×8=40 | TOTAL=232"
+      },
+      {
+        "moveNumber": 7,
+        "moveDescription": "13/7, 8/4",
+        "scores": "H 1×10=10 | D 5×10=50 | S 1×8=8 | P 3×10=30 | Dv 4×8=32 | T 6×6=36 | F 5×8=40 | TOTAL=206"
+      },
+      {
+        "moveNumber": 8,
+        "moveDescription": "13/7, 24/20",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 5×10=50 | Dv 5×8=40 | T 8×6=48 | F 6×8=48 | TOTAL=272"
+      },
+      {
+        "moveNumber": 9,
+        "moveDescription": "24/18, 6/2",
+        "scores": "H 1×10=10 | D 7×10=70 | S 2×8=16 | P 4×10=40 | Dv 6×8=48 | T 8×6=48 | F 6×8=48 | TOTAL=280"
+      },
+      {
+        "moveNumber": 10,
+        "moveDescription": "24/18, 8/4",
+        "scores": "H 1×10=10 | D 6×10=60 | S 1×8=8 | P 4×10=40 | Dv 5×8=40 | T 7×6=42 | F 5×8=40 | TOTAL=250"
+      },
+      {
+        "moveNumber": 11,
+        "moveDescription": "24/18, 13/9",
+        "scores": "H 1×10=10 | D 8×10=80 | S 5×8=40 | P 4×10=40 | Dv 7×8=56 | T 8×6=48 | F 7×8=56 | TOTAL=330"
+      }
+    ]
+  },
+  {
+    "roll": "65",
+    "move": "24/18, 18/13",
+    "reasoning": "In this early holding game with contact, Move 2 excels by advancing two back checkers to 18/13 with minimal risk (only 5.3% weighted), improving outer board depth and slotting the critical 13-point for future builders while preserving home board safety. Higher-risk moves like 1, 3, 4, or 5 expose vital home board blots to high-impact hits (29-57%), crippling our position, while Move 6 leaves an unnecessary opponent outer board blot. All moves share equal pip gain, but Move 2's superior safety and development maximize equity in a holding battle.",
+    "factorScores": [
+      {
+        "moveNumber": 1,
+        "moveDescription": "13/7, 7/2",
+        "scores": "H 1×10=10 | D 9×10=90 | S 4×8=32 | P 3×10=30 | Dv 7×8=56 | T 9×6=54 | F 8×8=64 | TOTAL=336"
+      },
+      {
+        "moveNumber": 2,
+        "moveDescription": "24/18, 18/13",
+        "scores": "H 1×10=10 | D 10×10=100 | S 10×8=80 | P 8×10=80 | Dv 9×8=72 | T 9×6=54 | F 9×8=72 | TOTAL=468"
+      },
+      {
+        "moveNumber": 3,
+        "moveDescription": "8/2, 13/8",
+        "scores": "H 1×10=10 | D 8×10=80 | S 4×8=32 | P 3×10=30 | Dv 6×8=48 | T 9×6=54 | F 7×8=56 | TOTAL=310"
+      },
+      {
+        "moveNumber": 4,
+        "moveDescription": "13/7, 8/3",
+        "scores": "H 1×10=10 | D 7×10=70 | S 1×8=8 | P 4×10=40 | Dv 5×8=40 | T 9×6=54 | F 6×8=48 | TOTAL=270"
+      },
+      {
+        "moveNumber": 5,
+        "moveDescription": "24/18, 8/3",
+        "scores": "H 1×10=10 | D 6×10=60 | S 2×8=16 | P 7×10=70 | Dv 4×8=32 | T 9×6=54 | F 5×8=40 | TOTAL=282"
+      },
+      {
+        "moveNumber": 6,
+        "moveDescription": "24/18, 13/8",
+        "scores": "H 1×10=10 | D 9×10=90 | S 6×8=48 | P 6×10=60 | Dv 8×8=64 | T 9×6=54 | F 8×8=64 | TOTAL=390"
+      }
+    ]
+  }
+]

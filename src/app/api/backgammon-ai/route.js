@@ -4,6 +4,19 @@
  */
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
+// Toggle for context-based weighting adjustments (easy on/off without code rollback)
+const ENABLE_CONTEXT_ADJUSTMENTS = true
+
+// Base factor weights (used to compute adjusted weights passed to AI)
+const BASE_FACTOR_WEIGHTS = {
+  H: 10,  // Hitting
+  D: 9,   // Development
+  S: 8,   // Safety
+  P: 8,   // Pressure
+  Dv: 7,  // Diversity
+  T: 6,   // Timing
+  F: 6    // Flexibility
+}
 
 // Helper functions copied from xgidParser.js
 function charToCount(char) {
@@ -227,8 +240,12 @@ function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
   // Must have checker on from point
   if (fromData.owner !== owner || fromData.count === 0) return null
 
-  // Can move to empty point or hit single opponent checker
-  if (toData.count === 0 || (toData.count === 1 && toData.owner !== owner)) {
+  // Can move to empty point, own point, or hit single opponent checker
+  if (
+    toData.count === 0 ||
+    toData.owner === owner ||
+    (toData.count === 1 && toData.owner !== owner)
+  ) {
     return {
       from: fromPoint,
       to: toPoint,
@@ -387,17 +404,501 @@ function selectTopLegalMoves(allMoves, maxMoves) {
   return allMoves.slice(0, Math.min(maxMoves, allMoves.length))
 }
 
+// ============================================================================
+// DETERMINISTIC ENGINE - Verified calculations for hybrid AI system
+// ============================================================================
+
+function cloneBoardState(boardState) {
+  return {
+    blackBar: boardState.blackBar,
+    whiteBar: boardState.whiteBar,
+    points: boardState.points.map(point => ({ ...point })),
+    cubeValue: boardState.cubeValue,
+    cubeOwner: boardState.cubeOwner,
+    player: boardState.player,
+    dice: boardState.dice
+  }
+}
+
+function applyMoveToBoardForAnalysis(boardState, move, playerOwner) {
+  const newState = cloneBoardState(boardState)
+  const from = move.from
+  const to = move.to
+
+  // Remove checker from source (bar or point)
+  if (from === 0 || from === 25) {
+    if (playerOwner === 'white') {
+      newState.whiteBar = Math.max(0, newState.whiteBar - 1)
+    } else {
+      newState.blackBar = Math.max(0, newState.blackBar - 1)
+    }
+  } else {
+    const fromPoint = newState.points[from - 1]
+    if (fromPoint.count > 0 && fromPoint.owner === playerOwner) {
+      fromPoint.count -= 1
+      if (fromPoint.count === 0) {
+        fromPoint.owner = null
+      }
+    }
+  }
+
+  // Handle destination
+  if (to >= 1 && to <= 24) {
+    const toPoint = newState.points[to - 1]
+    const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+
+    // Hit opponent blot
+    if (toPoint.count === 1 && toPoint.owner === opponentOwner) {
+      toPoint.count = 0
+      toPoint.owner = null
+      if (opponentOwner === 'white') {
+        newState.whiteBar += 1
+      } else {
+        newState.blackBar += 1
+      }
+    }
+
+    if (toPoint.count === 0) {
+      toPoint.owner = playerOwner
+    }
+    toPoint.count += 1
+  }
+
+  return newState
+}
+
+function calculateFinalBoardState(boardState, moves, playerOwner) {
+  let state = cloneBoardState(boardState)
+  for (const move of moves) {
+    state = applyMoveToBoardForAnalysis(state, move, playerOwner)
+  }
+  return state
+}
+
+function identifyBlots(boardState, playerOwner) {
+  const blots = []
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === playerOwner && pointData.count === 1) {
+      blots.push(point)
+    }
+  }
+  return blots
+}
+
+function identifyOpponentPositions(boardState, playerOwner) {
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  const positions = []
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === opponentOwner && pointData.count > 0) {
+      positions.push({ point, count: pointData.count })
+    }
+  }
+  return positions
+}
+
+function getMadePoints(boardState, playerOwner) {
+  const madePoints = []
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === playerOwner && pointData.count >= 2) {
+      madePoints.push(point)
+    }
+  }
+  return madePoints
+}
+
+function calculateHitProbabilityForDistance(distance, blockedPoints = []) {
+  if (distance <= 0 || distance > 24) {
+    return { probability: 0, directRolls: 0, indirectRolls: 0, totalRolls: 0 }
+  }
+
+  let directRolls = 0
+  let indirectRolls = 0
+  let doublesRolls = 0
+
+  for (let d1 = 1; d1 <= 6; d1++) {
+    for (let d2 = 1; d2 <= 6; d2++) {
+      // Direct hit
+      if (distance <= 6 && (d1 === distance || d2 === distance)) {
+        directRolls += d1 === d2 ? 1 : 1
+        continue
+      }
+
+      // Indirect hit (sum)
+      if (distance <= 12 && d1 + d2 === distance) {
+        const intermediateBlocked = blockedPoints.includes(distance - d1) || blockedPoints.includes(distance - d2)
+        if (!intermediateBlocked) {
+          indirectRolls += d1 === d2 ? 1 : 1
+          continue
+        }
+      }
+
+      // Doubles hit (up to 24)
+      if (d1 === d2) {
+        const stepSize = d1
+        for (let numSteps = 2; numSteps <= 4; numSteps++) {
+          if (stepSize * numSteps === distance) {
+            let blocked = false
+            for (let step = 1; step < numSteps; step++) {
+              if (blockedPoints.includes(stepSize * step)) {
+                blocked = true
+                break
+              }
+            }
+            if (!blocked) {
+              doublesRolls += 1
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const totalRolls = directRolls + indirectRolls + doublesRolls
+  return {
+    probability: totalRolls / 36,
+    directRolls,
+    indirectRolls,
+    doublesRolls,
+    totalRolls
+  }
+}
+
+function calculateHitImpact(blotPoint, playerOwner) {
+  const isWhite = playerOwner === 'white'
+  let pipsLost, zone, impact
+
+  if (isWhite) {
+    pipsLost = blotPoint
+    if (blotPoint <= 6) {
+      zone = 'HOME_BOARD'
+      impact = 1.0 - (blotPoint - 1) * 0.03
+    } else if (blotPoint <= 12) {
+      zone = 'OUTER_BOARD'
+      impact = 0.8 - (blotPoint - 7) * 0.05
+    } else if (blotPoint <= 18) {
+      zone = 'OPPONENT_OUTER'
+      impact = 0.5 - (blotPoint - 13) * 0.05
+    } else {
+      zone = 'OPPONENT_HOME'
+      impact = 0.2 - (blotPoint - 19) * 0.02
+    }
+  } else {
+    pipsLost = 25 - blotPoint
+    if (blotPoint >= 19) {
+      zone = 'HOME_BOARD'
+      impact = 1.0 - (24 - blotPoint) * 0.03
+    } else if (blotPoint >= 13) {
+      zone = 'OUTER_BOARD'
+      impact = 0.8 - (18 - blotPoint) * 0.05
+    } else if (blotPoint >= 7) {
+      zone = 'OPPONENT_OUTER'
+      impact = 0.5 - (12 - blotPoint) * 0.05
+    } else {
+      zone = 'OPPONENT_HOME'
+      impact = 0.2 - (6 - blotPoint) * 0.02
+    }
+  }
+
+  impact = Math.max(0.1, Math.min(1.0, impact))
+  return { impact, pipsLost, zone }
+}
+
+function calculateBlotRisk(blotPoint, opponentPositions, playerMadePoints, playerOwner) {
+  const isWhite = playerOwner === 'white'
+  let totalFavorableRolls = 0
+  const attackSources = []
+
+  for (const oppPos of opponentPositions) {
+    const distance = isWhite ? blotPoint - oppPos.point : oppPos.point - blotPoint
+    if (distance <= 0) continue
+
+    const hitProb = calculateHitProbabilityForDistance(distance, playerMadePoints)
+    if (hitProb.totalRolls > 0) {
+      totalFavorableRolls += hitProb.totalRolls
+      attackSources.push({
+        fromPoint: oppPos.point,
+        distance,
+        probability: hitProb.probability,
+        rolls: hitProb.totalRolls
+      })
+    }
+  }
+
+  const effectiveRolls = Math.min(totalFavorableRolls, 36)
+  const totalProbability = effectiveRolls / 36
+  const hitImpact = calculateHitImpact(blotPoint, playerOwner)
+  const weightedRisk = totalProbability * hitImpact.impact
+
+  let riskLevel = 'LOW'
+  if (weightedRisk >= 0.4) riskLevel = 'HIGH'
+  else if (weightedRisk >= 0.2) riskLevel = 'MEDIUM'
+
+  return {
+    blotPoint,
+    totalProbability,
+    totalRolls: effectiveRolls,
+    hitImpact: hitImpact.impact,
+    pipsLost: hitImpact.pipsLost,
+    zone: hitImpact.zone,
+    weightedRisk,
+    riskLevel,
+    attackSources
+  }
+}
+
+function identifyPointsMade(beforeState, afterState, playerOwner) {
+  const newlyMade = []
+  const strengthened = []
+  for (let point = 1; point <= 24; point++) {
+    const before = beforeState.points[point - 1]
+    const after = afterState.points[point - 1]
+    if (after.owner !== playerOwner || after.count < 2) continue
+
+    if (before.owner !== playerOwner || before.count < 2) {
+      newlyMade.push(point)
+    } else if (after.count > before.count) {
+      strengthened.push(point)
+    }
+  }
+  return { newlyMade, strengthened }
+}
+
+function calculatePipCounts(boardState) {
+  let whitePips = 0
+  let blackPips = 0
+
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.count > 0) {
+      if (pointData.owner === 'white') {
+        whitePips += point * pointData.count
+      } else if (pointData.owner === 'black') {
+        blackPips += (25 - point) * pointData.count
+      }
+    }
+  }
+
+  whitePips += boardState.whiteBar * 25
+  blackPips += boardState.blackBar * 25
+
+  return { white: whitePips, black: blackPips }
+}
+
+function checkForHit(beforeState, move, playerOwner) {
+  const to = move.to
+  if (to < 1 || to > 24) return null
+
+  const toPoint = beforeState.points[to - 1]
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  if (toPoint.count === 1 && toPoint.owner === opponentOwner) {
+    return { hitPoint: to, opponentOwner }
+  }
+  return null
+}
+
+function buildVerifiedMoveAnalysis(boardState, moveCombination, playerOwner) {
+  const moves = moveCombination.moves || [moveCombination]
+  const finalState = calculateFinalBoardState(boardState, moves, playerOwner)
+  const blots = identifyBlots(finalState, playerOwner)
+  const opponentPositions = identifyOpponentPositions(finalState, playerOwner)
+  const playerMadePoints = getMadePoints(finalState, playerOwner)
+  const blotRisks = blots.map(blotPoint =>
+    calculateBlotRisk(blotPoint, opponentPositions, playerMadePoints, playerOwner)
+  )
+
+  const pointsAnalysis = identifyPointsMade(boardState, finalState, playerOwner)
+  const beforePips = calculatePipCounts(boardState)
+  const afterPips = calculatePipCounts(finalState)
+  const pipGain = playerOwner === 'white'
+    ? beforePips.white - afterPips.white
+    : beforePips.black - afterPips.black
+
+  const hits = []
+  let tempState = boardState
+  for (const move of moves) {
+    const hit = checkForHit(tempState, move, playerOwner)
+    if (hit) hits.push(hit)
+    tempState = applyMoveToBoardForAnalysis(tempState, move, playerOwner)
+  }
+
+  let combinedRisk = 0
+  let combinedWeightedRisk = 0
+  for (const risk of blotRisks) {
+    combinedRisk = Math.min(1, combinedRisk + risk.totalProbability * (1 - combinedRisk))
+    combinedWeightedRisk = Math.min(1, combinedWeightedRisk + risk.weightedRisk * (1 - combinedWeightedRisk))
+  }
+
+  let overallRiskLevel = 'LOW'
+  if (combinedWeightedRisk >= 0.4) overallRiskLevel = 'HIGH'
+  else if (combinedWeightedRisk >= 0.2) overallRiskLevel = 'MEDIUM'
+
+  return {
+    moveDescription: moveCombination.description || formatMove(moveCombination),
+    blots: {
+      count: blots.length,
+      positions: blots,
+      risks: blotRisks,
+      combinedRisk,
+      combinedWeightedRisk,
+      overallRiskLevel
+    },
+    pointsMade: {
+      newlyMade: pointsAnalysis.newlyMade,
+      strengthened: pointsAnalysis.strengthened,
+      totalNewPoints: pointsAnalysis.newlyMade.length
+    },
+    hits: {
+      count: hits.length,
+      details: hits
+    },
+    pips: {
+      before: beforePips,
+      after: afterPips,
+      gain: pipGain
+    },
+    madePoints: playerMadePoints
+  }
+}
+
+// ============================================================================
+// CONTEXT CLASSIFICATION - Stage and Game Type for weight adjustments
+// ============================================================================
+function classifyGameContext(boardState, playerOwner) {
+  const isWhite = playerOwner === 'white'
+  const pipCounts = calculatePipCounts(boardState)
+  const pipDiff = isWhite ? (pipCounts.white - pipCounts.black) : (pipCounts.black - pipCounts.white)
+
+  const whiteBack = countCheckersInRange(boardState, 'white', 19, 24)
+  const blackBack = countCheckersInRange(boardState, 'black', 1, 6)
+  const playerBack = isWhite ? whiteBack : blackBack
+  const opponentBack = isWhite ? blackBack : whiteBack
+
+  const contact = hasContact(boardState)
+  let stage = 'MID'
+  if (!contact) {
+    stage = 'LATE (RACE)'
+  } else {
+    if (playerBack >= 2 && opponentBack >= 2) stage = 'EARLY'
+  }
+
+  let type = 'CONTACT'
+  if (!contact) {
+    type = 'RUNNING'
+  } else if (playerBack >= 3 && pipDiff > 10) {
+    type = 'BACKGAME'
+  } else if (playerBack >= 1) {
+    type = 'HOLDING'
+  }
+
+  return { stage, type, contact, pipDiff, playerBack, opponentBack }
+}
+
+function countCheckersInRange(boardState, owner, startPoint, endPoint) {
+  let count = 0
+  for (let point = startPoint; point <= endPoint; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === owner && pointData.count > 0) {
+      count += pointData.count
+    }
+  }
+  return count
+}
+
+function hasContact(boardState) {
+  const whiteInUpper = countCheckersInRange(boardState, 'white', 13, 24) > 0
+  const blackInLower = countCheckersInRange(boardState, 'black', 1, 12) > 0
+  return whiteInUpper && blackInLower
+}
+
+function getAdjustedFactorWeights(gameContext) {
+  const weights = { ...BASE_FACTOR_WEIGHTS }
+
+  if (!ENABLE_CONTEXT_ADJUSTMENTS || !gameContext) return weights
+
+  const stage = gameContext.stage
+  if (stage === 'EARLY') {
+    weights.D += 1
+    weights.S -= 1
+    weights.P += 1
+    weights.Dv += 1
+    weights.F += 1
+  } else if (stage === 'MID') {
+    weights.H += 1
+    weights.S += 1
+    weights.P += 1
+  } else if (stage === 'LATE') {
+    weights.H -= 1
+    weights.D -= 1
+    weights.S += 1
+    weights.P -= 1
+    weights.T += 2
+    weights.F += 1
+  }
+
+  const type = gameContext.type
+  if (type === 'RUNNING') {
+    weights.H -= 1
+    weights.D -= 1
+    weights.S += 1
+    weights.P -= 1
+    weights.T += 2
+    weights.F += 1
+  } else if (type === 'HOLDING') {
+    weights.S += 1
+    weights.P += 1
+    weights.F += 1
+  } else if (type === 'BLITZ') {
+    weights.H += 2
+    weights.D += 1
+    weights.P += 2
+    weights.T -= 1
+  } else if (type === 'BACKGAME') {
+    weights.D -= 1
+    weights.S += 1
+    weights.P += 1
+    weights.Dv += 1
+    weights.T -= 2
+    weights.F += 1
+  }
+
+  return weights
+}
+
 /**
  * Call xAI for strategic analysis
  */
 async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = null) {
   const XAI_API_KEY = process.env.XAI_API_KEY
 
-  const prompt = buildAnalysisPrompt(xgid, moves, difficulty, player)
+  const playerOwner = player === 1 ? 'white' : 'black'
+  const boardState = parseXGID(xgid)
+  const verifiedAnalyses = moves.map((move, index) => ({
+    moveNumber: index + 1,
+    ...buildVerifiedMoveAnalysis(boardState, move, playerOwner)
+  }))
+
+  const gameContext = ENABLE_CONTEXT_ADJUSTMENTS ? classifyGameContext(boardState, playerOwner) : null
+  const adjustedWeights = getAdjustedFactorWeights(gameContext)
+  const prompt = buildHybridPrompt(
+    xgid,
+    moves,
+    verifiedAnalyses,
+    difficulty,
+    player,
+    gameContext,
+    adjustedWeights
+  )
 
   // Store prompt in debug info
   if (debugInfo) {
     debugInfo.prompt = prompt
+    debugInfo.verifiedAnalyses = verifiedAnalyses
+    if (gameContext) debugInfo.gameContext = gameContext
+    debugInfo.adjustedWeights = adjustedWeights
   }
 
   const response = await fetch(XAI_API_URL, {
@@ -409,7 +910,7 @@ async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = n
     body: JSON.stringify({
       model: 'grok-4-1-fast-non-reasoning',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 500,
+      max_tokens: 1200,
       temperature: 0.3 // Consistent strategic analysis
     })
   })
@@ -464,6 +965,73 @@ Focus on: blot safety, board control, timing, race position, and using both dice
 
 Respond with format:
 BEST_MOVE: [move number]
+FACTOR_SCORES: For each move, output one concise line using ONLY the move number:
+MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
+REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
+CONFIDENCE: [0.0-1.0]`
+}
+
+/**
+ * Build HYBRID prompt with verified deterministic data
+ */
+function buildHybridPrompt(
+  xgid,
+  moves,
+  verifiedAnalyses,
+  difficulty,
+  player,
+  gameContext = null,
+  adjustedWeights = null
+) {
+  const parts = xgid.split(':')
+  const dice = parts[4] || '00'
+  const playerNum = parseInt(parts[3] || '1')
+  const playerColor = playerNum === 1 ? 'WHITE' : 'BLACK'
+
+  const verifiedMoveData = verifiedAnalyses.map(analysis => {
+    const blotSummary = analysis.blots.count === 0
+      ? 'NO BLOTS'
+      : analysis.blots.risks.map(r =>
+        `Pt${r.blotPoint}[${r.zone}]: ${(r.totalProbability * 100).toFixed(0)}% hit × ${(r.hitImpact * 100).toFixed(0)}% impact`
+      ).join('; ')
+
+    const pointsMadeSummary = analysis.pointsMade.totalNewPoints === 0
+      ? 'No new points'
+      : `MAKES ${analysis.pointsMade.newlyMade.map(p => `${p}-point`).join(', ')}`
+
+    const hitsSummary = analysis.hits.count === 0
+      ? 'No hits'
+      : `HITS ${analysis.hits.details.map(h => `pt${h.hitPoint}`).join(', ')}`
+
+    return `MOVE ${analysis.moveNumber}: ${analysis.moveDescription}
+• Blots: ${analysis.blots.count} | ${blotSummary}
+• Weighted Risk: ${(analysis.blots.combinedWeightedRisk * 100).toFixed(1)}% (${analysis.blots.overallRiskLevel})
+• Points Made: ${pointsMadeSummary}
+• Hits: ${hitsSummary} | Pip Gain: ${analysis.pips.gain}`
+  }).join('\n\n')
+
+  const contextBlock = (ENABLE_CONTEXT_ADJUSTMENTS && gameContext)
+    ? `\nGAME CONTEXT (VERIFIED): Stage=${gameContext.stage} | Type=${gameContext.type} | Contact=${gameContext.contact ? 'YES' : 'NO'}\n`
+    : ''
+
+  return `You are a ${difficulty} level backgammon strategist analyzing from ${playerColor}'s perspective.
+ALL calculations below are VERIFIED and CORRECT - do NOT recalculate them.
+
+POSITION: ${playerColor} to move | Dice: ${dice}
+${contextBlock}
+
+VERIFIED MOVE ANALYSES (GOSPEL - TRUST THESE COMPLETELY):
+${verifiedMoveData}
+
+RATE EACH FACTOR ON A 1-10 SCALE (1 = very poor, 10 = excellent).
+Using the VERIFIED data above, rate each move using the 7 strategic factors (with corresponding weight):
+Hitting (${adjustedWeights?.H ?? BASE_FACTOR_WEIGHTS.H}), Development (${adjustedWeights?.D ?? BASE_FACTOR_WEIGHTS.D}), Safety (${adjustedWeights?.S ?? BASE_FACTOR_WEIGHTS.S}), Pressure (${adjustedWeights?.P ?? BASE_FACTOR_WEIGHTS.P}), Diversity (${adjustedWeights?.Dv ?? BASE_FACTOR_WEIGHTS.Dv}), Timing (${adjustedWeights?.T ?? BASE_FACTOR_WEIGHTS.T}), Flexibility (${adjustedWeights?.F ?? BASE_FACTOR_WEIGHTS.F}).
+Use these weights (already adjusted for context) to compute a weighted total for each move, then choose the best move.
+
+Respond with format:
+BEST_MOVE: [move number]
+FACTOR_SCORES: For each move, output one concise line:
+MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
 REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
 CONFIDENCE: [0.0-1.0]`
 }
@@ -476,10 +1044,19 @@ function parseAIResponse(response) {
   let bestMove = null
   let reasoning = ''
   let confidence = 0.5
+  const factorScores = []
 
   lines.forEach(line => {
     if (line.startsWith('BEST_MOVE:')) {
       bestMove = parseInt(line.split(':')[1].trim())
+    } else if (line.startsWith('MOVE ') && line.includes('|')) {
+      const match = line.match(/^MOVE\s+(\d+):\s*(.*)$/)
+      if (match) {
+        factorScores.push({
+          moveNumber: parseInt(match[1], 10),
+          scores: match[2].trim()
+        })
+      }
     } else if (line.startsWith('REASONING:')) {
       reasoning = line.substring(10).trim()
     } else if (line.startsWith('CONFIDENCE:')) {
@@ -487,14 +1064,28 @@ function parseAIResponse(response) {
     }
   })
 
-  return { bestMoveIndex: bestMove - 1, reasoning, confidence }
+  return {
+    bestMoveIndex: bestMove - 1,
+    reasoning,
+    confidence,
+    factorScores
+  }
 }
 
 /**
  * Validate AI suggestion and return move combination
  */
 function validateAndReturnMove(aiAnalysis, moves) {
-  const { bestMoveIndex, reasoning, confidence } = aiAnalysis
+  const { bestMoveIndex, reasoning, confidence, factorScores } = aiAnalysis
+  const mappedFactorScores = Array.isArray(factorScores) && factorScores.length > 0
+    ? factorScores
+      .filter(entry => entry.moveNumber >= 1 && entry.moveNumber <= moves.length)
+      .map(entry => ({
+        moveNumber: entry.moveNumber,
+        moveDescription: formatMove(moves[entry.moveNumber - 1]),
+        scores: entry.scores
+      }))
+    : null
 
   if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
     const selectedCombination = moves[bestMoveIndex]
@@ -502,6 +1093,7 @@ function validateAndReturnMove(aiAnalysis, moves) {
       move: selectedCombination,
       reasoning: reasoning,
       confidence: confidence,
+      factorScores: mappedFactorScores,
       source: 'ai'
     }
   }
@@ -511,6 +1103,7 @@ function validateAndReturnMove(aiAnalysis, moves) {
     move: moves[0],
     reasoning: "AI suggestion invalid, using conservative move combination",
     confidence: 0.3,
+    factorScores: mappedFactorScores,
     source: 'fallback'
   }
 }
