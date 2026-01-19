@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { parseXGID } from '../utils/xgidParser'
 import { getAIMove } from '../utils/aiBackgammon'
 import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove } from '../utils/gameLogic.js'
@@ -35,7 +35,8 @@ export default function BackgammonBoard({
   onAiDifficultyChange = null, // Callback for engine difficulty changes: (difficulty) => void
   onAiAnalysis = null, // Callback to trigger engine analysis: () => Promise<void>
   onClearAiAnalysis = null, // Callback to clear engine analysis: () => void
-  onUsedDiceChange = null // Callback when used dice changes: (usedDice: number[]) => void
+  onUsedDiceChange = null, // Callback when used dice changes: (usedDice: number[]) => void
+  applyMoveTrigger = null // When this changes, apply the move from aiAnalysis (for external Apply button)
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
@@ -59,11 +60,31 @@ export default function BackgammonBoard({
   
   // Turn state for play mode
   const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
+  // Use a ref to track the latest turnState synchronously (React state updates are async)
+  // IMPORTANT: We update the ref directly when we set turnState, and never sync it back from state
+  // This prevents stale state from overwriting our ref updates
+  const turnStateRef = useRef(null)
+  // Track previous dice/player to detect actual changes (not just XGID changes)
+  const prevDiceRef = useRef(null)
+  const prevPlayerRef = useRef(null)
+  const prevTurnKeyRef = useRef(null) // Track previous turnKey to detect if it actually changed
 
   // AI analysis state (managed by parent component)
   
   // Use editableXGID if in editable mode, otherwise use xgid prop
   const effectiveXGID = isEditable && editableXGID ? editableXGID : xgid
+  
+  // Derive a "turn key" that only changes when dice or player change (not on every move)
+  // This prevents the useEffect from running unnecessarily when only the board position changes
+  const turnKey = useMemo(() => {
+    if (!effectiveXGID) return null
+    const boardState = parseXGID(effectiveXGID)
+    const player = boardState.player !== undefined ? boardState.player : null
+    const dice = boardState.dice || null
+    const key = `${player}:${dice}` // Only changes when player or dice change
+    console.log('[turnKey] Calculated:', { effectiveXGID: effectiveXGID?.substring(0, 30) + '...', player, dice, key })
+    return key
+  }, [effectiveXGID])
   
   // Parse XGID if provided
   const boardState = effectiveXGID ? parseXGID(effectiveXGID) : {
@@ -206,8 +227,36 @@ export default function BackgammonBoard({
   // Initialize turn state when dice are rolled (in play mode)
   // Only initialize when dice change from "00" to actual values, or when player changes
   useEffect(() => {
+    const isFirstRun = prevTurnKeyRef.current === null
+    const turnKeyChanged = prevTurnKeyRef.current !== turnKey
+    
+    console.log('[useEffect turnState init] Triggered:', { 
+      turnKey, 
+      prevTurnKey: prevTurnKeyRef.current,
+      turnKeyChanged,
+      isFirstRun,
+      effectiveEditingMode, 
+      isEditable, 
+      refUsedDice: turnStateRef.current?.usedDice,
+      stateUsedDice: turnState?.usedDice,
+      effectiveXGID: effectiveXGID?.substring(0, 30) + '...'
+    })
+    
+    // Update prevTurnKeyRef for next run
+    prevTurnKeyRef.current = turnKey
+    
+    // If turnKey hasn't changed, skip the entire effect (unless it's the first run)
+    if (!isFirstRun && !turnKeyChanged) {
+      console.log('[useEffect turnState init] Skipping - turnKey unchanged:', {
+        turnKey,
+        prevTurnKey: prevTurnKeyRef.current,
+        refUsedDice: turnStateRef.current?.usedDice
+      })
+      return
+    }
     if (effectiveEditingMode !== 'play' || !isEditable) {
       setTurnState(null)
+      turnStateRef.current = null
       return
     }
 
@@ -220,14 +269,104 @@ export default function BackgammonBoard({
     const owner = currentPlayer === 1 ? 'white' : 'black'
     const dice = boardState.dice
 
-    // Only initialize if dice are rolled (not "00") AND we don't already have turn state for this player
+    // Check if we have an active turn BEFORE checking dice/player changes
+    // This prevents resetting turnState when a move is made (which changes XGID but not dice/player)
+    // IMPORTANT: Check ref FIRST - it has the latest value synchronously
+    const currentTurnState = turnStateRef.current || turnState
+    const hasActiveTurn = currentTurnState && 
+                          currentTurnState.currentPlayer === owner && 
+                          !currentTurnState.isTurnComplete &&
+                          currentTurnState.usedDice && 
+                          currentTurnState.usedDice.length > 0
+
+    // Only reset/initialize if dice or player actually changed (not just XGID changed)
+    const diceChanged = prevDiceRef.current !== dice
+    const playerChanged = prevPlayerRef.current !== owner
+    
+    // If we have an active turn AND dice/player haven't changed, skip the entire effect
+    // This prevents resetting turnState when a move is made
+    if (hasActiveTurn && !diceChanged && !playerChanged) {
+      console.log('[useEffect turnState init] Skipping - active turn preserved:', {
+        dice,
+        owner,
+        usedDice: currentTurnState.usedDice,
+        refUsedDice: turnStateRef.current?.usedDice,
+        prevDice: prevDiceRef.current,
+        prevPlayer: prevPlayerRef.current
+      })
+      return // Don't reset turnState if we have an active turn and dice/player haven't changed
+    }
+    
+    // If dice/player haven't changed AND we don't have an active turn, also skip
+    // This prevents unnecessary resets when only the board position changes
+    if (!diceChanged && !playerChanged && prevDiceRef.current !== null) {
+      console.log('[useEffect turnState init] Skipping - dice/player unchanged:', {
+        dice,
+        owner,
+        prevDice: prevDiceRef.current,
+        prevPlayer: prevPlayerRef.current,
+        hasActiveTurn
+      })
+      return
+    }
+    
+    // Update refs to track current values (only if we're actually processing)
+    prevDiceRef.current = dice
+    prevPlayerRef.current = owner
+
+    // Only initialize if dice are rolled (not "00")
     if (dice && dice !== '00') {
       const die1 = parseInt(dice[0])
       const die2 = parseInt(dice[1])
       
       if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
         // Only initialize if we don't have turn state, or if player changed, or if turn was completed
-        if (!turnState || turnState.currentPlayer !== owner || turnState.isTurnComplete) {
+        // IMPORTANT: Check ref first to get latest value (state might be stale)
+        const currentTurnState = turnStateRef.current || turnState
+        console.log('[useEffect turnState init] Checking turnState:', {
+          effectiveXGID: effectiveXGID?.substring(0, 30) + '...',
+          refUsedDice: turnStateRef.current?.usedDice,
+          stateUsedDice: turnState?.usedDice,
+          currentUsedDice: currentTurnState?.usedDice,
+          owner,
+          dice
+        })
+        // Don't reset if we're in the middle of a turn (has usedDice but not complete)
+        const hasActiveTurn = currentTurnState && 
+                              currentTurnState.currentPlayer === owner && 
+                              !currentTurnState.isTurnComplete &&
+                              currentTurnState.usedDice && 
+                              currentTurnState.usedDice.length > 0
+        
+        // If we have an active turn, preserve it (don't reset)
+        // Check BOTH ref and state to catch active turns even if one is stale
+        const refHasActiveTurn = turnStateRef.current && 
+                                 turnStateRef.current.currentPlayer === owner && 
+                                 !turnStateRef.current.isTurnComplete &&
+                                 turnStateRef.current.usedDice && 
+                                 turnStateRef.current.usedDice.length > 0
+        
+        if (hasActiveTurn || refHasActiveTurn) {
+          const activeTurnState = refHasActiveTurn ? turnStateRef.current : currentTurnState
+          console.log('[useEffect turnState init] Preserving active turnState:', {
+            currentPlayer: activeTurnState.currentPlayer,
+            usedDice: activeTurnState.usedDice,
+            isTurnComplete: activeTurnState.isTurnComplete,
+            source: refHasActiveTurn ? 'ref' : 'state'
+          })
+          // Ensure ref is up to date (in case state was stale)
+          turnStateRef.current = activeTurnState
+          return // Don't reset, preserve the active turn
+        }
+        
+        if (!currentTurnState || currentTurnState.currentPlayer !== owner || currentTurnState.isTurnComplete) {
+          console.log('[useEffect turnState init] Resetting turnState:', {
+            reason: !currentTurnState ? 'no turnState' : 
+                   currentTurnState.currentPlayer !== owner ? 'player changed' : 'turn complete',
+            currentPlayer: currentTurnState?.currentPlayer,
+            owner,
+            usedDice: currentTurnState?.usedDice
+          })
           // Doubles: if both dice are the same, allow 4 moves of that number
           const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
           const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
@@ -248,16 +387,28 @@ export default function BackgammonBoard({
             initialTurnState.noLegalMoves = true
           }
           
+          turnStateRef.current = initialTurnState // Update ref immediately
           setTurnState(initialTurnState)
+        } else if (hasActiveTurn) {
+          console.log('[useEffect turnState init] Preserving active turnState:', {
+            currentPlayer: currentTurnState.currentPlayer,
+            usedDice: currentTurnState.usedDice,
+            isTurnComplete: currentTurnState.isTurnComplete
+          })
+          // Ensure ref is up to date (in case state was stale)
+          turnStateRef.current = currentTurnState
         }
       }
     } else {
       // Reset turn state when dice are "00" (but only if we had turn state)
-      if (turnState) {
+      // Use ref to check current state (state might be stale)
+      const currentTurnState = turnStateRef.current || turnState
+      if (currentTurnState) {
+        turnStateRef.current = null // Update ref immediately
         setTurnState(null)
       }
     }
-  }, [effectiveXGID, effectiveEditingMode, isEditable]) // Note: intentionally not including turnState to avoid loops
+  }, [turnKey, effectiveEditingMode, isEditable]) // Use turnKey instead of effectiveXGID - only changes when dice/player change
 
   // Clear localSettings.player and dice when XGID changes in PLAY mode to ensure UI consistency
   useEffect(() => {
@@ -1623,14 +1774,28 @@ export default function BackgammonBoard({
   }
 
   const applyAIMove = (move) => {
-    if (!move) return
+    console.log('[applyAIMove] Called with move:', move)
+    if (!move) {
+      console.warn('[applyAIMove] No move provided')
+      return
+    }
 
     // Use originalXGID if provided (for applying moves from original state when showing ghosts)
     // Otherwise use editableXGID or effectiveXGID or xgid
     const currentXGID = originalXGID || editableXGID || effectiveXGID || xgid
-    if (!currentXGID) return
+    if (!currentXGID) {
+      console.warn('[applyAIMove] No XGID available')
+      return
+    }
 
+    console.log('[applyAIMove] Using XGID:', currentXGID)
     const boardState = parseXGID(currentXGID)
+    console.log('[applyAIMove] Board state:', {
+      player: boardState.player,
+      dice: boardState.dice,
+      effectiveEditingMode,
+      turnState
+    })
     // Use boardState.player to determine whose turn it is and which checkers to move
     // This must match what updateXGIDForMove expects
     const currentPlayer = boardState.player !== undefined ? boardState.player : 1
@@ -1745,10 +1910,46 @@ export default function BackgammonBoard({
     // Don't call setEditableXGID yet - wait until after turn state handling
 
     // Handle turn state updates like regular moves
-    if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+    // Initialize turnState if it doesn't exist (can happen on first move)
+    let currentTurnState = turnState
+    if (effectiveEditingMode === 'play' && !currentTurnState && boardState.dice && boardState.dice !== '00') {
+      const die1 = parseInt(boardState.dice[0])
+      const die2 = parseInt(boardState.dice[1])
+      if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
+        const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
+        const barCount = moveOwner === 'black' ? boardState.blackBar : boardState.whiteBar
+        currentTurnState = {
+          currentPlayer: moveOwner,
+          dice: diceArray,
+          usedDice: [],
+          isTurnComplete: false,
+          mustEnterFromBar: barCount > 0,
+          noLegalMoves: false
+        }
+        console.log('[applyAIMove] Initializing turnState:', currentTurnState)
+        // Set the initialized turnState so it persists
+        setTurnState(currentTurnState)
+      } else {
+        console.warn('[applyAIMove] Cannot initialize turnState - invalid dice:', boardState.dice)
+      }
+    } else if (!currentTurnState) {
+      console.warn('[applyAIMove] No turnState and cannot initialize:', {
+        effectiveEditingMode,
+        dice: boardState.dice,
+        hasTurnState: !!turnState
+      })
+    }
+
+    if (effectiveEditingMode === 'play' && currentTurnState && currentTurnState.dice && currentTurnState.dice.length > 0) {
       // For AI moves, identify which specific dice are used by each move
       const usedDiceValues = []
-      let availableDice = [...getAvailableDice(turnState.dice, turnState.usedDice || [])]
+      let availableDice = [...getAvailableDice(currentTurnState.dice, currentTurnState.usedDice || [])]
+      
+      console.log('[applyAIMove] Turn state:', {
+        currentTurnState,
+        availableDice,
+        move: move.moves || move
+      })
 
       // Helper to convert absolute coordinates to relative coordinates
       const absoluteToRelative = (absolutePoint, player) => {
@@ -1789,12 +1990,21 @@ export default function BackgammonBoard({
       }
 
       // Update turn state with used dice
-      const newUsedDice = [...(turnState.usedDice || []), ...usedDiceValues]
+      const newUsedDice = [...(currentTurnState.usedDice || []), ...usedDiceValues]
+
+      console.log('[applyAIMove] Dice usage:', {
+        usedDiceValues,
+        previousUsedDice: currentTurnState.usedDice || [],
+        newUsedDice,
+        totalDice: currentTurnState.dice.length,
+        allDiceUsed: newUsedDice.length >= currentTurnState.dice.length
+      })
 
       // Check if turn is complete (all dice used)
-      const allDiceUsed = newUsedDice.length >= turnState.dice.length
+      const allDiceUsed = newUsedDice.length >= currentTurnState.dice.length
 
       if (allDiceUsed) {
+        console.log('[applyAIMove] Turn complete - switching player')
         // End turn - switch to next player and clear dice
 
         // Update XGID to switch player and clear dice
@@ -1818,9 +2028,10 @@ export default function BackgammonBoard({
         }
       } else {
         // Partial turn - update board but don't switch player
+        console.log('[applyAIMove] Partial turn - updating turnState with used dice')
         setEditableXGID(updatedXGID)
         const updatedTurnState = {
-          ...turnState,
+          ...currentTurnState,
           usedDice: newUsedDice
         }
         setTurnState(updatedTurnState)
@@ -1843,6 +2054,33 @@ export default function BackgammonBoard({
       onClearAiAnalysis()
     }
   }
+
+  // Apply move when applyMoveTrigger changes (triggered by external Apply button)
+  // Only trigger when applyMoveTrigger > 0 (initial value is 0, so it won't trigger on mount)
+  // Use a ref to track the last applied trigger value to prevent re-applying the same move
+  const lastAppliedTriggerRef = useRef(0)
+  useEffect(() => {
+    console.log('[useEffect applyMoveTrigger] Triggered:', {
+      applyMoveTrigger,
+      lastApplied: lastAppliedTriggerRef.current,
+      aiAnalysis: aiAnalysis ? { hasMove: !!aiAnalysis.move, move: aiAnalysis.move } : null
+    })
+    // Only apply if trigger has actually incremented (not just initialized or reset)
+    // Check aiAnalysis inside the effect to get the latest value without adding it to dependencies
+    if (applyMoveTrigger > 0 && applyMoveTrigger !== lastAppliedTriggerRef.current) {
+      // Get the latest aiAnalysis value from the closure
+      if (aiAnalysis && aiAnalysis.move) {
+        console.log('[useEffect applyMoveTrigger] Calling applyAIMove')
+        lastAppliedTriggerRef.current = applyMoveTrigger
+        applyAIMove(aiAnalysis.move)
+      } else {
+        console.warn('[useEffect applyMoveTrigger] Cannot apply move - no aiAnalysis or move:', {
+          hasAiAnalysis: !!aiAnalysis,
+          hasMove: aiAnalysis?.move ? true : false
+        })
+      }
+    }
+  }, [applyMoveTrigger]) // Only depend on applyMoveTrigger to avoid re-running when aiAnalysis changes
   
   // ========== EDITABLE MODE UTILITY FUNCTIONS ==========
   
@@ -2629,13 +2867,60 @@ export default function BackgammonBoard({
               if (validateMove(draggedChecker.point, dropPointForValidation, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
                 // Update XGID - use dropPoint (relative to boardState.player) for updateXGIDForMove
               const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
-                setEditableXGID(newXGID)
               
-              // Track dice usage in PLAY mode
-              if (effectiveEditingMode === 'play' && turnState && turnState.dice && turnState.dice.length > 0) {
+              // Track dice usage in PLAY mode (or FREE mode if dice are present)
+              // Initialize turnState if it doesn't exist (can happen on first move)
+              // IMPORTANT: Always use ref first to get the latest turnState value synchronously
+              // since React state updates are async and we might be reading stale state
+              let currentTurnState = turnStateRef.current
+              if (!currentTurnState) {
+                currentTurnState = turnState
+              }
+              // Allow dice tracking in both 'play' and 'free' modes if dice are present
+              const shouldTrackDice = (effectiveEditingMode === 'play' || effectiveEditingMode === 'free') && boardState.dice && boardState.dice !== '00'
+              if (shouldTrackDice && !currentTurnState) {
+                const die1 = parseInt(boardState.dice[0])
+                const die2 = parseInt(boardState.dice[1])
+                if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
+                  const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
+                  const moveOwner = draggedChecker.owner
+                  const barCount = moveOwner === 'black' ? boardState.blackBar : boardState.whiteBar
+                  currentTurnState = {
+                    currentPlayer: moveOwner,
+                    dice: diceArray,
+                    usedDice: [],
+                    isTurnComplete: false,
+                    mustEnterFromBar: barCount > 0,
+                    noLegalMoves: false
+                  }
+                  console.log('[handleGlobalMouseUp] Initializing turnState:', currentTurnState)
+                  turnStateRef.current = currentTurnState // Update ref immediately
+                  setTurnState(currentTurnState)
+                } else {
+                  console.warn('[handleGlobalMouseUp] Cannot initialize turnState - invalid dice:', boardState.dice)
+                }
+              } else if (!currentTurnState) {
+                console.warn('[handleGlobalMouseUp] No turnState and cannot initialize:', {
+                  effectiveEditingMode,
+                  dice: boardState.dice,
+                  hasTurnState: !!turnState
+                })
+              } else {
+                console.log('[handleGlobalMouseUp] Using existing turnState:', {
+                  currentPlayer: currentTurnState.currentPlayer,
+                  dice: currentTurnState.dice,
+                  usedDice: currentTurnState.usedDice
+                })
+              }
+              
+              // Update board state first (always)
+              setEditableXGID(newXGID)
+              
+              // Then handle turn state and dice tracking (in both play and free modes if dice are present)
+              if (shouldTrackDice && currentTurnState && currentTurnState.dice && currentTurnState.dice.length > 0) {
                   const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
                 if (distance !== null && distance > 0) {
-                  const availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+                  const availableDice = getAvailableDice(currentTurnState.dice, currentTurnState.usedDice || [])
                   const isBearingOff = (dropPointForValidation === -1 || dropPointForValidation === -2)
                   const checkersToMove = draggedChecker.count
                   
@@ -2685,8 +2970,8 @@ export default function BackgammonBoard({
                   if (diceToUse.length >= checkersToMove) {
                     const newBoardState = parseXGID(newXGID)
                     const updatedTurnState = {
-                      ...turnState,
-                      usedDice: [...(turnState.usedDice || []), ...diceToUse],
+                      ...currentTurnState,
+                      usedDice: [...(currentTurnState.usedDice || []), ...diceToUse],
                       noLegalMoves: false // Reset when a move is made
                     }
                     
@@ -2696,11 +2981,20 @@ export default function BackgammonBoard({
                     
                     // Check if turn should be automatically completed (no legal moves remain)
                     const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
-                    const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length
+                    const allDiceUsed = updatedTurnState.usedDice.length >= currentTurnState.dice.length
+                    
+                    console.log('[handleGlobalMouseUp] Dice usage:', {
+                      diceToUse,
+                      previousUsedDice: currentTurnState.usedDice || [],
+                      newUsedDice: updatedTurnState.usedDice,
+                      totalDice: currentTurnState.dice.length,
+                      allDiceUsed
+                    })
                     
                     // Update turn state FIRST before updating XGID to prevent useEffect from resetting it
                     if (remainingLegalMoves.length === 0) {
                       // No legal moves remain - turn is complete
+                      console.log('[handleGlobalMouseUp] Turn complete - no legal moves remain')
                       updatedTurnState.isTurnComplete = true
                       updatedTurnState.noLegalMoves = true
                       
@@ -2710,14 +3004,21 @@ export default function BackgammonBoard({
                       parts[3] = String(nextPlayer) // Update player
                       parts[4] = '00' // Reset dice
                       const finalXGID = parts.join(':')
-                        setEditableXGID(finalXGID)
+                      setEditableXGID(finalXGID)
+                      turnStateRef.current = null // Update ref immediately
                       setTurnState(null) // Reset turn state for next player
+                      
+                      // Notify parent that used dice should be reset (turn complete)
+                      if (onUsedDiceChange) {
+                        onUsedDiceChange([])
+                      }
                       
                       if (onChange) {
                         onChange(finalXGID)
                       }
                     } else if (allDiceUsed) {
-                      // All dice used but moves still available - shouldn't happen, but handle it
+                      // All dice used - turn is complete
+                      console.log('[handleGlobalMouseUp] Turn complete - all dice used')
                       updatedTurnState.isTurnComplete = true
                       const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
                       const parts = newXGID.split(':')
@@ -2725,14 +3026,37 @@ export default function BackgammonBoard({
                       parts[4] = '00'
                       const finalXGID = parts.join(':')
                       setEditableXGID(finalXGID)
+                      turnStateRef.current = null // Update ref immediately
                       setTurnState(null)
+                      
+                      // Notify parent that used dice should be reset (turn complete)
+                      if (onUsedDiceChange) {
+                        onUsedDiceChange([])
+                      }
                       
                       if (onChange) {
                         onChange(finalXGID)
-                    }
+                      }
                   } else {
-                      // Update turn state with used dice
+                      // Partial turn - update turn state with used dice
+                      console.log('[handleGlobalMouseUp] Partial turn - updating turnState with used dice:', {
+                        before: {
+                          ref: turnStateRef.current?.usedDice,
+                          state: turnState?.usedDice
+                        },
+                        after: updatedTurnState.usedDice
+                      })
+                      turnStateRef.current = updatedTurnState // Update ref immediately
+                      console.log('[handleGlobalMouseUp] Ref updated, verifying:', {
+                        refUsedDice: turnStateRef.current?.usedDice,
+                        refCurrent: turnStateRef.current?.currentPlayer
+                      })
                       setTurnState(updatedTurnState)
+                      
+                      // Notify parent of used dice change
+                      if (onUsedDiceChange) {
+                        onUsedDiceChange(updatedTurnState.usedDice)
+                      }
                       
                       if (onChange) {
                         onChange(newXGID)
@@ -3572,48 +3896,6 @@ export default function BackgammonBoard({
               >
                 Save
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Suggested Move Display - Centered above board */}
-      {aiAnalysis && aiAnalysis.move && (
-        <div
-          className="w-full flex flex-col items-center mb-4"
-          style={{ width: `${BOARD_WIDTH}px`, maxWidth: '100%' }}
-        >
-          <div className="bg-purple-50 dark:bg-purple-900/95 rounded-lg shadow-lg border border-purple-200 dark:border-purple-700 px-6 py-3">
-            <div className="flex items-center justify-center gap-4">
-              <p className="text-purple-900 dark:text-purple-100 text-lg font-semibold">
-                Suggested Move: <span className="font-mono">{formatMoveForDisplay(aiAnalysis.move)}</span>
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    applyAIMove(aiAnalysis.move)
-                    // Clear ghosts after applying move
-                    if (onClearGhosts) {
-                      onClearGhosts()
-                    }
-                  }}
-                  className="px-4 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium transition-colors"
-                >
-                  Apply
-                </button>
-                <button
-                  onClick={() => {
-                    if (ghostsVisible && onClearGhosts) {
-                      onClearGhosts()
-                    } else if (!ghostsVisible && onShowGhosts) {
-                      onShowGhosts()
-                    }
-                  }}
-                  className="px-4 py-1.5 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 text-sm font-medium transition-colors"
-                >
-                  {ghostsVisible ? 'Clear' : 'Show'}
-                </button>
-              </div>
             </div>
           </div>
         </div>

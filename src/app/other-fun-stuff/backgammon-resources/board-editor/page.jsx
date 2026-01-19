@@ -30,6 +30,8 @@ export default function BoardEditorPage() {
   const [suggestedMoveXGID, setSuggestedMoveXGID] = useState(null) // Final XGID after applying suggested move
   // Store ghost data when clearing so we can restore it
   const [savedGhostData, setSavedGhostData] = useState(null)
+  // Trigger for applying move through BackgammonBoard's applyAIMove function
+  const [applyMoveTrigger, setApplyMoveTrigger] = useState(0)
 
   // Engine analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -223,7 +225,9 @@ export default function BoardEditorPage() {
       moveString,
       moveParts,
       resultMoves: result.moves,
-      originalGhostCheckers: result.ghostCheckers
+      originalGhostCheckers: result.ghostCheckers,
+      currentPlayer,
+      moveOwner
     })
     
     let i = 0
@@ -252,6 +256,8 @@ export default function BoardEditorPage() {
       let j = i + 1
       
       // Check if next moves form a sequence (same checker moving, no hits)
+      // result.moves contains moves in WHITE's absolute coordinates (from applyMove)
+      // So sequenceEnd is also in WHITE's absolute coordinates
       while (j < result.moves.length) {
         const nextMove = result.moves[j]
         const nextMovePartIndex = j < moveParts.length ? j : -1
@@ -259,8 +265,10 @@ export default function BoardEditorPage() {
         
         // Only continue sequence if next move starts where current sequence ends (same checker)
         // AND the next move doesn't hit a blot
+        // Both nextMove.from and sequenceEnd are in WHITE's absolute coordinates
         if (nextMove.from === sequenceEnd && !nextHitsBlot) {
           // This is an intermediate point - the checker landed here and continues moving
+          // intermediatePoint is in WHITE's absolute coordinates (matches result.ghostCheckers keys)
           intermediatePoints.push(sequenceEnd)
           sequenceEnd = nextMove.to
           j++
@@ -277,7 +285,10 @@ export default function BoardEditorPage() {
           sequenceEnd,
           intermediatePoints,
           currentMove,
-          nextMoves: result.moves.slice(i + 1, j)
+          nextMoves: result.moves.slice(i + 1, j),
+          currentPlayer,
+          moveOwner,
+          allMoves: result.moves.map(m => `${m.from}/${m.to}`)
         })
         // Remove ghosts from intermediate points
         // For each intermediate point, count how many moves in the sequence start from it
@@ -393,6 +404,109 @@ export default function BoardEditorPage() {
     }
   }
 
+  // Format move for display in suggestion toolbar
+  const formatMoveForToolbar = (move) => {
+    if (!move) return ''
+
+    const boardState = parseXGID(boardXGID)
+    const currentPlayer = boardState?.player !== undefined ? boardState.player : 1
+
+    // Helper to convert absolute to relative coordinates
+    const absoluteToRelative = (absolutePoint, player) => {
+      if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint
+      if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint
+      if (player === 1) return absolutePoint
+      return 25 - absolutePoint
+    }
+
+    // Handle move combinations
+    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
+      let convertedMoves = move.moves.map(m => {
+        const fromRel = absoluteToRelative(m.from, currentPlayer)
+        const toRel = absoluteToRelative(m.to, currentPlayer)
+        const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+        const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+        return { moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
+      })
+
+      // Normalize order: sort by highest originating point first
+      convertedMoves.sort((a, b) => {
+        const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
+        const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
+        return bFrom - aFrom
+      })
+
+      // Format as combined move (same checker or two checkers)
+      if (convertedMoves.length === 2) {
+        const [m1, m2] = convertedMoves
+        const m1Parts = m1.moveStr.split('/')
+        const m2Parts = m2.moveStr.split('/')
+        if (m1Parts[1] === m2Parts[0] && !m1.hitBlot) {
+          const asterisk = m2.hitBlot ? '*' : ''
+          const originalMoves = `${m1.moveStr}${m1.hitBlot ? '*' : ''} ${m2.moveStr}${m2.hitBlot ? '*' : ''}`
+          return `${m1Parts[0]}/${m2Parts[1]}${asterisk} (${originalMoves})`
+        }
+        if (m2Parts[1] === m1Parts[0] && !m2.hitBlot) {
+          const asterisk = m1.hitBlot ? '*' : ''
+          const originalMoves = `${m2.moveStr}${m2.hitBlot ? '*' : ''} ${m1.moveStr}${m1.hitBlot ? '*' : ''}`
+          return `${m2Parts[0]}/${m1Parts[1]}${asterisk} (${originalMoves})`
+        }
+        return convertedMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+      }
+
+      // For 3+ moves, collapse sequences
+      const formattedParts = []
+      let i = 0
+      while (i < convertedMoves.length) {
+        if (convertedMoves[i].hitBlot) {
+          formattedParts.push(`${convertedMoves[i].moveStr}*`)
+          i++
+          continue
+        }
+
+        let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
+        let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
+        const sequenceMoves = [convertedMoves[i]]
+        let j = i + 1
+
+        while (j < convertedMoves.length &&
+               convertedMoves[j].moveStr.split('/')[0] === sequenceEnd &&
+               !convertedMoves[j].hitBlot) {
+          sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
+          sequenceMoves.push(convertedMoves[j])
+          j++
+        }
+
+        if (sequenceMoves.length > 1) {
+          const originalMovesStr = sequenceMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+          formattedParts.push(`${sequenceStart}/${sequenceEnd} (${originalMovesStr})`)
+        } else {
+          formattedParts.push(`${sequenceStart}/${sequenceEnd}`)
+        }
+        i = j
+      }
+
+      return formattedParts.join(' ')
+    }
+
+    // Single move
+    if (move.from !== undefined && move.to !== undefined) {
+      const fromRel = absoluteToRelative(move.from, currentPlayer)
+      const toRel = absoluteToRelative(move.to, currentPlayer)
+      const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+      const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+      const asterisk = move.hitBlot ? '*' : ''
+      return `${from}/${to}${asterisk}`
+    }
+
+    // Fallback to description if available
+    if (move.description) {
+      return move.description
+    }
+
+    return ''
+  }
+
   // Show suggested move with ghost checkers and arrows
   const handleShowSuggestedMove = () => {
     if (!engineAnalysis || !engineAnalysis.move) return
@@ -421,7 +535,8 @@ export default function BoardEditorPage() {
     setSuggestedGhostCheckerPositions({})
     setSuggestedGhostCheckerOwners({})
     setSuggestedMoves([])
-    setSuggestedMoveXGID(null)
+    // Don't clear suggestedMoveXGID - keep it so Apply button can use it
+    // setSuggestedMoveXGID(null)
     setShowGhosts(false)
   }
 
@@ -481,6 +596,8 @@ export default function BoardEditorPage() {
     setEngineDebug(null)
     handleClearGhosts() // Also clear ghosts when clearing analysis
     setSavedGhostData(null) // Clear saved ghost data when clearing analysis
+    setSuggestedMoveXGID(null) // Clear suggested move XGID when clearing analysis
+    setApplyMoveTrigger(0) // Reset trigger to prevent stale triggers
   }
 
   // Handle engine difficulty changes
@@ -680,7 +797,12 @@ export default function BoardEditorPage() {
                   >
                     Start
                   </button>
-                  <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                </div>
+              </div>
+
+              {/* Suggestion Toolbar - Permanent */}
+              <div className="flex justify-center mb-4">
+                <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-2">
                   {(() => {
                     // Check if player needs to roll dice (dice are "00")
                     const boardState = boardXGID ? parseXGID(boardXGID) : null
@@ -704,9 +826,52 @@ export default function BoardEditorPage() {
                       </button>
                     )
                   })()}
-                  <span className="text-red-600 font-bold text-sm ml-2">
-                    ** EXPERIMENTAL **
-                  </span>
+                  {engineAnalysis && engineAnalysis.move && (
+                    <>
+                      <span className="text-gray-700 dark:text-gray-300 font-mono text-sm">
+                        {formatMoveForToolbar(engineAnalysis.move)}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          // Trigger move application through BackgammonBoard's applyAIMove function
+                          // This ensures proper dice usage tracking and turn completion detection
+                          console.log('[Apply button] Clicked:', {
+                            hasEngineAnalysis: !!engineAnalysis,
+                            hasMove: engineAnalysis?.move ? true : false,
+                            currentApplyMoveTrigger: applyMoveTrigger,
+                            engineAnalysis
+                          })
+                          if (engineAnalysis && engineAnalysis.move) {
+                            const newTrigger = applyMoveTrigger + 1
+                            console.log('[Apply button] Incrementing applyMoveTrigger from', applyMoveTrigger, 'to', newTrigger)
+                            setApplyMoveTrigger(newTrigger)
+                          } else {
+                            console.warn('[Apply button] Cannot apply - no engineAnalysis or move:', {
+                              engineAnalysis,
+                              hasMove: engineAnalysis?.move
+                            })
+                          }
+                        }}
+                        className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (showGhosts) {
+                            handleClearGhosts()
+                          } else {
+                            handleShowGhosts()
+                          }
+                        }}
+                        className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500"
+                      >
+                        {showGhosts ? 'Clear' : 'Show'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -714,7 +879,7 @@ export default function BoardEditorPage() {
               <div className="flex justify-center">
                 <div className="rounded-lg shadow-lg overflow-hidden">
                   <BackgammonBoard 
-                    key={showGhosts && suggestedMoveXGID ? `ghost-${suggestedMoveXGID}` : `normal-${boardXGID}`} // Force remount when switching between ghost/normal to prevent flicker
+                    key={showGhosts ? `ghost-${suggestedMoveXGID || 'none'}` : 'normal'} // Force remount when switching between ghost/normal to prevent flicker, but NOT on every board change
                     direction={0} 
                     showBoardLabels={false} 
                     showPointNumbers={true}
@@ -770,6 +935,7 @@ export default function BoardEditorPage() {
                     onAiAnalysis={handleEngineAnalysis}
                     onClearAiAnalysis={handleClearEngineAnalysis}
                     onUsedDiceChange={setUsedDice}
+                    applyMoveTrigger={applyMoveTrigger}
                   />
                 </div>
               </div>
