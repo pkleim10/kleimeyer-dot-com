@@ -863,7 +863,7 @@ function formatMove(move, player = null) {
     
     // For black or when description not available, convert coordinates
     // Convert each move in the combination
-    const convertedMoves = move.moves.map(m => {
+    let convertedMoves = move.moves.map(m => {
       const fromRel = absoluteToRelative(m.from, player)
       const toRel = absoluteToRelative(m.to, player)
       const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
@@ -872,23 +872,76 @@ function formatMove(move, player = null) {
       return { from, to, moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
     })
     
-    // Group identical moves for proper notation (including hitBlot status)
+    // Normalize order: sort by highest originating point first
+    convertedMoves = convertedMoves.sort((a, b) => {
+      const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
+      const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
+      return bFrom - aFrom // Highest first
+    })
+    
+    // Collapse sequences first (same checker moving: e.g., "8/6 6/5" -> "8/5")
+    // Then group identical moves
+    const formattedParts = []
+    let i = 0
+    while (i < convertedMoves.length) {
+      // If this move hits a blot, add it separately (hitting stops the sequence)
+      if (convertedMoves[i].hitBlot) {
+        formattedParts.push(`${convertedMoves[i].moveStr}*`)
+        i++
+        continue
+      }
+      
+      // Try to form a sequence starting from this move
+      let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
+      let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
+      let sequenceHitBlot = convertedMoves[i].hitBlot
+      const sequenceMoves = [convertedMoves[i]] // Track original moves in sequence
+      let j = i + 1
+      
+      // Check if this is part of a sequence (same checker moving)
+      // Only continue if next move starts where this one ends AND doesn't hit a blot
+      while (j < convertedMoves.length && 
+             convertedMoves[j].moveStr.split('/')[0] === sequenceEnd && 
+             !convertedMoves[j].hitBlot) {
+        sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
+        sequenceHitBlot = sequenceHitBlot || convertedMoves[j].hitBlot
+        sequenceMoves.push(convertedMoves[j])
+        j++
+      }
+      
+      // Add collapsed move (or single move if not a sequence)
+      const asterisk = sequenceHitBlot ? '*' : ''
+      if (sequenceMoves.length > 1) {
+        // Collapsed sequence - show original moves in parentheses
+        const originalMovesStr = sequenceMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+        formattedParts.push(`${sequenceStart}/${sequenceEnd}${asterisk} (${originalMovesStr})`)
+      } else {
+        // Single move, no collapse
+        formattedParts.push(`${sequenceStart}/${sequenceEnd}${asterisk}`)
+      }
+      i = j // Move to next non-sequence move
+    }
+    
+    // Now group identical moves (including collapsed sequences)
     const moveGroups = new Map()
-    for (const convertedMove of convertedMoves) {
-      const key = `${convertedMove.moveStr}:${convertedMove.hitBlot ? 'hit' : 'safe'}`
+    for (const part of formattedParts) {
+      const key = part.replace('*', '') // Remove asterisk for grouping
       if (!moveGroups.has(key)) {
-        moveGroups.set(key, { ...convertedMove, count: 0 })
+        moveGroups.set(key, { moveStr: part, count: 0 })
       }
       moveGroups.get(key).count++
     }
     
     const parts = []
     for (const group of moveGroups.values()) {
-      const asterisk = group.hitBlot ? '*' : ''
       if (group.count > 1) {
-        parts.push(`${group.moveStr}(${group.count})${asterisk}`)
+        // Extract the base move string and asterisk
+        const baseMove = group.moveStr.replace('*', '')
+        const hasAsterisk = group.moveStr.includes('*')
+        const asterisk = hasAsterisk ? '*' : ''
+        parts.push(`${baseMove}(${group.count})${asterisk}`)
       } else {
-        parts.push(`${group.moveStr}${asterisk}`)
+        parts.push(group.moveStr)
       }
     }
     

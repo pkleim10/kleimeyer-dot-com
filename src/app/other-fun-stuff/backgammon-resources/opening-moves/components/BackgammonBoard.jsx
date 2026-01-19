@@ -23,6 +23,8 @@ export default function BackgammonBoard({
   showTrays = true, // true = show trays with checkers, false = show normal border
   onPlayerChange = null, // Callback when player setting changes: (player) => void, where player is -1 (black) or 1 (white)
   onClearGhosts = null, // Callback to clear ghost checkers and arrows: () => void
+  onShowGhosts = null, // Callback to show ghost checkers: () => void
+  ghostsVisible = false, // Whether ghosts are currently visible
   showOptions = true, // Controls visibility of options gear icon
   isEditable = false, // Enables interactive features (drag-and-drop, clickable dice/cube)
   editingMode = 'free', // 'free' = any checker anywhere, 'play' = legal moves only
@@ -1526,7 +1528,14 @@ export default function BackgammonBoard({
           display: `${from}/${to}${asterisk}`,
           hitBlot: m.hitBlot
         })
-        return { moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
+        return { moveStr: `${from}/${to}`, hitBlot: m.hitBlot, from: fromRel, to: toRel }
+      })
+      
+      // Normalize order: sort by highest originating point first
+      convertedMoves.sort((a, b) => {
+        const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
+        const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
+        return bFrom - aFrom // Highest first
       })
       
       // Format as combined move (same checker or two checkers)
@@ -1538,16 +1547,18 @@ export default function BackgammonBoard({
         // IMPORTANT: Do NOT collapse if first move hits a blot (hitting stops the sequence)
         if (m1Parts[1] === m2Parts[0] && !m1.hitBlot) {
           const asterisk = m2.hitBlot ? '*' : ''
-          return `${m1Parts[0]}/${m2Parts[1]}${asterisk}`
+          const originalMoves = `${m1.moveStr}${m1.hitBlot ? '*' : ''} ${m2.moveStr}${m2.hitBlot ? '*' : ''}`
+          return `${m1Parts[0]}/${m2Parts[1]}${asterisk} (${originalMoves})`
+        }
+        // Also check reverse order (first move starts where second ends)
+        if (m2Parts[1] === m1Parts[0] && !m2.hitBlot) {
+          const asterisk = m1.hitBlot ? '*' : ''
+          const originalMoves = `${m2.moveStr}${m2.hitBlot ? '*' : ''} ${m1.moveStr}${m1.hitBlot ? '*' : ''}`
+          return `${m2Parts[0]}/${m1Parts[1]}${asterisk} (${originalMoves})`
         }
         // Two different checkers OR sequence with hit - show both moves
-        // Order by highest starting point first
-        const sorted = convertedMoves.sort((a, b) => {
-          const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
-          const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
-          return bFrom - aFrom
-        })
-        return sorted.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+        // Moves are already normalized, just format them
+        return convertedMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
       }
       
       // For 3+ moves, collapse sequences but don't collapse if any move hits a blot
@@ -1565,6 +1576,7 @@ export default function BackgammonBoard({
         // Try to form a sequence starting from this move
         let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
         let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
+        const sequenceMoves = [convertedMoves[i]] // Track original moves in sequence
         let j = i + 1
         
         // Check if this is part of a sequence (same checker moving)
@@ -1573,11 +1585,19 @@ export default function BackgammonBoard({
                convertedMoves[j].moveStr.split('/')[0] === sequenceEnd && 
                !convertedMoves[j].hitBlot) {
           sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
+          sequenceMoves.push(convertedMoves[j])
           j++
         }
         
         // Add collapsed move (or single move if not a sequence)
-        formattedParts.push(`${sequenceStart}/${sequenceEnd}`)
+        if (sequenceMoves.length > 1) {
+          // Collapsed sequence - show original moves in parentheses
+          const originalMovesStr = sequenceMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+          formattedParts.push(`${sequenceStart}/${sequenceEnd} (${originalMovesStr})`)
+        } else {
+          // Single move, no collapse
+          formattedParts.push(`${sequenceStart}/${sequenceEnd}${convertedMoves[i].hitBlot ? '*' : ''}`)
+        }
         i = j // Move to next non-sequence move
       }
       
@@ -3582,10 +3602,16 @@ export default function BackgammonBoard({
                   Apply
                 </button>
                 <button
-                  onClick={() => onClearGhosts && onClearGhosts()}
+                  onClick={() => {
+                    if (ghostsVisible && onClearGhosts) {
+                      onClearGhosts()
+                    } else if (!ghostsVisible && onShowGhosts) {
+                      onShowGhosts()
+                    }
+                  }}
                   className="px-4 py-1.5 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 text-sm font-medium transition-colors"
                 >
-                  Clear
+                  {ghostsVisible ? 'Clear' : 'Show'}
                 </button>
               </div>
             </div>

@@ -27,6 +27,8 @@ export default function BoardEditorPage() {
   const [suggestedMoves, setSuggestedMoves] = useState([])
   const [showGhosts, setShowGhosts] = useState(false) // Track if ghosts should be displayed
   const [suggestedMoveXGID, setSuggestedMoveXGID] = useState(null) // Final XGID after applying suggested move
+  // Store ghost data when clearing so we can restore it
+  const [savedGhostData, setSavedGhostData] = useState(null)
 
   // Engine analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -83,6 +85,14 @@ export default function BoardEditorPage() {
         setSuggestedMoves(ghostData.moves)
         setSuggestedMoveXGID(ghostData.finalXGID) // Store final XGID after applying move (for board display)
         setShowGhosts(true)
+        // Save ghost data so we can restore it after clearing
+        setSavedGhostData({
+          ghostCheckers: { ...ghostData.ghostCheckers },
+          ghostCheckerPositions: { ...ghostData.ghostCheckerPositions },
+          ghostCheckerOwners: { ...ghostData.ghostCheckerOwners },
+          moves: [...ghostData.moves],
+          finalXGID: ghostData.finalXGID
+        })
       }
     } catch (error) {
       console.error('Engine analysis failed:', error)
@@ -122,26 +132,47 @@ export default function BoardEditorPage() {
     }
 
     // Convert engine move to move string format for applyMove
-    // IMPORTANT: Do NOT collapse sequences here - applyMove needs the full sequence
-    const moveParts = []
+    // IMPORTANT: Normalize moves first (highest originating point first), then convert
+    // Do NOT collapse sequences here - applyMove needs the full sequence
     
+    // First, collect all moves
+    let movesToProcess = []
     if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
-      for (const singleMove of move.moves) {
-        const fromAbs = singleMove.from
-        const toAbs = singleMove.to
-
-        // Skip bar and off positions
-        if (fromAbs < 1 || fromAbs > 24 || toAbs < 1 || toAbs > 24) continue
-
-        // Convert to relative coordinates (current player's perspective)
-        const fromRel = absoluteToRelative(fromAbs)
-        const toRel = absoluteToRelative(toAbs)
-
-        // Format as move string (e.g., "24/18" or "13/10*")
-        const asterisk = singleMove.hitBlot ? '*' : ''
-        moveParts.push(`${fromRel}/${toRel}${asterisk}`)
-      }
+      movesToProcess = move.moves.map(m => ({
+        fromAbs: m.from,
+        toAbs: m.to,
+        hitBlot: m.hitBlot || false
+      }))
     } else if (move.from !== undefined && move.to !== undefined) {
+      movesToProcess = [{
+        fromAbs: move.from,
+        toAbs: move.to,
+        hitBlot: move.hitBlot || false
+      }]
+    }
+    
+    // Normalize: sort by highest originating point first (in absolute coordinates)
+    movesToProcess.sort((a, b) => b.fromAbs - a.fromAbs)
+    
+    // Now convert normalized moves to move string format
+    const moveParts = []
+    for (const singleMove of movesToProcess) {
+      const fromAbs = singleMove.fromAbs
+      const toAbs = singleMove.toAbs
+
+      // Skip bar and off positions
+      if (fromAbs < 1 || fromAbs > 24 || toAbs < 1 || toAbs > 24) continue
+
+      // Convert to relative coordinates (current player's perspective)
+      const fromRel = absoluteToRelative(fromAbs)
+      const toRel = absoluteToRelative(toAbs)
+
+      // Format as move string (e.g., "24/18" or "13/10*")
+      const asterisk = singleMove.hitBlot ? '*' : ''
+      moveParts.push(`${fromRel}/${toRel}${asterisk}`)
+    }
+    
+    if (moveParts.length === 0) {
       // Single move
       const fromAbs = move.from
       const toAbs = move.to
@@ -366,6 +397,16 @@ export default function BoardEditorPage() {
 
   // Clear ghost checkers and arrows (but keep suggested move text)
   const handleClearGhosts = () => {
+    // Save current ghost data so we can restore it
+    if (showGhosts && engineAnalysis && engineAnalysis.move) {
+      setSavedGhostData({
+        ghostCheckers: { ...suggestedGhostCheckers },
+        ghostCheckerPositions: { ...suggestedGhostCheckerPositions },
+        ghostCheckerOwners: { ...suggestedGhostCheckerOwners },
+        moves: [...suggestedMoves],
+        finalXGID: suggestedMoveXGID
+      })
+    }
     setSuggestedGhostCheckers({})
     setSuggestedGhostCheckerPositions({})
     setSuggestedGhostCheckerOwners({})
@@ -374,11 +415,41 @@ export default function BoardEditorPage() {
     setShowGhosts(false)
   }
 
+  // Show ghost checkers (restore from saved data)
+  const handleShowGhosts = () => {
+    if (savedGhostData) {
+      setSuggestedGhostCheckers(savedGhostData.ghostCheckers)
+      setSuggestedGhostCheckerPositions(savedGhostData.ghostCheckerPositions)
+      setSuggestedGhostCheckerOwners(savedGhostData.ghostCheckerOwners)
+      setSuggestedMoves(savedGhostData.moves)
+      setSuggestedMoveXGID(savedGhostData.finalXGID)
+      setShowGhosts(true)
+    } else if (engineAnalysis && engineAnalysis.move) {
+      // If no saved data, regenerate ghosts from current analysis
+      const ghostData = convertMoveToGhostCheckers(engineAnalysis.move, boardXGID)
+      setSuggestedGhostCheckers(ghostData.ghostCheckers)
+      setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+      setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+      setSuggestedMoves(ghostData.moves)
+      setSuggestedMoveXGID(ghostData.finalXGID)
+      setShowGhosts(true)
+      // Save the regenerated data
+      setSavedGhostData({
+        ghostCheckers: { ...ghostData.ghostCheckers },
+        ghostCheckerPositions: { ...ghostData.ghostCheckerPositions },
+        ghostCheckerOwners: { ...ghostData.ghostCheckerOwners },
+        moves: [...ghostData.moves],
+        finalXGID: ghostData.finalXGID
+      })
+    }
+  }
+
   // Clear engine analysis
   const handleClearEngineAnalysis = () => {
     setEngineAnalysis(null)
     setEngineDebug(null)
     handleClearGhosts() // Also clear ghosts when clearing analysis
+    setSavedGhostData(null) // Clear saved ghost data when clearing analysis
   }
 
   // Handle engine difficulty changes
@@ -623,6 +694,8 @@ export default function BoardEditorPage() {
                     ghostCheckerOwners={showGhosts ? suggestedGhostCheckerOwners : {}}
                     moves={showGhosts ? suggestedMoves : []}
                     onClearGhosts={handleClearGhosts}
+                    onShowGhosts={handleShowGhosts}
+                    ghostsVisible={showGhosts}
                     dice="00"
                     showTrays={true}
                     onPlayerChange={setCurrentPlayer}
