@@ -70,10 +70,14 @@ export function applyMove(xgid, move, player = 'white') {
     // Position 1 is the top checker, position 2 is second from top, etc.
     const fromStackPosition = fromPointData.count
     
+    // Check if this move will hit a blot BEFORE calculating toStackPosition
+    const willHitBlot = toPointData.count === 1 && toPointData.owner && toPointData.owner !== movingPlayer
+    
     // Track the destination stack position (where the checker will land)
     // Position 1 is the top checker, position 2 is second from top, etc.
-    // The checker lands on top of any existing checkers
-    const toStackPosition = toPointData.count + 1
+    // If hitting a blot, the arrow should point to position 1 (where the blot was)
+    // Otherwise, the checker lands on top of any existing checkers
+    const toStackPosition = willHitBlot ? 1 : (toPointData.count + 1)
     
     // Add ghost checker at the original position (store owner before removing checker)
     if (!ghostCheckers[fromPoint]) {
@@ -93,7 +97,7 @@ export function applyMove(xgid, move, player = 'white') {
     }
     
     // Handle hitting: if landing on point with exactly 1 opponent checker
-    if (toPointData.count === 1 && toPointData.owner && toPointData.owner !== movingPlayer) {
+    if (willHitBlot) {
       // Hit the opponent checker - send it to bar
       if (toPointData.owner === 'black') {
         boardState.blackBar++

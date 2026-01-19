@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import BackgammonBoard from '../opening-moves/components/BackgammonBoard'
 import { parseXGID } from '../opening-moves/utils/xgidParser'
+import { applyMove } from '../opening-moves/utils/moveApplier'
 
 export default function BoardEditorPage() {
   const { user } = useAuth()
@@ -18,6 +19,14 @@ export default function BoardEditorPage() {
   const [xgidInputValue, setXgidInputValue] = useState(STARTING_XGID) // Current input value
   const [xgidError, setXgidError] = useState(null) // Validation error message
   const [usedDice, setUsedDice] = useState([]) // Track dice that have been used in the current turn
+
+  // Ghost checkers and arrows for suggested move
+  const [suggestedGhostCheckers, setSuggestedGhostCheckers] = useState({})
+  const [suggestedGhostCheckerPositions, setSuggestedGhostCheckerPositions] = useState({})
+  const [suggestedGhostCheckerOwners, setSuggestedGhostCheckerOwners] = useState({})
+  const [suggestedMoves, setSuggestedMoves] = useState([])
+  const [showGhosts, setShowGhosts] = useState(false) // Track if ghosts should be displayed
+  const [suggestedMoveXGID, setSuggestedMoveXGID] = useState(null) // Final XGID after applying suggested move
 
   // Engine analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -65,6 +74,16 @@ export default function BoardEditorPage() {
       }
 
       setEngineAnalysis(result)
+      // Automatically show ghost checkers when a move is suggested
+      if (result.move) {
+        const ghostData = convertMoveToGhostCheckers(result.move, boardXGID)
+        setSuggestedGhostCheckers(ghostData.ghostCheckers)
+        setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+        setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+        setSuggestedMoves(ghostData.moves)
+        setSuggestedMoveXGID(ghostData.finalXGID) // Store final XGID after applying move (for board display)
+        setShowGhosts(true)
+      }
     } catch (error) {
       console.error('Engine analysis failed:', error)
       setEngineAnalysis({
@@ -78,10 +97,288 @@ export default function BoardEditorPage() {
     }
   }
 
+  // Convert engine move to move string and apply it using applyMove (like the Quiz)
+  const convertMoveToGhostCheckers = (move, boardXGID) => {
+    if (!move || !boardXGID) {
+      return {
+        finalXGID: boardXGID,
+        ghostCheckers: {},
+        ghostCheckerPositions: {},
+        ghostCheckerOwners: {},
+        moves: []
+      }
+    }
+
+    const boardState = parseXGID(boardXGID)
+    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    const moveOwner = currentPlayer === 1 ? 'white' : 'black'
+
+    // Helper to convert absolute to relative (current player's perspective)
+    const absoluteToRelative = (absolutePoint) => {
+      if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint
+      if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint
+      if (currentPlayer === 1) return absolutePoint // White: absolute = relative
+      return 25 - absolutePoint // Black: relative = 25 - absolute
+    }
+
+    // Convert engine move to move string format for applyMove
+    // IMPORTANT: Do NOT collapse sequences here - applyMove needs the full sequence
+    const moveParts = []
+    
+    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
+      for (const singleMove of move.moves) {
+        const fromAbs = singleMove.from
+        const toAbs = singleMove.to
+
+        // Skip bar and off positions
+        if (fromAbs < 1 || fromAbs > 24 || toAbs < 1 || toAbs > 24) continue
+
+        // Convert to relative coordinates (current player's perspective)
+        const fromRel = absoluteToRelative(fromAbs)
+        const toRel = absoluteToRelative(toAbs)
+
+        // Format as move string (e.g., "24/18" or "13/10*")
+        const asterisk = singleMove.hitBlot ? '*' : ''
+        moveParts.push(`${fromRel}/${toRel}${asterisk}`)
+      }
+    } else if (move.from !== undefined && move.to !== undefined) {
+      // Single move
+      const fromAbs = move.from
+      const toAbs = move.to
+
+      if (fromAbs >= 1 && fromAbs <= 24 && toAbs >= 1 && toAbs <= 24) {
+        const fromRel = absoluteToRelative(fromAbs)
+        const toRel = absoluteToRelative(toAbs)
+        const asterisk = move.hitBlot ? '*' : ''
+        moveParts.push(`${fromRel}/${toRel}${asterisk}`)
+      }
+    }
+
+    // If no valid moves, return empty result
+    if (moveParts.length === 0) {
+      return {
+        finalXGID: boardXGID,
+        ghostCheckers: {},
+        ghostCheckerPositions: {},
+        ghostCheckerOwners: {},
+        moves: []
+      }
+    }
+
+    // Join move parts with spaces (e.g., "13/10 10/8")
+    const moveString = moveParts.join(' ')
+
+    // Use applyMove directly (like the Quiz does)
+    const result = applyMove(boardXGID, moveString, moveOwner)
+
+    // Collapse sequences in moves array for arrow display only
+    // Remove ghosts from intermediate points in sequences
+    const collapsedMoves = []
+    const updatedGhostCheckers = { ...result.ghostCheckers }
+    const updatedGhostCheckerPositions = { ...result.ghostCheckerPositions }
+    const updatedGhostCheckerOwners = { ...result.ghostCheckerOwners }
+    
+    console.log('[convertMoveToGhostCheckers] Processing moves for collapse:', {
+      moveString,
+      moveParts,
+      resultMoves: result.moves,
+      originalGhostCheckers: result.ghostCheckers
+    })
+    
+    let i = 0
+    while (i < result.moves.length) {
+      const currentMove = result.moves[i]
+      
+      // Check if this move hits a blot
+      const movePartIndex = i < moveParts.length ? i : -1
+      const hitsBlot = movePartIndex >= 0 && moveParts[movePartIndex].includes('*')
+      
+      // If this move hits a blot, don't collapse - add it separately
+      if (hitsBlot) {
+        collapsedMoves.push(currentMove)
+        i++
+        continue
+      }
+      
+      // Try to form a sequence
+      // A sequence is when the same checker moves multiple times: e.g., 13/10 then 10/8
+      // IMPORTANT: Only collapse if nextMove.from === sequenceEnd (same checker continuing)
+      // Do NOT collapse if multiple different checkers move to the same destination
+      let sequenceStart = currentMove.from
+      let sequenceEnd = currentMove.to
+      let sequenceFromStack = currentMove.fromStackPosition
+      const intermediatePoints = []
+      let j = i + 1
+      
+      // Check if next moves form a sequence (same checker moving, no hits)
+      while (j < result.moves.length) {
+        const nextMove = result.moves[j]
+        const nextMovePartIndex = j < moveParts.length ? j : -1
+        const nextHitsBlot = nextMovePartIndex >= 0 && moveParts[nextMovePartIndex].includes('*')
+        
+        // Only continue sequence if next move starts where current sequence ends (same checker)
+        // AND the next move doesn't hit a blot
+        if (nextMove.from === sequenceEnd && !nextHitsBlot) {
+          // This is an intermediate point - the checker landed here and continues moving
+          intermediatePoints.push(sequenceEnd)
+          sequenceEnd = nextMove.to
+          j++
+        } else {
+          // Not a sequence - different checker or hits a blot
+          break
+        }
+      }
+      
+      // If we found a sequence (j > i + 1 means we found at least one continuation)
+      if (j > i + 1) {
+        console.log('[convertMoveToGhostCheckers] Collapsing sequence:', {
+          sequenceStart,
+          sequenceEnd,
+          intermediatePoints,
+          currentMove,
+          nextMoves: result.moves.slice(i + 1, j)
+        })
+        // Remove ghosts from intermediate points
+        // For each intermediate point, count how many moves in the sequence start from it
+        // and how many other moves (outside the sequence) start from it
+        for (const intermediatePoint of intermediatePoints) {
+          // Find the index of the move in the sequence that starts from this intermediate point
+          const sequenceMoveIndex = result.moves.findIndex((move, idx) => 
+            idx > i && idx < j && move.from === intermediatePoint
+          )
+          
+          // Count how many moves AFTER the sequence start from this point
+          const movesAfterSequence = result.moves.filter((move, idx) => 
+            idx >= j && move.from === intermediatePoint
+          ).length
+          
+          // Count how many moves BEFORE the sequence start from this point
+          const movesBeforeSequence = result.moves.filter((move, idx) => 
+            idx < i && move.from === intermediatePoint
+          ).length
+          
+          const totalOtherMoves = movesBeforeSequence + movesAfterSequence
+          
+          console.log('[convertMoveToGhostCheckers] Intermediate point analysis:', {
+            intermediatePoint,
+            sequenceMoveIndex,
+            movesBeforeSequence,
+            movesAfterSequence,
+            totalOtherMoves,
+            originalGhostCount: (result.ghostCheckers[intermediatePoint] || []).length
+          })
+          
+          if (totalOtherMoves === 0) {
+            // No other moves start from this point, remove all ghosts (they're all from the sequence)
+            console.log('[convertMoveToGhostCheckers] Removing all ghosts from intermediate point:', intermediatePoint)
+            delete updatedGhostCheckers[intermediatePoint]
+            delete updatedGhostCheckerPositions[intermediatePoint]
+            delete updatedGhostCheckerOwners[intermediatePoint]
+          } else {
+            // Other moves start from this point - need to remove ghosts from sequence but keep ghosts from other moves
+            const originalPositions = [...(result.ghostCheckerPositions[intermediatePoint] || [])]
+            const originalCount = originalPositions.length
+            
+            // Count how many moves in the sequence start from this intermediate point
+            const sequenceMovesFromPoint = result.moves.slice(i + 1, j).filter(m => m.from === intermediatePoint).length
+            
+            // We want to keep ghosts for other moves, remove ghosts for sequence moves
+            const ghostsToKeep = totalOtherMoves
+            const ghostsToRemove = sequenceMovesFromPoint
+            
+            if (originalCount === ghostsToKeep + ghostsToRemove && ghostsToRemove > 0) {
+              // Ghost count matches - remove ghosts from sequence moves
+              // Since applyMove adds ghosts in move order:
+              // - First: ghosts from movesBeforeSequence
+              // - Then: ghosts from sequence moves
+              // - Finally: ghosts from movesAfterSequence
+              // We want to keep: movesBeforeSequence + movesAfterSequence ghosts
+              // Remove: sequenceMovesFromPoint ghosts (which come after movesBeforeSequence)
+              const positionsToKeep = [
+                ...originalPositions.slice(0, movesBeforeSequence), // Keep ghosts from moves before sequence
+                ...originalPositions.slice(movesBeforeSequence + ghostsToRemove) // Skip sequence ghosts, keep rest
+              ]
+              
+              updatedGhostCheckers[intermediatePoint] = positionsToKeep.length
+              updatedGhostCheckerPositions[intermediatePoint] = positionsToKeep
+              
+              console.log('[convertMoveToGhostCheckers] Removing', ghostsToRemove, 'ghost(s) from intermediate point (sequence), keeping', ghostsToKeep, ':', intermediatePoint, {
+                keptPositions: positionsToKeep.length,
+                originalPositions: originalPositions.length
+              })
+            } else {
+              console.warn('[convertMoveToGhostCheckers] Cannot remove ghosts - count mismatch:', {
+                originalCount,
+                ghostsToKeep,
+                ghostsToRemove,
+                expectedTotal: ghostsToKeep + ghostsToRemove
+              })
+              // Don't modify if counts don't match - safer to keep all ghosts
+            }
+          }
+        }
+        
+        // Add collapsed move
+        collapsedMoves.push({
+          from: sequenceStart,
+          to: sequenceEnd,
+          fromStackPosition: sequenceFromStack,
+          toStackPosition: result.moves[j - 1].toStackPosition
+        })
+      } else {
+        // Not a sequence, add as-is (keep ghost at source point)
+        console.log('[convertMoveToGhostCheckers] Not a sequence, keeping move as-is:', {
+          currentMove,
+          from: currentMove.from,
+          to: currentMove.to
+        })
+        collapsedMoves.push(currentMove)
+      }
+      i = j
+    }
+
+    console.log('[convertMoveToGhostCheckers] Final result:', {
+      originalGhostCheckers: result.ghostCheckers,
+      updatedGhostCheckers,
+      collapsedMoves
+    })
+
+    return {
+      finalXGID: result.xgid,
+      ghostCheckers: updatedGhostCheckers,
+      ghostCheckerPositions: updatedGhostCheckerPositions,
+      ghostCheckerOwners: updatedGhostCheckerOwners,
+      moves: collapsedMoves
+    }
+  }
+
+  // Show suggested move with ghost checkers and arrows
+  const handleShowSuggestedMove = () => {
+    if (!engineAnalysis || !engineAnalysis.move) return
+
+    const ghostData = convertMoveToGhostCheckers(engineAnalysis.move, boardXGID)
+    setSuggestedGhostCheckers(ghostData.ghostCheckers)
+    setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+    setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+    setSuggestedMoves(ghostData.moves)
+    setShowGhosts(true)
+  }
+
+  // Clear ghost checkers and arrows (but keep suggested move text)
+  const handleClearGhosts = () => {
+    setSuggestedGhostCheckers({})
+    setSuggestedGhostCheckerPositions({})
+    setSuggestedGhostCheckerOwners({})
+    setSuggestedMoves([])
+    setSuggestedMoveXGID(null)
+    setShowGhosts(false)
+  }
+
   // Clear engine analysis
   const handleClearEngineAnalysis = () => {
     setEngineAnalysis(null)
     setEngineDebug(null)
+    handleClearGhosts() // Also clear ghosts when clearing analysis
   }
 
   // Handle engine difficulty changes
@@ -319,11 +616,13 @@ export default function BoardEditorPage() {
                     showBoardLabels={false} 
                     showPointNumbers={true}
                     useCube={true}
-                    xgid={boardXGID}
-                    ghostCheckers={{}}
-                    ghostCheckerPositions={{}}
-                    ghostCheckerOwners={{}}
-                    moves={[]}
+                    xgid={showGhosts && suggestedMoveXGID ? suggestedMoveXGID : boardXGID} // Use final state when showing ghosts (like Quiz)
+                    originalXGID={boardXGID} // Always pass original state for applying moves
+                    ghostCheckers={showGhosts ? suggestedGhostCheckers : {}}
+                    ghostCheckerPositions={showGhosts ? suggestedGhostCheckerPositions : {}}
+                    ghostCheckerOwners={showGhosts ? suggestedGhostCheckerOwners : {}}
+                    moves={showGhosts ? suggestedMoves : []}
+                    onClearGhosts={handleClearGhosts}
                     dice="00"
                     showTrays={true}
                     onPlayerChange={setCurrentPlayer}
@@ -346,6 +645,17 @@ export default function BoardEditorPage() {
                       
                       if (diceCleared || playerChanged) {
                         handleClearEngineAnalysis()
+                      }
+                      
+                      // Update ghost checkers if board changed and we have a suggested move
+                      // Only update if the board changed due to external reasons (not from applying the suggested move)
+                      if (showGhosts && engineAnalysis && engineAnalysis.move && newXGID !== suggestedMoveXGID) {
+                        const ghostData = convertMoveToGhostCheckers(engineAnalysis.move, newXGID)
+                        setSuggestedGhostCheckers(ghostData.ghostCheckers)
+                        setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+                        setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+                        setSuggestedMoves(ghostData.moves)
+                        setSuggestedMoveXGID(ghostData.finalXGID)
                       }
                     }}
                     aiAnalysis={engineAnalysis}

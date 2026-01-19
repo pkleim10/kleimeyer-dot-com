@@ -14,6 +14,7 @@ export default function BackgammonBoard({
   cubeValue = 4, // Exponent: 0-6, displayed value = 2^cubeValue (0 displays as 64)
   useCube = true,
   xgid = null,
+  originalXGID = null, // Original board state before ghosts (for applying moves)
   ghostCheckers = {}, // Object mapping point numbers (1-24) to ghost checker counts, e.g. { 6: 2, 17: 1 }
   ghostCheckerPositions = {}, // Object mapping point numbers to arrays of stack positions, e.g. { 13: [5, 4] }
   ghostCheckerOwners = {}, // Object mapping point numbers to owner ('black' or 'white') for ghost checkers
@@ -1273,8 +1274,11 @@ export default function BackgammonBoard({
     const normalDisplayCount = Math.min(normalCount, 5)
     const showCount = totalVisualCount > 5
     
+    // Base fill color for normal checkers
+    const normalFillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
+    
     for (let i = 0; i < normalDisplayCount; i++) {
-      const fillColor = effectiveOwner === 'bottom' ? COLORS.checkerWhite : COLORS.checkerBlack
+      const fillColor = normalFillColor
       const isLastNormalChecker = i === normalDisplayCount - 1 && ghostCount === 0
       const stackPosition = i + 1 // 1-based position from top
       // When there are more than 5 checkers, only 5 are displayed visually.
@@ -1531,11 +1535,13 @@ export default function BackgammonBoard({
         const m1Parts = m1.moveStr.split('/')
         const m2Parts = m2.moveStr.split('/')
         // Check if same checker (second move starts where first ends)
-        if (m1Parts[1] === m2Parts[0]) {
+        // IMPORTANT: Do NOT collapse if first move hits a blot (hitting stops the sequence)
+        if (m1Parts[1] === m2Parts[0] && !m1.hitBlot) {
           const asterisk = m2.hitBlot ? '*' : ''
           return `${m1Parts[0]}/${m2Parts[1]}${asterisk}`
         }
-        // Two different checkers - order by highest starting point first
+        // Two different checkers OR sequence with hit - show both moves
+        // Order by highest starting point first
         const sorted = convertedMoves.sort((a, b) => {
           const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
           const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
@@ -1544,7 +1550,38 @@ export default function BackgammonBoard({
         return sorted.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
       }
       
-      return convertedMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+      // For 3+ moves, collapse sequences but don't collapse if any move hits a blot
+      // Process moves to collapse sequences (same checker moving) but stop at hits
+      const formattedParts = []
+      let i = 0
+      while (i < convertedMoves.length) {
+        // If this move hits a blot, add it separately (hitting stops the sequence)
+        if (convertedMoves[i].hitBlot) {
+          formattedParts.push(`${convertedMoves[i].moveStr}*`)
+          i++
+          continue
+        }
+        
+        // Try to form a sequence starting from this move
+        let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
+        let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
+        let j = i + 1
+        
+        // Check if this is part of a sequence (same checker moving)
+        // Only continue if next move starts where this one ends AND doesn't hit a blot
+        while (j < convertedMoves.length && 
+               convertedMoves[j].moveStr.split('/')[0] === sequenceEnd && 
+               !convertedMoves[j].hitBlot) {
+          sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
+          j++
+        }
+        
+        // Add collapsed move (or single move if not a sequence)
+        formattedParts.push(`${sequenceStart}/${sequenceEnd}`)
+        i = j // Move to next non-sequence move
+      }
+      
+      return formattedParts.join(' ')
     }
 
     // Handle single moves - check if move has from/to properties
@@ -1568,7 +1605,9 @@ export default function BackgammonBoard({
   const applyAIMove = (move) => {
     if (!move) return
 
-    const currentXGID = editableXGID || effectiveXGID || xgid
+    // Use originalXGID if provided (for applying moves from original state when showing ghosts)
+    // Otherwise use editableXGID or effectiveXGID or xgid
+    const currentXGID = originalXGID || editableXGID || effectiveXGID || xgid
     if (!currentXGID) return
 
     const boardState = parseXGID(currentXGID)
@@ -1615,8 +1654,25 @@ export default function BackgammonBoard({
       })
       
       for (const singleMove of move.moves) {
-        // Validate move belongs to correct player
-        if (!validateMove(singleMove)) {
+        // Validate move against CURRENT board state (updated after previous moves)
+        const currentBoardState = parseXGID(updatedXGID)
+        const validateMoveAgainstCurrentState = (m) => {
+          if (m.from >= 1 && m.from <= 24) {
+            const fromPoint = currentBoardState.points[m.from - 1]
+            if (!fromPoint || fromPoint.owner !== moveOwner || fromPoint.count === 0) {
+              console.error('Invalid move: checker does not belong to current player', {
+                from: m.from,
+                expectedOwner: moveOwner,
+                actualOwner: fromPoint?.owner,
+                count: fromPoint?.count
+              })
+              return false
+            }
+          }
+          return true
+        }
+        
+        if (!validateMoveAgainstCurrentState(singleMove)) {
           console.error('Skipping invalid move:', singleMove)
           continue
         }
@@ -1633,7 +1689,8 @@ export default function BackgammonBoard({
           absolute: { from: singleMove.from, to: singleMove.to },
           relative: { from: fromRelative, to: toRelative },
           currentPlayer,
-          moveOwner
+          moveOwner,
+          currentBoardState: currentBoardState.points.map((p, i) => ({ point: i + 1, owner: p.owner, count: p.count }))
         })
         
         const previousXGID = updatedXGID
@@ -3507,9 +3564,31 @@ export default function BackgammonBoard({
           style={{ width: `${BOARD_WIDTH}px`, maxWidth: '100%' }}
         >
           <div className="bg-purple-50 dark:bg-purple-900/95 rounded-lg shadow-lg border border-purple-200 dark:border-purple-700 px-6 py-3">
-            <p className="text-purple-900 dark:text-purple-100 text-lg font-semibold text-center">
-              Suggested Move: <span className="font-mono">{formatMoveForDisplay(aiAnalysis.move)}</span>
-            </p>
+            <div className="flex items-center justify-center gap-4">
+              <p className="text-purple-900 dark:text-purple-100 text-lg font-semibold">
+                Suggested Move: <span className="font-mono">{formatMoveForDisplay(aiAnalysis.move)}</span>
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    applyAIMove(aiAnalysis.move)
+                    // Clear ghosts after applying move
+                    if (onClearGhosts) {
+                      onClearGhosts()
+                    }
+                  }}
+                  className="px-4 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium transition-colors"
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={() => onClearGhosts && onClearGhosts()}
+                  className="px-4 py-1.5 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 text-sm font-medium transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
