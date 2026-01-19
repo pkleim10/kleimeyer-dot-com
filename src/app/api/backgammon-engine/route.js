@@ -1,7 +1,9 @@
 /**
- * Backgammon AI Analysis API Route
- * Provides server-side AI analysis with access to environment variables
+ * Backgammon Engine API Route
+ * Provides server-side hybrid heuristic + Monte Carlo engine for move analysis
  */
+
+import { getLegalMoves } from './getLegalMoves'
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
@@ -117,29 +119,61 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
   // Sort by hybrid score descending
   evaluations.sort((a, b) => b.hybridScore - a.hybridScore)
 
-  const bestEvaluation = evaluations[0]
-  const bestMove = bestEvaluation.move
-  const reasoning = `Hybrid evaluation selected ${formatMove(bestMove)} with score ${evaluations[0].hybridScore.toFixed(3)}`
+    const bestEvaluation = evaluations[0]
+    const bestMove = bestEvaluation.move
+    // Get current player from boardState for coordinate conversion
+    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    const formattedMove = formatMove(bestMove, currentPlayer)
+    const reasoning = `Hybrid evaluation selected ${formattedMove} with score ${evaluations[0].hybridScore.toFixed(3)}`
 
-  return {
-    bestMoveIndex: 0, // Just use the first (best) evaluation's move
-    reasoning,
-    confidence: 0.9, // High confidence for deterministic evaluation
-    factorScores: evaluations.map((evaluation, idx) => ({
-      moveNumber: idx + 1,
-      moveDescription: formatMove(evaluation.move),
-      scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`
-    })),
-    bestMove: bestMove
-  }
+    // Find the index of bestMove in the original moves array
+    const bestMoveIndex = moves.findIndex(m => {
+      // Compare moves by checking if they have the same structure
+      if (m.moves && bestMove.moves) {
+        // Both are combinations - compare move sequences
+        if (m.moves.length !== bestMove.moves.length) return false
+        return m.moves.every((moveItem, idx) => 
+          moveItem.from === bestMove.moves[idx].from && 
+          moveItem.to === bestMove.moves[idx].to
+        )
+      } else if (!m.moves && !bestMove.moves) {
+        // Both are single moves
+        return m.from === bestMove.from && m.to === bestMove.to
+      }
+      return false
+    })
+
+    return {
+      bestMoveIndex: bestMoveIndex >= 0 ? bestMoveIndex : 0, // Use found index or fallback to 0
+      reasoning,
+      confidence: 0.9, // High confidence for deterministic evaluation
+      factorScores: evaluations.map((evaluation, idx) => ({
+        moveNumber: idx + 1,
+        moveDescription: formatMove(evaluation.move, currentPlayer),
+        scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`
+      })),
+      bestMove: bestMove // Keep reference to actual best move
+    }
 }
 
 /**
  * Validate hybrid suggestion and return move combination
  */
 function validateAndReturnMove(hybridAnalysis, moves) {
-  const { bestMoveIndex, reasoning, confidence, factorScores } = hybridAnalysis
+  const { bestMoveIndex, reasoning, confidence, factorScores, bestMove } = hybridAnalysis
 
+  // Prefer using bestMove directly if available (most reliable)
+  if (bestMove) {
+    return {
+      move: bestMove,
+      reasoning: reasoning,
+      confidence: confidence,
+      factorScores: factorScores,
+      source: 'hybrid'
+    }
+  }
+
+  // Fallback to using index if bestMove not available
   if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
     const selectedCombination = moves[bestMoveIndex]
     return {
@@ -151,7 +185,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
     }
   }
 
-  // Fallback to first combination
+  // Final fallback to first combination
   return {
     move: moves[0],
     reasoning: "Hybrid evaluation failed, using first move",
@@ -286,223 +320,13 @@ function parseXGID(xgid) {
   }
 }
 
-// Generate move combinations that use both dice when possible
-function getLegalMoves(boardState, turnState) {
-  const moveCombinations = []
 
-  if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
-    return moveCombinations
-  }
-
-  const owner = turnState.currentPlayer
-  const currentPlayer = owner === 'white' ? 1 : -1
-  const dice = [...turnState.dice]
-  const [die1, die2] = dice
-
-  const getPlayerPoints = state => {
-    const points = []
-    for (let point = 1; point <= 24; point++) {
-      const pointData = state.points[point - 1]
-      if (pointData.owner === owner && pointData.count > 0) {
-        points.push(point)
-      }
-    }
-    return points
-  }
-
-  const buildMove = (state, fromPoint, die) => {
-    const move = canMakeMove(state, owner, currentPlayer, fromPoint, die)
-    if (!move) return null
-    const toData = state.points[move.to - 1]
-    move.owner = owner
-    move.hitBlot = toData.count === 1 && toData.owner && toData.owner !== owner
-    return move
-  }
-
-  const orderPair = (first, second) => {
-    if (first.from !== second.from) {
-      return first.from > second.from ? [first, second] : [second, first]
-    }
-    return first.to >= second.to ? [first, second] : [second, first]
-  }
-
-  const buildDescription = moves => {
-    if (moves.length === 1) {
-      return `${moves[0].from}/${moves[0].to}`
-    }
-    const [m1, m2] = moves
-    const sameChecker = m2.from === m1.to
-    if (sameChecker && !m1.hitBlot) {
-      return `${m1.from}/${m2.to}`
-    }
-    if (!sameChecker) {
-      const [first, second] = orderPair(m1, m2)
-      return `${first.from}/${first.to}, ${second.from}/${second.to}`
-    }
-    const a = `${m1.from}/${m1.to}`
-    const b = `${m2.from}/${m2.to}`
-    return `${a}, ${b}`
-  }
-
-  const buildKey = moves => {
-    if (moves.length === 1) {
-      return `single:${moves[0].from}/${moves[0].to}`
-    }
-    const [m1, m2] = moves
-    const sameChecker = m2.from === m1.to
-    if (sameChecker && m1.hitBlot) {
-      return `seq:${m1.from}/${m1.to}>${m2.to}`
-    }
-    if (sameChecker) {
-      return `single:${m1.from}/${m2.to}`
-    }
-    const [first, second] = orderPair(m1, m2)
-    const a = `${first.from}/${first.to}`
-    const b = `${second.from}/${second.to}`
-    return `pair:${a}|${b}`
-  }
-
-  const diceOrders = die2 && die1 !== die2
-    ? [[die1, die2], [die2, die1]]
-    : [[die1, die2]]
-
-  const allCombos = []
-  for (const [firstDie, secondDie] of diceOrders) {
-    const pointsFirst = getPlayerPoints(boardState)
-    for (const point of pointsFirst) {
-      const move1 = buildMove(boardState, point, firstDie)
-      if (!move1) continue
-      const tempBoard = applyMoveToBoard(boardState, move1)
-      const pointsSecond = getPlayerPoints(tempBoard)
-      for (const point2 of pointsSecond) {
-        const move2 = buildMove(tempBoard, point2, secondDie)
-        if (!move2) continue
-        allCombos.push({
-          moves: [move1, move2],
-          description: buildDescription([move1, move2]),
-          totalPips: firstDie + secondDie
-        })
-      }
-    }
-  }
-
-  const unique = new Map()
-  for (const combo of allCombos) {
-    const key = buildKey(combo.moves)
-    if (!unique.has(key)) {
-      unique.set(key, combo)
-    }
-  }
-
-  if (unique.size > 0) {
-    return Array.from(unique.values())
-  }
-
-  const playerPoints = getPlayerPoints(boardState)
-  if (playerPoints.length === 0) return moveCombinations
-
-  const sortedDice = [...dice].sort((a, b) => b - a)
-  const [bigDie, smallDie] = sortedDice
-
-  for (const point of playerPoints) {
-    const move = buildMove(boardState, point, bigDie)
-    if (move) {
-        moveCombinations.push({
-        moves: [move],
-        description: `${point}/${move.to}`,
-        totalPips: bigDie
-      })
-      return moveCombinations
-    }
-  }
-
-  if (smallDie) {
-    for (const point of playerPoints) {
-      const move = buildMove(boardState, point, smallDie)
-      if (move) {
-        moveCombinations.push({
-          moves: [move],
-          description: `${point}/${move.to}`,
-          totalPips: smallDie
-        })
-        break
-      }
-    }
-  }
-
-  return moveCombinations
-}
-
-// Helper function to check if a move is valid
-function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
-  const direction = currentPlayer === 1 ? -1 : 1 // White moves down, black moves up
-  const toPoint = fromPoint + (direction * die)
-
-  if (toPoint < 1 || toPoint > 24) return null
-
-  const fromData = boardState.points[fromPoint - 1]
-  const toData = boardState.points[toPoint - 1]
-
-  // Must have checker on from point
-  if (fromData.owner !== owner || fromData.count === 0) return null
-
-  // Can move to empty point, own point, or hit single opponent checker
-  if (
-    toData.count === 0 ||
-    toData.owner === owner ||
-    (toData.count === 1 && toData.owner !== owner)
-  ) {
-    return {
-      from: fromPoint,
-      to: toPoint,
-      count: 1,
-      die: die
-    }
-  }
-
-  return null
-}
-
-// Helper function to apply a move to board state (for checking subsequent moves)
-function applyMoveToBoard(boardState, move) {
-  const newBoard = {
-    ...boardState,
-    points: boardState.points.map(point => ({ ...point }))
-  }
-
-  const fromIndex = move.from - 1
-  const toIndex = move.to - 1
-
-  // Remove checker from source
-  newBoard.points[fromIndex].count -= move.count
-  if (newBoard.points[fromIndex].count === 0) {
-    newBoard.points[fromIndex].owner = null
-  }
-
-  // Add checker to destination
-  if (newBoard.points[toIndex].count === 0) {
-    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
-    newBoard.points[toIndex].count = move.count
-  } else if (newBoard.points[toIndex].count === 1 && newBoard.points[toIndex].owner !== (move.owner || boardState.points[fromIndex].owner)) {
-    // Hit opponent's blot - move to bar
-    const opponent = newBoard.points[toIndex].owner
-    if (opponent === 'white') {
-      newBoard.whiteBar += 1
-    } else {
-      newBoard.blackBar += 1
-    }
-    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
-    newBoard.points[toIndex].count = move.count
-  } else {
-    newBoard.points[toIndex].count += move.count
-  }
-
-  return newBoard
-}
+// Export functions for testing (re-export getLegalMoves from module)
+export { parseXGID, createTurnState, getLegalMoves }
 
 export async function POST(request) {
   try {
-    const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false } = await request.json()
+    const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false, usedDice = [] } = await request.json()
 
     // Validate input
     if (!xgid) {
@@ -518,6 +342,10 @@ export async function POST(request) {
 
     // Create turn state for legal move generation
     const turnState = createTurnState(boardState, player)
+    // If usedDice is provided, update turn state to reflect already used dice
+    if (usedDice && usedDice.length > 0) {
+      turnState.usedDice = usedDice
+    }
     const allLegalMoves = getLegalMoves(boardState, turnState)
 
     // Collect debug information
@@ -538,7 +366,7 @@ export async function POST(request) {
       })
     }
 
-    // Get top legal moves for AI analysis
+    // Get top legal moves for engine analysis
     const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
 
     // Get hybrid engine analysis
@@ -560,12 +388,12 @@ export async function POST(request) {
     return Response.json(result)
 
   } catch (error) {
-    console.error('Backgammon AI API error:', error)
+    console.error('Backgammon Engine API error:', error)
 
     // Return fallback response
     return Response.json({
       move: null,
-      reasoning: 'AI analysis failed due to server error',
+      reasoning: 'Engine analysis failed due to server error',
       confidence: 0.1,
       source: 'error'
     }, { status: 200 })
@@ -577,9 +405,15 @@ export async function POST(request) {
  */
 function createTurnState(boardState, player) {
   const owner = player === 1 ? 'white' : 'black'
-  const dice = boardState.dice && boardState.dice !== '00'
-    ? [parseInt(boardState.dice[0]), parseInt(boardState.dice[1])]
-    : []
+  let dice = []
+  if (boardState.dice && boardState.dice !== '00') {
+    const die1 = parseInt(boardState.dice[0])
+    const die2 = parseInt(boardState.dice[1])
+    if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
+      // Doubles: if both dice are the same, allow 4 moves of that number
+      dice = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
+    }
+  }
 
   return {
     currentPlayer: owner,
@@ -592,7 +426,7 @@ function createTurnState(boardState, player) {
 }
 
 /**
- * Select diverse top legal move combinations for AI analysis
+ * Select diverse top legal move combinations for engine analysis
  */
 function selectTopLegalMoves(allMoves, maxMoves) {
   // For now, just return the best combinations
@@ -602,7 +436,7 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 }
 
 // ============================================================================
-// DETERMINISTIC ENGINE - Verified calculations for hybrid AI system
+// DETERMINISTIC ENGINE - Verified calculations for hybrid engine system
 // ============================================================================
 
 function cloneBoardState(boardState) {
@@ -999,134 +833,80 @@ function checkPrimeLength(boardState, playerOwner) {
 }
 
 
-/**
- * Call xAI for strategic analysis
- */
-
 
 /**
- * Build HYBRID prompt with verified deterministic data
+ * Format move for display - converts absolute coordinates to relative based on player
  */
-function buildHybridPrompt(
-  xgid,
-  moves,
-  verifiedAnalyses,
-  difficulty,
-  player,
-  gameContext = null,
-  adjustedWeights = null,
-  includeFactorScores = false
-) {
-  const parts = xgid.split(':')
-  const dice = parts[4] || '00'
-  const playerNum = parseInt(parts[3] || '1')
-  const playerColor = playerNum === 1 ? 'WHITE' : 'BLACK'
-
-  const verifiedMoveData = verifiedAnalyses.map(analysis => {
-    const blotSummary = analysis.blots.count === 0
-      ? 'NO BLOTS'
-      : analysis.blots.risks.map(r =>
-        `Pt${r.blotPoint}[${r.zone}]: ${(r.totalProbability * 100).toFixed(0)}% hit × ${(r.hitImpact * 100).toFixed(0)}% impact`
-      ).join('; ')
-
-    const pointsMadeSummary = analysis.pointsMade.totalNewPoints === 0
-      ? 'No new points'
-      : `MAKES ${analysis.pointsMade.newlyMade.map(p => `${p}-point`).join(', ')}`
-
-    const hitsSummary = analysis.hits.count === 0
-      ? 'No hits'
-      : `HITS ${analysis.hits.details.map(h => `pt${h.hitPoint}`).join(', ')}`
-
-    return `MOVE ${analysis.moveNumber}: ${analysis.moveDescription}
-• Blots: ${analysis.blots.count} | ${blotSummary}
-• Weighted Risk: ${(analysis.blots.combinedWeightedRisk * 100).toFixed(1)}% (${analysis.blots.overallRiskLevel})
-• Points Made: ${pointsMadeSummary}
-• Hits: ${hitsSummary} | Pip Gain: ${analysis.pips.gain}`
-  }).join('\n\n')
-
-  const contextBlock = (ENABLE_CONTEXT_ADJUSTMENTS && gameContext)
-    ? `\nGAME CONTEXT (VERIFIED): Stage=${gameContext.stage} | Type=${gameContext.type} | Contact=${gameContext.contact ? 'YES' : 'NO'}\n`
-    : ''
-
-  const responseFormat = includeFactorScores
-    ? `Respond with format:
-BEST_MOVE: [move number]
-FACTOR_SCORES: For each move, output one concise line:
-MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
-REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
-CONFIDENCE: [0.0-1.0]`
-    : `Respond with format:
-BEST_MOVE: [move number]
-REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
-CONFIDENCE: [0.0-1.0]`
-
-  return `You are a ${difficulty} level backgammon strategist analyzing from ${playerColor}'s perspective.
-ALL calculations below are VERIFIED and CORRECT - do NOT recalculate them.
-
-POSITION: ${playerColor} to move | Dice: ${dice}
-${contextBlock}
-
-VERIFIED MOVE ANALYSES (GOSPEL - TRUST THESE COMPLETELY):
-${verifiedMoveData}
-
-RATE EACH FACTOR ON A 1-10 SCALE (1 = very poor, 10 = excellent).
-Using the VERIFIED data above, rate each move using the 7 strategic factors (with corresponding weight):
-Hitting (${adjustedWeights?.H ?? BASE_FACTOR_WEIGHTS.H}), Development (${adjustedWeights?.D ?? BASE_FACTOR_WEIGHTS.D}), Safety (${adjustedWeights?.S ?? BASE_FACTOR_WEIGHTS.S}), Pressure (${adjustedWeights?.P ?? BASE_FACTOR_WEIGHTS.P}), Diversity (${adjustedWeights?.Dv ?? BASE_FACTOR_WEIGHTS.Dv}), Timing (${adjustedWeights?.T ?? BASE_FACTOR_WEIGHTS.T}), Flexibility (${adjustedWeights?.F ?? BASE_FACTOR_WEIGHTS.F}).
-Use these weights (already adjusted for context) to compute a weighted total for each move, then choose the best move.
-
-EARLY OPENING GUIDANCE (money play, XG rollouts):
-- Slightly favor aggressive slots or builders on golden/outer points (5pt, 4pt, 7pt, 11pt) when weighted risk <40% — the long-term prime-building, duplication, and flexibility upside very often outweighs moderate hit risk.
-- ZERO-RISK key-point slots are especially powerful: making the 5-point or 4-point with no blot left (e.g., 8/5 6/5 on 3-1, 8/4 6/4 on 4-2) is almost always the top play due to immediate home board strength and prime potential.
-- When two moves have close totals, prioritize the one that makes or slots a golden point (5pt/4pt) over purely safe builder/split plays.
-
-FEW-SHOT EXAMPLE FOR 21 (2-1):
-Best: 13/11 6/5 (slot 5pt + builder). Equity ~+0.506.
-D=9–10 (key slot), S=6–7 (med risk acceptable), P=6–7, TOTAL highest.
-Close alt: 13/11 24/23 (safer split). Equity ~+0.500.
-
-FEW-SHOT EXAMPLE FOR 32 (3-2):
-Best: 13/11 13/10 (aggressive double builder down, small blot on 11). Equity edge.
-D=9–10 (high flex), S=7–8 (low hit risk), TOTAL highest.
-Close alt: 13/11 24/21 (safer split + builder).
-
-FEW-SHOT EXAMPLE FOR 41 (4-1):
-Best: 24/23 13/9 (run + builder). Equity ~+0.45.
-D=9–10 (strong builder), P=7–8 (anchor pressure), S=8–9 (low risk), TOTAL highest.
-Close alt: 13/9 6/5 (5pt slot). Med risk, slightly lower equity.
-
-FEW-SHOT EXAMPLE FOR 43 (4-3):
-Best: 13/10 13/9 (aggressive double builder down from midpoint to 10 and 9, small blot on 9). Equity edge.
-D=9–10 (high outer flex), S=8–9 (low hit risk), P=6–7, TOTAL highest.
-Close alt: 24/20 13/10 (deep anchor + builder). Higher P but lower long-term structure.
-
-FEW-SHOT EXAMPLE FOR 62 (6-2):
-Best: 24/18 13/11 (deep run + builder down). Equity ~+0.49.
-D=9–10 (race + outer flex), S=9–10 (zero risk), P=7–8, TOTAL highest.
-Close alt: 13/5 (risky home run). High blot exposure, lower equity.
-
-FEW-SHOT EXAMPLE FOR 53 (5-3):
-Best: 8/3 6/3 (zero-risk slot 3pt with both dice). Equity ~+0.49.
-D=9–10 (strong home slot), S=10 (zero risk), P=9 (immediate holding), TOTAL highest.
-Close alt: 13/8 8/5 (builder + 5pt slot). Moderate risk blot, slightly lower equity.
-
-In EARLY game, when totals close, prefer zero-risk home slots (3pt/4pt/5pt) over moderate-risk 5pt slots with builder.
-
-${responseFormat}`
-}
-
-/**
- * Parse AI response
- */
-
-/**
- * Format move for display
- */
-function formatMove(move) {
+function formatMove(move, player = null) {
+  if (!move) return 'No move'
+  
+  // Helper to convert absolute to relative coordinates
+  const absoluteToRelative = (absolutePoint, currentPlayer) => {
+    if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint // Bar positions stay as-is
+    if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint // Off positions stay as-is
+    if (currentPlayer === 1) return absolutePoint // White: absolute = relative
+    return 25 - absolutePoint // Black: relative = 25 - absolute
+  }
+  
   if (move.moves) {
     // This is a combination of moves
-    return move.description
+    if (player === null) {
+      // Fallback: use description as-is if player not provided
+      return move.description || 'No move'
+    }
+    
+    // If description exists and player is white (1), we can use it directly
+    // since descriptions are built in absolute coordinates which match white's relative coordinates
+    if (move.description && player === 1) {
+      return move.description
+    }
+    
+    // For black or when description not available, convert coordinates
+    // Convert each move in the combination
+    const convertedMoves = move.moves.map(m => {
+      const fromRel = absoluteToRelative(m.from, player)
+      const toRel = absoluteToRelative(m.to, player)
+      const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+      const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+      const asterisk = m.hitBlot ? '*' : ''
+      return { from, to, moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
+    })
+    
+    // Group identical moves for proper notation (including hitBlot status)
+    const moveGroups = new Map()
+    for (const convertedMove of convertedMoves) {
+      const key = `${convertedMove.moveStr}:${convertedMove.hitBlot ? 'hit' : 'safe'}`
+      if (!moveGroups.has(key)) {
+        moveGroups.set(key, { ...convertedMove, count: 0 })
+      }
+      moveGroups.get(key).count++
+    }
+    
+    const parts = []
+    for (const group of moveGroups.values()) {
+      const asterisk = group.hitBlot ? '*' : ''
+      if (group.count > 1) {
+        parts.push(`${group.moveStr}(${group.count})${asterisk}`)
+      } else {
+        parts.push(`${group.moveStr}${asterisk}`)
+      }
+    }
+    
+    // Sort by highest starting point first
+    parts.sort((a, b) => {
+      const aFrom = parseInt(a.split('/')[0]) || 0
+      const bFrom = parseInt(b.split('/')[0]) || 0
+      return bFrom - aFrom
+    })
+    
+    return parts.join(' ')
   }
-  const from = move.from === 0 ? 'bar' : move.from === 25 ? 'bar' : move.from
-  const to = move.to === -1 ? 'off' : move.to === -2 ? 'off' : move.to
-  return `${from}/${to}`
+  
+  // Single move
+  const fromRel = absoluteToRelative(move.from, player || 1)
+  const toRel = absoluteToRelative(move.to, player || 1)
+  const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+  const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+  const asterisk = move.hitBlot ? '*' : ''
+  return `${from}/${to}${asterisk}`
 }

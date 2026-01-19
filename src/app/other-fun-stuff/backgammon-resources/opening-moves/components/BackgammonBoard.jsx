@@ -26,12 +26,13 @@ export default function BackgammonBoard({
   isEditable = false, // Enables interactive features (drag-and-drop, clickable dice/cube)
   editingMode = 'free', // 'free' = any checker anywhere, 'play' = legal moves only
   onChange = null, // Callback when board state changes: (xgid: string) => void
-  aiAnalysis = null, // AI analysis result object
-  aiDebug = null, // Debug/trace information from AI
-  aiDifficulty = 'intermediate', // AI difficulty level: 'beginner', 'intermediate', 'advanced', 'grandmaster'
-  onAiDifficultyChange = null, // Callback for AI difficulty changes: (difficulty) => void
-  onAiAnalysis = null, // Callback to trigger AI analysis: () => Promise<void>
-  onClearAiAnalysis = null // Callback to clear AI analysis: () => void
+  aiAnalysis = null, // Engine analysis result object (prop name kept for backward compatibility)
+  aiDebug = null, // Debug/trace information from engine (prop name kept for backward compatibility)
+  aiDifficulty = 'intermediate', // Engine difficulty level: 'beginner', 'intermediate', 'advanced', 'grandmaster' (prop name kept for backward compatibility)
+  onAiDifficultyChange = null, // Callback for engine difficulty changes: (difficulty) => void
+  onAiAnalysis = null, // Callback to trigger engine analysis: () => Promise<void>
+  onClearAiAnalysis = null, // Callback to clear engine analysis: () => void
+  onUsedDiceChange = null // Callback when used dice changes: (usedDice: number[]) => void
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
@@ -281,11 +282,11 @@ export default function BackgammonBoard({
   const activeShowBoardLabels = localSettings?.showBoardLabels !== undefined ? localSettings.showBoardLabels : showBoardLabels
   
   // Override with localSettings only if user has explicitly changed them, otherwise use XGID/props
-  // In PLAY mode, always use the XGID player (authoritative during gameplay), otherwise use localSettings override
+  // In PLAY mode, always use the XGID values (authoritative during gameplay), otherwise use localSettings override
   const finalEffectivePlayer = effectiveEditingMode === 'play' ? effectivePlayer : (localSettings?.player !== undefined ? localSettings.player : effectivePlayer)
-  const finalEffectiveCubeOwner = localSettings?.cubeOwner !== undefined ? localSettings.cubeOwner : effectiveCubeOwner
-  const finalEffectiveCubeValue = localSettings?.cubeValue !== undefined ? localSettings.cubeValue : effectiveCubeValue
-  const finalEffectiveDice = localSettings?.dice !== undefined ? localSettings.dice : effectiveDice
+  const finalEffectiveCubeOwner = effectiveEditingMode === 'play' ? effectiveCubeOwner : (localSettings?.cubeOwner !== undefined ? localSettings.cubeOwner : effectiveCubeOwner)
+  const finalEffectiveCubeValue = effectiveEditingMode === 'play' ? effectiveCubeValue : (localSettings?.cubeValue !== undefined ? localSettings.cubeValue : effectiveCubeValue)
+  const finalEffectiveDice = effectiveEditingMode === 'play' ? effectiveDice : (localSettings?.dice !== undefined ? localSettings.dice : effectiveDice)
   const finalEffectiveUseCube = localSettings?.useCube !== undefined ? localSettings.useCube : useCube
   
   // Border widths - initial calculation
@@ -1485,15 +1486,83 @@ export default function BackgammonBoard({
   const formatMoveForDisplay = (move) => {
     if (!move) return 'No move available'
 
-    // Handle move combinations
-    if (move.moves) {
+    // Get current player from board state for coordinate conversion
+    // Use the same XGID source as applyAIMove to ensure consistency
+    const currentXGID = editableXGID || effectiveXGID || xgid
+    const boardState = parseXGID(currentXGID)
+    const currentPlayer = boardState?.player !== undefined ? boardState.player : finalEffectivePlayer
+    
+    // Helper to convert absolute to relative coordinates
+    const absoluteToRelative = (absolutePoint, player) => {
+      if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint // Bar positions stay as-is
+      if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint // Off positions stay as-is
+      if (player === 1) return absolutePoint // White: absolute = relative
+      return 25 - absolutePoint // Black: relative = 25 - absolute
+    }
+
+    // Handle move combinations - check for moves array first
+    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
+      console.log('[formatMoveForDisplay] Formatting move combination:', {
+        move,
+        moves: move.moves,
+        currentPlayer,
+        description: move.description
+      })
+      
+      // Convert each move in the combination
+      const convertedMoves = move.moves.map(m => {
+        const fromRel = absoluteToRelative(m.from, currentPlayer)
+        const toRel = absoluteToRelative(m.to, currentPlayer)
+        const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+        const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+        const asterisk = m.hitBlot ? '*' : ''
+        console.log('[formatMoveForDisplay] Converting move:', {
+          absolute: { from: m.from, to: m.to },
+          relative: { from: fromRel, to: toRel },
+          display: `${from}/${to}${asterisk}`,
+          hitBlot: m.hitBlot
+        })
+        return { moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
+      })
+      
+      // Format as combined move (same checker or two checkers)
+      if (convertedMoves.length === 2) {
+        const [m1, m2] = convertedMoves
+        const m1Parts = m1.moveStr.split('/')
+        const m2Parts = m2.moveStr.split('/')
+        // Check if same checker (second move starts where first ends)
+        if (m1Parts[1] === m2Parts[0]) {
+          const asterisk = m2.hitBlot ? '*' : ''
+          return `${m1Parts[0]}/${m2Parts[1]}${asterisk}`
+        }
+        // Two different checkers - order by highest starting point first
+        const sorted = convertedMoves.sort((a, b) => {
+          const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
+          const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
+          return bFrom - aFrom
+        })
+        return sorted.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+      }
+      
+      return convertedMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
+    }
+
+    // Handle single moves - check if move has from/to properties
+    if (move.from !== undefined && move.to !== undefined) {
+      const fromRel = absoluteToRelative(move.from, currentPlayer)
+      const toRel = absoluteToRelative(move.to, currentPlayer)
+      const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
+      const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
+      const asterisk = move.hitBlot ? '*' : ''
+      return `${from}/${to}${asterisk}`
+    }
+
+    // Fallback to description if available
+    if (move.description) {
       return move.description
     }
 
-    // Handle single moves
-    const from = move.from === 0 ? 'bar' : move.from === 25 ? 'bar' : move.from
-    const to = move.to === -1 ? 'off' : move.to === -2 ? 'off' : move.to
-    return `${from}/${to}`
+    return 'Invalid move format'
   }
 
   const applyAIMove = (move) => {
@@ -1502,16 +1571,98 @@ export default function BackgammonBoard({
     const currentXGID = editableXGID || effectiveXGID || xgid
     if (!currentXGID) return
 
+    const boardState = parseXGID(currentXGID)
+    // Use boardState.player to determine whose turn it is and which checkers to move
+    // This must match what updateXGIDForMove expects
+    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    // moveOwner must match the current player whose turn it is
+    const moveOwner = currentPlayer === 1 ? 'white' : 'black'
+    
+    // Helper to convert absolute coordinates (from API) to relative coordinates (for updateXGIDForMove)
+    // updateXGIDForMove expects relative coordinates and will convert them back using boardState.player
+    // So we need to convert absolute -> relative based on boardState.player
+    const absoluteToRelative = (absolutePoint, player) => {
+      if (player === 1) return absolutePoint // White: absolute = relative
+      return 25 - absolutePoint // Black: relative = 25 - absolute
+    }
+    
+    // Validate that moves belong to the correct player
+    const validateMove = (m) => {
+      if (m.from >= 1 && m.from <= 24) {
+        const fromPoint = boardState.points[m.from - 1]
+        if (!fromPoint || fromPoint.owner !== moveOwner || fromPoint.count === 0) {
+          console.error('Invalid move: checker does not belong to current player', {
+            from: m.from,
+            expectedOwner: moveOwner,
+            actualOwner: fromPoint?.owner,
+            count: fromPoint?.count
+          })
+          return false
+        }
+      }
+      return true
+    }
+
     let updatedXGID = currentXGID
 
     // Handle move combinations
-    if (move.moves) {
+    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
+      console.log('Applying move combination:', {
+        moves: move.moves,
+        description: move.description,
+        currentPlayer,
+        moveOwner
+      })
+      
       for (const singleMove of move.moves) {
-        updatedXGID = updateXGIDForMove(updatedXGID, singleMove.from, singleMove.to, singleMove.count || 1, singleMove.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+        // Validate move belongs to correct player
+        if (!validateMove(singleMove)) {
+          console.error('Skipping invalid move:', singleMove)
+          continue
+        }
+        
+        // Convert absolute coordinates to relative coordinates based on current player's perspective
+        const fromRelative = singleMove.from >= 1 && singleMove.from <= 24 
+          ? absoluteToRelative(singleMove.from, currentPlayer)
+          : singleMove.from // Bar positions (0, 25) stay as-is
+        const toRelative = singleMove.to >= 1 && singleMove.to <= 24
+          ? absoluteToRelative(singleMove.to, currentPlayer)
+          : singleMove.to // Bar positions (0, 25) stay as-is
+        
+        console.log('Applying single move:', {
+          absolute: { from: singleMove.from, to: singleMove.to },
+          relative: { from: fromRelative, to: toRelative },
+          currentPlayer,
+          moveOwner
+        })
+        
+        const previousXGID = updatedXGID
+        updatedXGID = updateXGIDForMove(updatedXGID, fromRelative, toRelative, singleMove.count || 1, moveOwner)
+        
+        // Check if move was actually applied (XGID should change)
+        if (updatedXGID === previousXGID) {
+          console.warn('Move was not applied:', { fromRelative, toRelative, singleMove })
+        } else {
+          console.log('Move applied successfully')
+        }
       }
     } else {
+      // Validate move belongs to correct player
+      if (!validateMove(move)) {
+        console.error('Skipping invalid move:', move)
+        return currentXGID
+      }
+      
       // Handle single move
-      updatedXGID = updateXGIDForMove(updatedXGID, move.from, move.to, move.count || 1, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+      // Convert absolute coordinates to relative coordinates based on current player's perspective
+      const fromRelative = move.from >= 1 && move.from <= 24
+        ? absoluteToRelative(move.from, currentPlayer)
+        : move.from // Bar positions (0, 25) stay as-is
+      const toRelative = move.to >= 1 && move.to <= 24
+        ? absoluteToRelative(move.to, currentPlayer)
+        : move.to // Bar positions (0, 25) stay as-is
+      
+      updatedXGID = updateXGIDForMove(updatedXGID, fromRelative, toRelative, move.count || 1, moveOwner)
     }
 
     // Don't call setEditableXGID yet - wait until after turn state handling
@@ -1522,10 +1673,20 @@ export default function BackgammonBoard({
       const usedDiceValues = []
       let availableDice = [...getAvailableDice(turnState.dice, turnState.usedDice || [])]
 
+      // Helper to convert absolute coordinates to relative coordinates
+      const absoluteToRelative = (absolutePoint, player) => {
+        if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint // Bar positions stay as-is
+        if (player === 1) return absolutePoint // White: absolute = relative
+        return 25 - absolutePoint // Black: relative = 25 - absolute
+      }
+
       if (move.moves) {
         // Handle move combinations - each move should use exactly one die
         for (const singleMove of move.moves) {
-          const distance = calculateMoveDistance(singleMove.from, singleMove.to, singleMove.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+          // Convert absolute coordinates to relative coordinates for distance calculation
+          const fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
+          const toRelative = absoluteToRelative(singleMove.to, currentPlayer)
+          const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
           if (distance !== null && distance > 0) {
             // Find an available die that matches this distance
             const matchingDieIndex = availableDice.indexOf(distance)
@@ -1537,7 +1698,10 @@ export default function BackgammonBoard({
         }
       } else {
         // Handle single move
-        const distance = calculateMoveDistance(move.from, move.to, move.owner || (finalEffectivePlayer === 1 ? 'white' : 'black'))
+        // Convert absolute coordinates to relative coordinates for distance calculation
+        const fromRelative = absoluteToRelative(move.from, currentPlayer)
+        const toRelative = absoluteToRelative(move.to, currentPlayer)
+        const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
         if (distance !== null && distance > 0) {
           // Find an available die that matches this distance
           const matchingDieIndex = availableDice.indexOf(distance)
@@ -1566,6 +1730,11 @@ export default function BackgammonBoard({
 
         setEditableXGID(finalXGID)
         setTurnState(null)
+        
+        // Notify parent that used dice should be reset (turn complete)
+        if (onUsedDiceChange) {
+          onUsedDiceChange([])
+        }
 
         if (onChange) {
           onChange(finalXGID)
@@ -1573,10 +1742,16 @@ export default function BackgammonBoard({
       } else {
         // Partial turn - update board but don't switch player
         setEditableXGID(updatedXGID)
-        setTurnState({
+        const updatedTurnState = {
           ...turnState,
           usedDice: newUsedDice
-        })
+        }
+        setTurnState(updatedTurnState)
+        
+        // Notify parent of used dice change
+        if (onUsedDiceChange) {
+          onUsedDiceChange(newUsedDice)
+        }
 
         if (onChange) {
           onChange(updatedXGID)
@@ -2908,16 +3083,25 @@ export default function BackgammonBoard({
     const modifiedParts = [parts[0]] // Always keep xg1 (checker positions)
     
     // Update xg2 (cubeValue) with current effective value
-    modifiedParts[1] = String(finalEffectiveCubeValue)
+    modifiedParts[1] = String(finalEffectiveCubeValue ?? 0)
     
     // Update xg3 (cubeOwner) with current effective value
-    modifiedParts[2] = String(finalEffectiveCubeOwner)
+    modifiedParts[2] = String(finalEffectiveCubeOwner ?? 0)
     
-    // Update xg4 (player) with current effective value
-    modifiedParts[3] = String(finalEffectivePlayer)
+    // Update xg4 (player) with current effective value - ensure it's -1 or 1
+    const playerValue = finalEffectivePlayer ?? 1
+    modifiedParts[3] = String(playerValue === -1 ? -1 : 1)
     
-    // Update xg5 (dice) with current effective value
-    modifiedParts[4] = finalEffectiveDice
+    // Update xg5 (dice) with current effective value - ensure it's a valid 2-digit string
+    let diceValue = finalEffectiveDice
+    if (!diceValue || typeof diceValue !== 'string' || diceValue.length !== 2) {
+      diceValue = '00' // Default to "00" if invalid
+    }
+    // Validate dice format: should be "00" or two digits 1-6
+    if (!/^[0-6]{2}$/.test(diceValue)) {
+      diceValue = '00' // Default to "00" if invalid format
+    }
+    modifiedParts[4] = diceValue
     
     // Preserve xg6-xg10 from original XGID, or use defaults if missing
     for (let i = 5; i < 10; i++) {
@@ -3316,6 +3500,20 @@ export default function BackgammonBoard({
         </div>
       )}
       
+      {/* Suggested Move Display - Centered above board */}
+      {aiAnalysis && aiAnalysis.move && (
+        <div
+          className="w-full flex flex-col items-center mb-4"
+          style={{ width: `${BOARD_WIDTH}px`, maxWidth: '100%' }}
+        >
+          <div className="bg-purple-50 dark:bg-purple-900/95 rounded-lg shadow-lg border border-purple-200 dark:border-purple-700 px-6 py-3">
+            <p className="text-purple-900 dark:text-purple-100 text-lg font-semibold text-center">
+              Suggested Move: <span className="font-mono">{formatMoveForDisplay(aiAnalysis.move)}</span>
+            </p>
+          </div>
+        </div>
+      )}
+      
       <svg
         width={BOARD_WIDTH}
         height={effectiveBoardHeight}
@@ -3540,67 +3738,6 @@ export default function BackgammonBoard({
         
       </svg>
       
-      {/* AI Analysis Panel */}
-      {aiAnalysis && (
-        <div
-          className="fixed z-30 bg-purple-50 dark:bg-purple-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-purple-200 dark:border-purple-700 p-4 max-w-sm cursor-move select-none"
-          style={{
-            left: `${aiWindowPosition.x}px`,
-            top: `${aiWindowPosition.y}px`,
-            maxWidth: '400px'
-          }}
-          onMouseDown={handleAiMouseDown}
-          onDragStart={(e) => e.preventDefault()} // Prevent default drag behavior
-        >
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
-              AI Move ({aiDifficulty})
-            </h3>
-            <button
-              onClick={() => onClearAiAnalysis && onClearAiAnalysis()}
-              className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-purple-700 dark:text-purple-300">
-                {Math.round(aiAnalysis.confidence * 100)}% confident
-              </span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                aiAnalysis.source === 'ai' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                aiAnalysis.source === 'fallback' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-              }`}>
-                {aiAnalysis.source === 'ai' ? 'AI' : aiAnalysis.source === 'fallback' ? 'Fallback' : 'Error'}
-              </span>
-            </div>
-
-            {aiAnalysis.move && (
-              <p className="text-purple-800 dark:text-purple-200 text-sm">
-                <strong>Move:</strong> {formatMoveForDisplay(aiAnalysis.move)}
-              </p>
-            )}
-            <p className="text-purple-700 dark:text-purple-300 text-xs leading-relaxed">
-              {aiAnalysis.reasoning}
-            </p>
-
-            {aiAnalysis.move && (
-              <button
-                onClick={() => applyAIMove(aiAnalysis.move)}
-                className="w-full mt-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs font-medium"
-              >
-                Apply Move
-            </button>
-            )}
-          </div>
-        </div>
-      )}
-      
       {/* Information bar */}
       <div 
         className="w-full text-center py-3 px-4"
@@ -3629,7 +3766,7 @@ export default function BackgammonBoard({
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legal Moves Generated:</h4>
+                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legal Moves:</h4>
                 <div className="max-h-32 overflow-y-auto">
                   {aiDebug.legalMoves && aiDebug.legalMoves.map((move, i) => (
                     <code key={i} className="block p-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono text-gray-900 dark:text-gray-100 mb-1">
@@ -3637,20 +3774,6 @@ export default function BackgammonBoard({
                     </code>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Full Prompt Sent to AI:</h4>
-              <div className="max-h-40 overflow-y-auto p-3 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-                {aiDebug.prompt}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Complete AI Response:</h4>
-              <div className="max-h-40 overflow-y-auto p-3 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-                {aiDebug.response}
               </div>
             </div>
           </div>

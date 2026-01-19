@@ -17,53 +17,59 @@ export default function BoardEditorPage() {
   const [editingMode, setEditingMode] = useState('free') // 'free' or 'play'
   const [xgidInputValue, setXgidInputValue] = useState(STARTING_XGID) // Current input value
   const [xgidError, setXgidError] = useState(null) // Validation error message
+  const [usedDice, setUsedDice] = useState([]) // Track dice that have been used in the current turn
 
-  // AI analysis state
+  // Engine analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [aiAnalysis, setAiAnalysis] = useState(null)
-  const [aiDebug, setAiDebug] = useState(null) // Debug/trace information
-  const [aiDifficulty, setAiDifficulty] = useState(() => {
+  const [engineAnalysis, setEngineAnalysis] = useState(null)
+  const [engineDebug, setEngineDebug] = useState(null) // Debug/trace information
+  const [engineDifficulty, setEngineDifficulty] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('backgammonAiDifficulty') || 'intermediate'
+      return localStorage.getItem('backgammonEngineDifficulty') || 'intermediate'
     }
     return 'intermediate'
   })
 
-  // Get AI move analysis
-  const handleAiAnalysis = async () => {
+  // Get engine move analysis
+  const handleEngineAnalysis = async () => {
     if (editingMode !== 'play') return
 
     setIsAnalyzing(true)
-    setAiAnalysis(null)
-    setAiDebug(null)
+    setEngineAnalysis(null)
+    setEngineDebug(null)
 
     try {
-      const response = await fetch('/api/backgammon-ai', {
+      // Parse XGID to get the actual current player from the board state
+      const boardState = parseXGID(boardXGID)
+      const actualPlayer = boardState.player !== undefined ? boardState.player : currentPlayer
+      
+      const response = await fetch('/api/backgammon-engine', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           xgid: boardXGID,
-          player: currentPlayer,
-          difficulty: aiDifficulty,
+          player: actualPlayer, // Use actual player from XGID, not state variable
+          difficulty: engineDifficulty,
           maxMoves: 5,
-          debug: true // Request debug information
+          debug: true, // Request debug information
+          usedDice: usedDice // Pass used dice so API knows which dice are still available
         })
       })
 
       const result = await response.json()
 
       if (result.debug) {
-        setAiDebug(result.debug)
+        setEngineDebug(result.debug)
       }
 
-      setAiAnalysis(result)
+      setEngineAnalysis(result)
     } catch (error) {
-      console.error('AI analysis failed:', error)
-      setAiAnalysis({
+      console.error('Engine analysis failed:', error)
+      setEngineAnalysis({
         move: null,
-        reasoning: 'AI analysis failed due to technical error',
+        reasoning: 'Engine analysis failed due to technical error',
         confidence: 0,
         source: 'error'
       })
@@ -72,15 +78,15 @@ export default function BoardEditorPage() {
     }
   }
 
-  // Clear AI analysis
-  const handleClearAiAnalysis = () => {
-    setAiAnalysis(null)
-    setAiDebug(null)
+  // Clear engine analysis
+  const handleClearEngineAnalysis = () => {
+    setEngineAnalysis(null)
+    setEngineDebug(null)
   }
 
-  // Handle AI difficulty changes
-  const handleAiDifficultyChange = (difficulty) => {
-    setAiDifficulty(difficulty)
+  // Handle engine difficulty changes
+  const handleEngineDifficultyChange = (difficulty) => {
+    setEngineDifficulty(difficulty)
   }
 
   // Sync input value when boardXGID changes externally
@@ -90,12 +96,32 @@ export default function BoardEditorPage() {
     setXgidError(null)
   }, [boardXGID])
 
-  // Save AI difficulty to localStorage
+  // Keep currentPlayer in sync with boardState.player from XGID
+  // This ensures currentPlayer always reflects the authoritative player from the board state
+  useEffect(() => {
+    const boardState = parseXGID(boardXGID)
+    if (boardState && boardState.player !== undefined) {
+      const xgidPlayer = boardState.player
+      const prevPlayer = currentPlayer
+      
+      // Update currentPlayer to match XGID player (source of truth)
+      setCurrentPlayer(xgidPlayer)
+      
+      // Reset usedDice when:
+      // 1. Dice are cleared (turn complete) - "00"
+      // 2. Player changes (new turn)
+      if (boardState.dice === '00' || (prevPlayer !== undefined && prevPlayer !== xgidPlayer)) {
+        setUsedDice([])
+      }
+    }
+  }, [boardXGID, currentPlayer]) // Depend on both to detect player changes
+
+  // Save engine difficulty to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('backgammonAiDifficulty', aiDifficulty)
+      localStorage.setItem('backgammonEngineDifficulty', engineDifficulty)
     }
-  }, [aiDifficulty])
+  }, [engineDifficulty])
 
   // Validate XGID string components
   const validateXGID = (xgid) => {
@@ -198,11 +224,11 @@ export default function BoardEditorPage() {
                   </svg>
                 </div>
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent dark:from-amber-400 dark:to-orange-400">
-                  Board Editor
+                  Play Backgammon
                 </h1>
               </div>
               <p className="text-gray-600 dark:text-gray-400 text-lg">
-                Edit and configure backgammon board settings
+                Play backgammon with an AI engine. Edit board positions, analyze moves, and practice your game.
               </p>
             </div>
           </div>
@@ -220,7 +246,10 @@ export default function BoardEditorPage() {
               <div className="flex justify-center mb-4">
                 <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-1">
                   <button
-                    onClick={() => setEditingMode('free')}
+                    onClick={() => {
+                      setEditingMode('free')
+                      handleClearEngineAnalysis() // Clear engine analysis when switching to EDIT mode
+                    }}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       editingMode === 'free'
                         ? 'bg-amber-500 text-white shadow-sm'
@@ -241,7 +270,13 @@ export default function BoardEditorPage() {
                   </button>
                   <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                   <button
-                    onClick={() => setBoardXGID(STARTING_XGID)}
+                    onClick={() => {
+                      // Reset to starting position and clear game state
+                      setBoardXGID(STARTING_XGID)
+                      setUsedDice([]) // Clear used dice tracking
+                      handleClearEngineAnalysis() // Clear engine analysis when starting new game
+                      // Note: STARTING_XGID already has player=1 (white) and dice=00 (cleared)
+                    }}
                     className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                   >
                     Start
@@ -253,7 +288,7 @@ export default function BoardEditorPage() {
                     const needsToRoll = boardState && boardState.dice === '00'
                     return (
                       <button
-                        onClick={handleAiAnalysis}
+                        onClick={handleEngineAnalysis}
                         disabled={isAnalyzing || editingMode !== 'play' || needsToRoll}
                         className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
@@ -264,7 +299,7 @@ export default function BoardEditorPage() {
                           </>
                         ) : (
                           <>
-                            🤖 Get AI Move
+                            💡 Suggest Move
                           </>
                         )}
                       </button>
@@ -295,13 +330,31 @@ export default function BoardEditorPage() {
                     showOptions={true}
                     isEditable={true}
                     editingMode={editingMode}
-                    onChange={setBoardXGID}
-                    aiAnalysis={aiAnalysis}
-                    aiDebug={aiDebug}
-                    aiDifficulty={aiDifficulty}
-                    onAiDifficultyChange={handleAiDifficultyChange}
-                    onAiAnalysis={handleAiAnalysis}
-                    onClearAiAnalysis={handleClearAiAnalysis}
+                    onChange={(newXGID) => {
+                      const prevBoardState = parseXGID(boardXGID)
+                      const newBoardState = parseXGID(newXGID)
+                      
+                      setBoardXGID(newXGID)
+                      
+                      // Clear engine analysis only when turn is complete:
+                      // 1. Dice are cleared (00) - turn complete
+                      // 2. Player changed - turn complete
+                      const diceCleared = prevBoardState?.dice !== '00' && newBoardState?.dice === '00'
+                      const playerChanged = prevBoardState?.player !== undefined && 
+                                           newBoardState?.player !== undefined && 
+                                           prevBoardState.player !== newBoardState.player
+                      
+                      if (diceCleared || playerChanged) {
+                        handleClearEngineAnalysis()
+                      }
+                    }}
+                    aiAnalysis={engineAnalysis}
+                    aiDebug={engineDebug}
+                    aiDifficulty={engineDifficulty}
+                    onAiDifficultyChange={handleEngineDifficultyChange}
+                    onAiAnalysis={handleEngineAnalysis}
+                    onClearAiAnalysis={handleClearEngineAnalysis}
+                    onUsedDiceChange={setUsedDice}
                   />
                 </div>
               </div>

@@ -10,10 +10,29 @@ jest.mock('next/navigation', () => ({
   usePathname: () => mockPathname
 }))
 
+// Mock the supabase utilities first (before AuthContext is loaded)
+jest.mock('@/utils/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn(() => Promise.resolve({ data: { session: null }, error: null })),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: null }, unsubscribe: jest.fn() }))
+    },
+    from: jest.fn(() => ({
+      select: jest.fn(() => Promise.resolve({ data: [], error: null }))
+    }))
+  },
+  uploadImage: jest.fn(() => Promise.resolve('https://example.com/image.jpg'))
+}))
+
 // Mock the useAuth hook
 jest.mock('@/contexts/AuthContext', () => ({
   ...jest.requireActual('@/contexts/AuthContext'),
   useAuth: jest.fn()
+}))
+
+// Mock usePermissions hook
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: jest.fn()
 }))
 
 // Mock RecipeEditModal
@@ -49,6 +68,7 @@ jest.mock('../RecipeDeleteModal', () => {
 })
 
 const { useAuth } = require('@/contexts/AuthContext')
+const { usePermissions } = require('@/hooks/usePermissions')
 
 const mockRecipe = {
   id: '1',
@@ -69,6 +89,14 @@ const mockCategories = [
 
 const renderWithAuth = (component, user = null) => {
   useAuth.mockReturnValue({ user })
+  // Mock permissions: canEditRecipe/canDeleteRecipe are true for family/admin users
+  const isFamilyOrAdmin = user && (user.email?.includes('admin') || user.email?.includes('family'))
+  usePermissions.mockReturnValue({
+    canCreateRecipe: isFamilyOrAdmin || false,
+    canEditRecipe: isFamilyOrAdmin || false,
+    canDeleteRecipe: isFamilyOrAdmin || false,
+    loading: false
+  })
   return render(component)
 }
 

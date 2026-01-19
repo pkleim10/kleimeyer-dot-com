@@ -13,6 +13,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "coverage:open": "open -a 'Brave Browser' coverage/lcov-report/index.html",
     "clean": "rm -rf .next node_modules/.cache",
     "assign-family-role": "node scripts/assign-family-role.js",
     "test-documents-api": "node scripts/test-documents-api.js",
@@ -34,7 +35,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^17.2.1",
-    "jspdf": "^3.0.0",
+    "jspdf": "^3.0.`0",
     "next": "^15.5.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

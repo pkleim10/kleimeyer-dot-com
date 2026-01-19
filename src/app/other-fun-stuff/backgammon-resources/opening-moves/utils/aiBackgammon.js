@@ -1,6 +1,6 @@
 /**
- * Hybrid AI Backgammon System
- * Combines local rule validation with AI strategic analysis via API
+ * Hybrid Engine Backgammon System
+ * Combines local rule validation with hybrid heuristic + Monte Carlo engine via API
  */
 
 // Difficulty levels map to different analysis depths
@@ -11,12 +11,12 @@ const DIFFICULTY_PROMPTS = {
   grandmaster: "Deep strategic analysis with long-term planning"
 }
 
-// Cache for AI responses to avoid repeated API calls
+// Cache for engine responses to avoid repeated API calls
 const analysisCache = new Map()
 const CACHE_DURATION = 1000 * 60 * 60 // 1 hour
 
 /**
- * Get AI move recommendation with local validation
+ * Get engine move recommendation with local validation
  */
 export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMoves = 5) {
   try {
@@ -27,8 +27,8 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
       return cached.result
     }
 
-    // Call the server-side AI API
-    const response = await fetch('/api/backgammon-ai', {
+    // Call the server-side engine API
+    const response = await fetch('/api/backgammon-engine', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
     })
 
     if (!response.ok) {
-      throw new Error(`AI API error: ${response.status}`)
+      throw new Error(`Engine API error: ${response.status}`)
     }
 
     const result = await response.json()
@@ -52,7 +52,7 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
     return result
 
   } catch (error) {
-    console.error('AI analysis failed:', error)
+    console.error('Engine analysis failed:', error)
     // Fallback to conservative heuristic
     return getConservativeFallback(xgid, player)
   }
@@ -78,7 +78,7 @@ function createTurnState(boardState, player) {
 }
 
 /**
- * Select diverse top legal moves for AI analysis
+ * Select diverse top legal moves for engine analysis
  */
 function selectTopLegalMoves(allMoves, maxMoves) {
   // Group moves by strategic categories
@@ -112,10 +112,10 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 }
 
 /**
- * Call AI analysis API route
+ * Call engine analysis API route
  */
 async function analyzeMovesWithAI(xgid, moves, difficulty) {
-  const response = await fetch('/api/backgammon-ai', {
+  const response = await fetch('/api/backgammon-engine', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -129,7 +129,7 @@ async function analyzeMovesWithAI(xgid, moves, difficulty) {
   })
 
   if (!response.ok) {
-    throw new Error(`AI API error: ${response.status}`)
+    throw new Error(`Engine API error: ${response.status}`)
   }
 
   const result = await response.json()
@@ -183,13 +183,13 @@ function validateAndReturnMove(aiAnalysis, moves) {
 }
 
 /**
- * Conservative fallback when AI fails
+ * Conservative fallback when engine fails
  */
 function getConservativeFallback(xgid, player) {
   // Simple heuristics: prefer bearing off, avoid blots, etc.
   return {
     move: null,
-    reasoning: "AI analysis unavailable, using conservative strategy",
+    reasoning: "Engine analysis unavailable, using conservative strategy",
     confidence: 0.2,
     source: 'fallback'
   }

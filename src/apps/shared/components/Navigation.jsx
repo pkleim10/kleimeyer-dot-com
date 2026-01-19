@@ -133,7 +133,7 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         if (context.page === 'opening-moves') {
           breadcrumbs.push({ name: 'Opening Moves Quiz', href: '/other-fun-stuff/backgammon-resources/opening-moves', current: true })
         } else if (context.page === 'board-editor') {
-          breadcrumbs.push({ name: 'Board Editor', href: '/other-fun-stuff/backgammon-resources/board-editor', current: true })
+          breadcrumbs.push({ name: 'Play Backgammon', href: '/other-fun-stuff/backgammon-resources/board-editor', current: true })
         }
       }
       break

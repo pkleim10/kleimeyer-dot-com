@@ -2,10 +2,29 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import AddCategoryButton from '../AddCategoryButton'
 
+// Mock the supabase utilities first (before AuthContext is loaded)
+jest.mock('@/utils/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn(() => Promise.resolve({ data: { session: null }, error: null })),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: null }, unsubscribe: jest.fn() }))
+    },
+    from: jest.fn(() => ({
+      select: jest.fn(() => Promise.resolve({ data: [], error: null }))
+    }))
+  },
+  uploadImage: jest.fn(() => Promise.resolve('https://example.com/image.jpg'))
+}))
+
 // Mock the useAuth hook
 jest.mock('@/contexts/AuthContext', () => ({
   ...jest.requireActual('@/contexts/AuthContext'),
   useAuth: jest.fn()
+}))
+
+// Mock usePermissions hook
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: jest.fn()
 }))
 
 // Mock CategoryEditModal
@@ -25,9 +44,16 @@ jest.mock('../CategoryEditModal', () => {
 })
 
 const { useAuth } = require('@/contexts/AuthContext')
+const { usePermissions } = require('@/hooks/usePermissions')
 
 const renderWithAuth = (component, user = null) => {
   useAuth.mockReturnValue({ user })
+  // Mock permissions: canManageCategories is true for family/admin users
+  const isFamilyOrAdmin = user && (user.email?.includes('admin') || user.email?.includes('family'))
+  usePermissions.mockReturnValue({
+    canManageCategories: isFamilyOrAdmin || false,
+    loading: false
+  })
   return render(component)
 }
 
