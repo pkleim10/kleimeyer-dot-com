@@ -3,6 +3,47 @@
  * Generates all legal move combinations for a given board state and dice roll
  */
 
+import { rebuildDescription } from '../../../utils/moveFormatter.js'
+
+/**
+ * Helper function to check if player can bear off
+ */
+function canBearOff(boardState, owner) {
+  const barCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
+  if (barCount > 0) return false // Can't bear off if checkers on bar
+  
+  // Check if all checkers are in home board
+  const homeBoardStart = owner === 'white' ? 1 : 19
+  const homeBoardEnd = owner === 'white' ? 6 : 24
+  
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === owner && pointData.count > 0) {
+      // If checker is outside home board, can't bear off
+      if (point < homeBoardStart || point > homeBoardEnd) {
+        return false
+      }
+    }
+  }
+  return true
+}
+
+/**
+ * Helper function to get highest occupied point in home board
+ */
+function getHighestOccupiedPoint(boardState, owner) {
+  const homeBoardStart = owner === 'white' ? 1 : 19
+  const homeBoardEnd = owner === 'white' ? 6 : 24
+  
+  for (let point = homeBoardEnd; point >= homeBoardStart; point--) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === owner && pointData.count > 0) {
+      return point
+    }
+  }
+  return null
+}
+
 /**
  * Helper function to check if a move is valid
  */
@@ -10,13 +51,33 @@ function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
   const direction = currentPlayer === 1 ? -1 : 1 // White moves down, black moves up
   const toPoint = fromPoint + (direction * die)
 
-  if (toPoint < 1 || toPoint > 24) return null
-
   const fromData = boardState.points[fromPoint - 1]
-  const toData = boardState.points[toPoint - 1]
-
+  
   // Must have checker on from point
   if (fromData.owner !== owner || fromData.count === 0) return null
+
+  // Check if this is a bear-off move
+  const homeBoardStart = owner === 'white' ? 1 : 19
+  const homeBoardEnd = owner === 'white' ? 6 : 24
+  const isInHomeBoard = fromPoint >= homeBoardStart && fromPoint <= homeBoardEnd
+  
+  if (isInHomeBoard && canBearOff(boardState, owner)) {
+    // Bearing off: toPoint < 1 (white) or toPoint > 24 (black)
+    if ((owner === 'white' && toPoint < 1) || (owner === 'black' && toPoint > 24)) {
+      return {
+        from: fromPoint,
+        to: owner === 'white' ? 0 : 25, // Use 0 for white off, 25 for black off
+        count: 1,
+        die: die,
+        isBearOff: true
+      }
+    }
+  }
+
+  // Regular move validation
+  if (toPoint < 1 || toPoint > 24) return null
+
+  const toData = boardState.points[toPoint - 1]
 
   // Can move to empty point, own point, or hit single opponent checker
   if (
@@ -41,23 +102,69 @@ function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
 function applyMoveToBoard(boardState, move) {
   const newBoard = {
     ...boardState,
-    points: boardState.points.map(point => ({ ...point }))
+    points: boardState.points.map(point => ({ ...point })),
+    blackBar: boardState.blackBar,
+    whiteBar: boardState.whiteBar
   }
 
-  const fromIndex = move.from - 1
+  // Handle bear-off moves (checker removed from board)
+  // Bear-off: from is 1-24, to is 0 (white) or 25 (black), and isBearOff flag is set
+  // Don't confuse with bar moves (which have from === 25 or fromBar === true)
+  if (move.isBearOff || (move.from >= 1 && move.from <= 24 && (move.to === 0 || move.to === 25) && !move.fromBar)) {
+    const fromIndex = move.from - 1
+    const fromPointData = newBoard.points[fromIndex]
+    fromPointData.count -= move.count
+    if (fromPointData.count === 0) {
+      fromPointData.owner = null
+    }
+    return newBoard
+  }
+
   const toIndex = move.to - 1
 
-  // Remove checker from source
-  newBoard.points[fromIndex].count -= move.count
-  if (newBoard.points[fromIndex].count === 0) {
-    newBoard.points[fromIndex].owner = null
+  // Handle bar moves (from bar)
+  if (move.fromBar || move.from === 25 || move.from === 0) {
+    // Remove checker from bar
+    // Determine owner from move.owner or infer from bar position (25 = white, 0 = black)
+    const moveOwner = move.owner || (move.from === 25 ? 'white' : move.from === 0 ? 'black' : null)
+    if (moveOwner === 'white') {
+      newBoard.whiteBar = Math.max(0, newBoard.whiteBar - 1)
+    } else if (moveOwner === 'black') {
+      newBoard.blackBar = Math.max(0, newBoard.blackBar - 1)
+    }
+    
+    // Ensure move.owner is set for later use
+    if (!move.owner && moveOwner) {
+      move.owner = moveOwner
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:62',message:'Bar move applied in applyMoveToBoard',data:{moveOwner,moveFrom:move.from,moveFromBar:move.fromBar,moveOwnerSet:move.owner,whiteBarBefore:boardState.whiteBar,whiteBarAfter:newBoard.whiteBar,blackBarBefore:boardState.blackBar,blackBarAfter:newBoard.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+  } else {
+    // Regular move from point
+    const fromIndex = move.from - 1
+    // Remove checker from source
+    newBoard.points[fromIndex].count -= move.count
+    if (newBoard.points[fromIndex].count === 0) {
+      newBoard.points[fromIndex].owner = null
+    }
   }
 
   // Add checker to destination
+  // move.owner should already be set by buildMove, but ensure it's set
+  if (!move.owner) {
+    // Fallback: try to get owner from source point (for regular moves)
+    if (move.from > 0 && move.from <= 24) {
+      const fromData = boardState.points[move.from - 1]
+      move.owner = fromData.owner
+    }
+  }
+
   if (newBoard.points[toIndex].count === 0) {
-    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
+    newBoard.points[toIndex].owner = move.owner
     newBoard.points[toIndex].count = move.count
-  } else if (newBoard.points[toIndex].count === 1 && newBoard.points[toIndex].owner !== (move.owner || boardState.points[fromIndex].owner)) {
+  } else if (newBoard.points[toIndex].count === 1 && newBoard.points[toIndex].owner !== move.owner) {
     // Hit opponent's blot - move to bar
     const opponent = newBoard.points[toIndex].owner
     if (opponent === 'white') {
@@ -65,7 +172,7 @@ function applyMoveToBoard(boardState, move) {
     } else {
       newBoard.blackBar += 1
     }
-    newBoard.points[toIndex].owner = move.owner || boardState.points[fromIndex].owner
+    newBoard.points[toIndex].owner = move.owner
     newBoard.points[toIndex].count = move.count
   } else {
     newBoard.points[toIndex].count += move.count
@@ -79,9 +186,15 @@ function applyMoveToBoard(boardState, move) {
  * Handles doubles (4 dice) and regular rolls (2 dice)
  */
 function getLegalMoves(boardState, turnState) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:114',message:'getLegalMoves entry',data:{hasTurnState:!!turnState,turnStateCurrentPlayer:turnState?.currentPlayer,turnStateDice:turnState?.dice,turnStateDiceLength:turnState?.dice?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   const moveCombinations = []
 
   if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:117',message:'getLegalMoves early return',data:{hasTurnState:!!turnState,hasCurrentPlayer:!!turnState?.currentPlayer,diceLength:turnState?.dice?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     return moveCombinations
   }
 
@@ -98,20 +211,102 @@ function getLegalMoves(boardState, turnState) {
     return true // This die is still available
   })
 
+  // Check if player has checkers on bar
+  const barCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
+  const mustEnterFromBar = barCount > 0 || (turnState.mustEnterFromBar === true)
+
   const getPlayerPoints = state => {
     const points = []
+    // Check bar count from the CURRENT state (not the original boardState)
+    // Only check the bar count from state, not turnState.mustEnterFromBar (which is only relevant at turn start)
+    const currentBarCount = owner === 'white' ? state.whiteBar : state.blackBar
+    const currentMustEnterFromBar = currentBarCount > 0
+    
+    // If must enter from bar, only return bar (represented as 0 for white, 25 for black in some systems)
+    // But we'll handle bar separately, so return empty array if must enter from bar
+    if (currentMustEnterFromBar) {
+      return [] // Bar moves handled separately
+    }
+    
     for (let point = 1; point <= 24; point++) {
       const pointData = state.points[point - 1]
       if (pointData.owner === owner && pointData.count > 0) {
         points.push(point)
       }
     }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:160',message:'getPlayerPoints result',data:{owner,currentBarCount,currentMustEnterFromBar,pointsFound:points.length,points,stateWhiteBar:state.whiteBar,stateBlackBar:state.blackBar,point22Owner:state.points[21]?.owner,point22Count:state.points[21]?.count},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
     return points
   }
 
+  // Check if a bar entry move is valid
+  const canEnterFromBar = (state, die) => {
+    // Check current state's bar count
+    const currentBarCount = owner === 'white' ? state.whiteBar : state.blackBar
+    if (currentBarCount === 0) return null
+    
+    // Determine entry point based on player and die
+    // White enters to points 19-24 (black's home board)
+    // Black enters to points 1-6 (white's home board)
+    let entryPoint
+    if (owner === 'white') {
+      entryPoint = 25 - die // White enters to point 25 - die (19-24)
+    } else {
+      entryPoint = die // Black enters to point equal to die value (1-6)
+    }
+    
+    if (entryPoint < 1 || entryPoint > 24) return null
+    
+    const toData = state.points[entryPoint - 1]
+    
+    // Can enter to empty point, own point, or hit single opponent checker
+    if (
+      toData.count === 0 ||
+      toData.owner === owner ||
+      (toData.count === 1 && toData.owner !== owner)
+    ) {
+      return {
+        from: 25, // Bar represented as 25 for sorting purposes (highest point number)
+        to: entryPoint,
+        count: 1,
+        die: die,
+        fromBar: true
+      }
+    }
+    
+    return null
+  }
+
   const buildMove = (state, fromPoint, die) => {
+    // Handle bar moves separately (fromPoint === 25 means bar)
+    if (fromPoint === 25) {
+      const currentBarCount = owner === 'white' ? state.whiteBar : state.blackBar
+      if (currentBarCount > 0) {
+        const move = canEnterFromBar(state, die)
+        if (!move) return null
+        const toData = state.points[move.to - 1]
+        move.owner = owner
+        move.hitBlot = toData.count === 1 && toData.owner && toData.owner !== owner
+        return move
+      }
+      return null // No checkers on bar
+    }
+    
+    // Regular move from point (including bear-off)
     const move = canMakeMove(state, owner, currentPlayer, fromPoint, die)
     if (!move) return null
+    
+    // Handle bear-off moves
+    if (move.isBearOff) {
+      move.owner = owner
+      move.hitBlot = false // Bear-off doesn't hit
+      return move
+    }
+    
+    // Regular move validation
     const toData = state.points[move.to - 1]
     move.owner = owner
     move.hitBlot = toData.count === 1 && toData.owner && toData.owner !== owner
@@ -119,45 +314,132 @@ function getLegalMoves(boardState, turnState) {
   }
 
   const orderPair = (first, second) => {
-    if (first.from !== second.from) {
-      return first.from > second.from ? [first, second] : [second, first]
+    // Treat bar (25 or 0) as highest for sorting - bar moves must come first
+    const firstFrom = first.from === 0 || first.from === 25 ? 25 : first.from
+    const secondFrom = second.from === 0 || second.from === 25 ? 25 : second.from
+    
+    if (firstFrom !== secondFrom) {
+      return firstFrom > secondFrom ? [first, second] : [second, first]
     }
     return first.to >= second.to ? [first, second] : [second, first]
   }
 
-  const buildDescription = moves => {
-    if (moves.length === 1) {
-      const asterisk = moves[0].hitBlot ? '*' : ''
-      return `${moves[0].from}/${moves[0].to}${asterisk}`
+  const buildDescription = (moves) => {
+    // Use centralized formatter
+    return rebuildDescription(moves)
+  }
+  
+  const buildDescriptionOld = moves => {
+    // Helper to convert bar point (25 or 0) to "bar" string
+    const formatFrom = (move) => {
+      return (move.fromBar || move.from === 25 || move.from === 0) ? 'bar' : move.from
     }
-    if (moves.length === 2) {
-      const [m1, m2] = moves
+    
+    // Helper to format destination (handles bear-off)
+    const formatTo = (move) => {
+      // Bear-off moves: to is 0 (white) or 25 (black)
+      if (move.isBearOff || (move.from >= 1 && move.from <= 24 && (move.to === 0 || move.to === 25) && !move.fromBar)) {
+        return 'off'
+      }
+      return move.to
+    }
+    
+    // Helper to check if a move is from bar
+    const isBarMove = (move) => {
+      return move.fromBar || move.from === 25 || move.from === 0
+    }
+    
+    // Sort moves so bar moves come first (for display purposes)
+    // Bar moves MUST come before any other moves
+    const sortedMoves = [...moves].sort((a, b) => {
+      const aIsBar = isBarMove(a)
+      const bIsBar = isBarMove(b)
+      
+      // Bar moves always come first
+      if (aIsBar && !bIsBar) return -1
+      if (!aIsBar && bIsBar) return 1
+      
+      // If both are bar or both are not bar, sort by from point (highest first)
+      const aFrom = aIsBar ? 25 : a.from
+      const bFrom = bIsBar ? 25 : b.from
+      if (aFrom !== bFrom) return bFrom - aFrom
+      return b.to - a.to
+    })
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:250',message:'buildDescription sorting',data:{originalMoves:moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar})),sortedMoves:sortedMoves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    
+    if (sortedMoves.length === 1) {
+      const asterisk = sortedMoves[0].hitBlot ? '*' : ''
+      const fromStr = formatFrom(sortedMoves[0])
+      const toStr = formatTo(sortedMoves[0])
+      return `${fromStr}/${toStr}${asterisk}`
+    }
+    if (sortedMoves.length === 2) {
+      let [m1, m2] = sortedMoves
+      let m1IsBar = isBarMove(m1)
+      let m2IsBar = isBarMove(m2)
+      
+      // CRITICAL SAFETY CHECK: If bar move is second, swap them
+      // This should never happen if sorting worked, but ensures correctness
+      if (!m1IsBar && m2IsBar) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:285',message:'BUG DETECTED: Bar move second, swapping',data:{originalM1:{from:m1.from,to:m1.to,fromBar:m1.fromBar},originalM2:{from:m2.from,to:m2.to,fromBar:m2.fromBar}},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        const temp = m1
+        m1 = m2
+        m2 = temp
+        m1IsBar = true
+        m2IsBar = false
+      }
+      
+      const m1FromStr = formatFrom(m1)
+      const m2FromStr = formatFrom(m2)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:281',message:'buildDescription 2 moves',data:{m1From:m1.from,m1To:m1.to,m1IsBar,m1FromStr,m2From:m2.from,m2To:m2.to,m2IsBar,m2FromStr},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      
       const sameChecker = m2.from === m1.to
       if (sameChecker && !m1.hitBlot) {
         // Sequence: check if final move hits a blot
         const asterisk = m2.hitBlot ? '*' : ''
-        return `${m1.from}/${m2.to}${asterisk}`
+        const m2ToStr = formatTo(m2)
+        return `${m1FromStr}/${m2ToStr}${asterisk}`
       }
       // Check if both moves are identical
       if (m1.from === m2.from && m1.to === m2.to) {
         const asterisk = m1.hitBlot ? '*' : ''
-        return `${m1.from}/${m1.to}(2)${asterisk}`
+        const m1ToStr = formatTo(m1)
+        return `${m1FromStr}/${m1ToStr}(2)${asterisk}`
       }
       if (!sameChecker) {
-        const [first, second] = orderPair(m1, m2)
-        const firstAsterisk = first.hitBlot ? '*' : ''
-        const secondAsterisk = second.hitBlot ? '*' : ''
-        return `${first.from}/${first.to}${firstAsterisk}, ${second.from}/${second.to}${secondAsterisk}`
+        // m1 and m2 are already sorted (bar moves first), so use them directly
+        // Use space separator for consistency with 3+ moves format
+        const firstAsterisk = m1.hitBlot ? '*' : ''
+        const secondAsterisk = m2.hitBlot ? '*' : ''
+        const m1ToStr = formatTo(m1)
+        const m2ToStr = formatTo(m2)
+        const description = `${m1FromStr}/${m1ToStr}${firstAsterisk} ${m2FromStr}/${m2ToStr}${secondAsterisk}`
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:298',message:'buildDescription result',data:{description,m1IsBar,m2IsBar,m1From:m1.from,m2From:m2.from},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        return description
       }
-      const a = `${m1.from}/${m1.to}${m1.hitBlot ? '*' : ''}`
-      const b = `${m2.from}/${m2.to}${m2.hitBlot ? '*' : ''}`
-      return `${a}, ${b}`
+      // For sequences, m1 is already first (bar moves sorted first)
+      const m1ToStr = formatTo(m1)
+      const m2ToStr = formatTo(m2)
+      const a = `${m1FromStr}/${m1ToStr}${m1.hitBlot ? '*' : ''}`
+      const b = `${m2FromStr}/${m2ToStr}${m2.hitBlot ? '*' : ''}`
+      return `${a} ${b}`
     }
     
     // For 3+ moves, group identical moves (even if not consecutive) and format
     // First, check for sequences (same checker moving)
+    // Use sorted moves so bar moves come first
     const sequences = []
-    const remainingMoves = [...moves]
+    const remainingMoves = [...sortedMoves]
     let i = 0
     
     // Find sequences first
@@ -197,12 +479,24 @@ function getLegalMoves(boardState, turnState) {
     
     // Group remaining identical moves (not sequences)
     // Compare moves by from/to AND hitBlot status
+    // Normalize bear-off moves: both 0 (white) and 25 (black) should be treated as "off" for grouping
     const moveGroups = new Map()
     for (const move of remainingMoves) {
+      // Check if this is a bear-off move
+      const isBearOffMove = move.isBearOff || (move.from >= 1 && move.from <= 24 && (move.to === 0 || move.to === 25) && !move.fromBar)
+      // For grouping, use "off" as the destination for all bear-off moves
+      const groupingTo = isBearOffMove ? 'off' : move.to
       // Include hitBlot in key to group moves with same from/to/hitBlot together
-      const key = `${move.from}/${move.to}:${move.hitBlot ? 'hit' : 'safe'}`
+      const key = `${move.from}/${groupingTo}:${move.hitBlot ? 'hit' : 'safe'}`
       if (!moveGroups.has(key)) {
-        moveGroups.set(key, { from: move.from, to: move.to, hitBlot: move.hitBlot, count: 0 })
+        // Store the original to value (0 or 25) for bear-off, or the actual to for regular moves
+        moveGroups.set(key, { 
+          from: move.from, 
+          to: isBearOffMove ? move.to : move.to, // Keep original to value for formatting
+          isBearOff: isBearOffMove,
+          hitBlot: move.hitBlot, 
+          count: 0 
+        })
       }
       moveGroups.get(key).count++
     }
@@ -213,21 +507,30 @@ function getLegalMoves(boardState, turnState) {
     // Add sequences first (they represent single checker movements)
     for (const seq of sequences) {
       const asterisk = seq.hitBlot ? '*' : ''
-      parts.push(`${seq.from}/${seq.to}${asterisk}`)
+      const fromStr = (seq.from === 25 || seq.from === 0) ? 'bar' : seq.from
+      // Check if sequence ends with bear-off
+      const toStr = (seq.to === 0 || seq.to === 25) ? 'off' : seq.to
+      parts.push(`${fromStr}/${toStr}${asterisk}`)
     }
     
     // Add grouped moves, sorted by highest starting point first
+    // Treat bar (25 or 0) as highest for sorting
     const groupedMoves = Array.from(moveGroups.values()).sort((a, b) => {
-      if (a.from !== b.from) return b.from - a.from
+      const aFrom = (a.from === 25 || a.from === 0) ? 25 : a.from
+      const bFrom = (b.from === 25 || b.from === 0) ? 25 : b.from
+      if (aFrom !== bFrom) return bFrom - aFrom
       return b.to - a.to
     })
     
     for (const group of groupedMoves) {
       const asterisk = group.hitBlot ? '*' : ''
+      const fromStr = (group.from === 25 || group.from === 0) ? 'bar' : group.from
+      // Check if this is a bear-off move (to is 0 or 25, and from is 1-24)
+      const toStr = (group.isBearOff || (group.from >= 1 && group.from <= 24 && (group.to === 0 || group.to === 25))) ? 'off' : group.to
       if (group.count > 1) {
-        parts.push(`${group.from}/${group.to}(${group.count})${asterisk}`)
+        parts.push(`${fromStr}/${toStr}(${group.count})${asterisk}`)
       } else {
-        parts.push(`${group.from}/${group.to}${asterisk}`)
+        parts.push(`${fromStr}/${toStr}${asterisk}`)
       }
     }
     
@@ -257,8 +560,50 @@ function getLegalMoves(boardState, turnState) {
     return `multi:${keyParts.join('>')}`
   }
 
+  // Track total combinations generated to prevent explosion
+  let totalCombinationsGenerated = 0
+  let totalCallsMade = 0
+  const MAX_COMBINATIONS = 200 // Much lower limit to prevent hangs
+  const MAX_CALLS = 1000 // Lower limit for recursive calls
+  
   // Recursive function to generate all move combinations
-  const generateCombinations = (currentState, remainingDice, currentMoves = [], seenKeys = new Set()) => {
+  const generateCombinations = (currentState, remainingDice, currentMoves = [], seenKeys = new Set(), depth = 0) => {
+    // Increment call counter at entry
+    totalCallsMade++
+    
+    // Safety check: prevent call explosion (check early to catch recursion before it gets too deep)
+    if (totalCallsMade >= MAX_CALLS) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:395',message:'MAX CALLS EXCEEDED',data:{totalCallsMade,MAX_CALLS,depth,remainingDiceLength:remainingDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      console.warn('generateCombinations: Maximum calls limit reached', { totalCallsMade, depth })
+      return []
+    }
+    
+    // Safety check: prevent infinite recursion
+    // Lower depth limit for doubles (4 dice) to prevent exponential explosion
+    const maxDepth = remainingDice.length >= 4 ? 4 : 8
+    if (depth > maxDepth) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:388',message:'MAX DEPTH EXCEEDED',data:{depth,maxDepth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      console.error('generateCombinations: Maximum depth exceeded', { depth, maxDepth, remainingDice, currentMoves })
+      return []
+    }
+    
+    // Safety check: prevent combination explosion
+    if (totalCombinationsGenerated >= MAX_COMBINATIONS) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:409',message:'MAX COMBINATIONS EXCEEDED',data:{totalCombinationsGenerated,MAX_COMBINATIONS,depth,remainingDiceLength:remainingDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      console.warn('generateCombinations: Maximum combinations limit reached', { totalCombinationsGenerated, depth })
+      return []
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:365',message:'generateCombinations entry',data:{depth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length,currentMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die})),barCount:owner==='white'?currentState.whiteBar:currentState.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     if (remainingDice.length === 0) {
       if (currentMoves.length > 0) {
         const key = buildKey(currentMoves)
@@ -266,9 +611,29 @@ function getLegalMoves(boardState, turnState) {
           return [] // Skip duplicates
         }
         seenKeys.add(key)
+        totalCombinationsGenerated++
+        // Sort moves so bar moves come first (matching the description order)
+        const isBarMoveForSort = (move) => move.fromBar || move.from === 25 || move.from === 0
+        const sortedMovesForCombination = [...currentMoves].sort((a, b) => {
+          const aIsBar = isBarMoveForSort(a)
+          const bIsBar = isBarMoveForSort(b)
+          if (aIsBar && !bIsBar) return -1
+          if (!aIsBar && bIsBar) return 1
+          const aFrom = aIsBar ? 25 : a.from
+          const bFrom = bIsBar ? 25 : b.from
+          if (aFrom !== bFrom) return bFrom - aFrom
+          return b.to - a.to
+        })
+        
+        const finalDescription = buildDescription(sortedMovesForCombination)
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:375',message:'generateCombinations returning complete combination',data:{movesLength:currentMoves.length,originalMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),sortedMoves:sortedMovesForCombination.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),finalDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        
         return [{
-          moves: currentMoves,
-          description: buildDescription(currentMoves),
+          moves: sortedMovesForCombination,
+          description: finalDescription,
           totalPips: currentMoves.reduce((sum, m) => sum + (m.die || 0), 0)
         }]
       }
@@ -276,37 +641,140 @@ function getLegalMoves(boardState, turnState) {
     }
 
     const combinations = []
-    const playerPoints = getPlayerPoints(currentState)
+    
+    // Check if we still need to enter from bar (check current state's bar count)
+    const currentBarCount = owner === 'white' ? currentState.whiteBar : currentState.blackBar
+    const stillMustEnterFromBar = currentBarCount > 0
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:390',message:'Checking bar status',data:{currentBarCount,stillMustEnterFromBar,remainingDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
+    // Get available points (or bar if must enter)
+    let playerPoints
+    try {
+      playerPoints = stillMustEnterFromBar ? [25] : getPlayerPoints(currentState) // 25 represents bar
+    } catch (error) {
+      console.error('getPlayerPoints error:', error)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:427',message:'getPlayerPoints error',data:{error:error.message,stillMustEnterFromBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return []
+    }
+    
+    // Enforce bearing off rule: if highest occupied point < lowest unused die, must bear off from highest point
+    const canBearOffNow = canBearOff(currentState, owner)
+    if (canBearOffNow && !stillMustEnterFromBar && playerPoints.length > 0) {
+      const highestPoint = getHighestOccupiedPoint(currentState, owner)
+      const lowestDie = Math.min(...remainingDice)
+      
+      if (highestPoint !== null && highestPoint < lowestDie) {
+        // MUST bear off from highest point - only allow moves from that point
+        playerPoints = [highestPoint]
+      }
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:435',message:'Player points determined',data:{stillMustEnterFromBar,playerPointsLength:playerPoints.length,playerPoints,depth,canBearOffNow,highestPoint:canBearOffNow?getHighestOccupiedPoint(currentState,owner):null,lowestDie:remainingDice.length>0?Math.min(...remainingDice):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     
     // Try each unique die value (but we'll remove one instance at a time)
     const uniqueDieValues = [...new Set(remainingDice)]
+    // Limit player points to prevent explosion (try up to 8 points per die)
+    const MAX_POINTS_PER_DIE = 8
+    const limitedPlayerPoints = playerPoints.slice(0, MAX_POINTS_PER_DIE)
+    
     for (const dieValue of uniqueDieValues) {
-      for (const point of playerPoints) {
-        const move = buildMove(currentState, point, dieValue)
-        if (!move) continue
-        
-        // Apply move to get new state
-        const newState = applyMoveToBoard(currentState, move)
-        const newMoves = [...currentMoves, move]
-        
-        // Remove one instance of this die from remaining dice
-        const newRemainingDice = [...remainingDice]
-        const dieIndex = newRemainingDice.indexOf(dieValue)
-        if (dieIndex !== -1) {
-          newRemainingDice.splice(dieIndex, 1)
+      // Early termination if we've hit the limits
+      if (totalCombinationsGenerated >= MAX_COMBINATIONS || totalCallsMade >= MAX_CALLS) break
+      
+      for (const point of limitedPlayerPoints) {
+        // Early termination if we've hit the limits
+        if (totalCombinationsGenerated >= MAX_COMBINATIONS || totalCallsMade >= MAX_CALLS) break
+        // For bar moves, check if entry is valid
+        if (stillMustEnterFromBar && point === 25) {
+          const move = canEnterFromBar(currentState, dieValue)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:402',message:'Trying bar move',data:{dieValue,hasMove:!!move,move:move?{from:move.from,to:move.to,die:move.die,owner:move.owner}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          if (!move) continue
+          
+          // CRITICAL: Set move.owner before applying move (canEnterFromBar doesn't set it)
+          if (!move.owner) {
+            move.owner = owner
+          }
+          const toData = currentState.points[move.to - 1]
+          move.hitBlot = toData.count === 1 && toData.owner && toData.owner !== owner
+          
+          // Apply move to get new state
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:432',message:'Before applying bar move',data:{moveOwner:move.owner,moveFrom:move.from,moveFromBar:move.fromBar,currentBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          
+          const newState = applyMoveToBoard(currentState, move)
+          const newMoves = [...currentMoves, move]
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:435',message:'After bar move applied',data:{newBarCount:owner==='white'?newState.whiteBar:newState.blackBar,oldBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar,remainingDiceBefore:remainingDice,moveOwner:move.owner},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          
+          // Remove one instance of this die from remaining dice
+          const newRemainingDice = [...remainingDice]
+          const dieIndex = newRemainingDice.indexOf(dieValue)
+          if (dieIndex !== -1) {
+            newRemainingDice.splice(dieIndex, 1)
+          }
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:418',message:'Recursing after bar move',data:{newRemainingDiceLength:newRemainingDice.length,newRemainingDice,newMovesLength:newMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          
+          // Recursively generate combinations with remaining dice
+          const subCombinations = generateCombinations(newState, newRemainingDice, newMoves, seenKeys, depth + 1)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:423',message:'Sub-combinations returned',data:{subCombinationsLength:subCombinations.length,subCombinations:subCombinations.map(c=>({movesLength:c.moves.length,description:c.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          combinations.push(...subCombinations)
+        } else {
+          // Regular move from point
+          const move = buildMove(currentState, point, dieValue)
+          if (!move) continue
+          
+          // Apply move to get new state
+          const newState = applyMoveToBoard(currentState, move)
+          const newMoves = [...currentMoves, move]
+          
+          // Remove one instance of this die from remaining dice
+          const newRemainingDice = [...remainingDice]
+          const dieIndex = newRemainingDice.indexOf(dieValue)
+          if (dieIndex !== -1) {
+            newRemainingDice.splice(dieIndex, 1)
+          }
+          
+          // Recursively generate combinations with remaining dice
+          const subCombinations = generateCombinations(newState, newRemainingDice, newMoves, seenKeys, depth + 1)
+          combinations.push(...subCombinations)
         }
-        
-        // Recursively generate combinations with remaining dice
-        const subCombinations = generateCombinations(newState, newRemainingDice, newMoves, seenKeys)
-        combinations.push(...subCombinations)
       }
     }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:444',message:'generateCombinations returning',data:{combinationsLength:combinations.length,combinations:combinations.map(c=>({movesLength:c.moves.length,description:c.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     
     return combinations
   }
 
-  // Generate all combinations
-  const allCombos = generateCombinations(boardState, availableDice)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:527',message:'Before generateCombinations call',data:{availableDice,barCount,owner,availableDiceLength:availableDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
+  // Generate all combinations (with limits built into generateCombinations)
+  const allCombos = generateCombinations(boardState, availableDice, [], new Set(), 0)
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:527',message:'After generateCombinations call',data:{allCombosLength:allCombos.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
 
   // Deduplicate combinations
   const unique = new Map()
@@ -317,11 +785,49 @@ function getLegalMoves(boardState, turnState) {
     }
   }
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:538',message:'getLegalMoves before sorting',data:{uniqueSize:unique.size,firstFewMoves:Array.from(unique.values()).slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+  // #endregion
+
   if (unique.size > 0) {
-    return Array.from(unique.values())
+    // Sort combinations: multi-move combinations first (by number of moves descending), then by totalPips descending
+    const sortedCombos = Array.from(unique.values()).sort((a, b) => {
+      const aMoves = a.moves?.length || 1
+      const bMoves = b.moves?.length || 1
+      // First sort by number of moves (more moves = better)
+      if (aMoves !== bMoves) {
+        return bMoves - aMoves
+      }
+      // Then by total pips (more pips = better)
+      return (b.totalPips || 0) - (a.totalPips || 0)
+    })
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:575',message:'getLegalMoves after sorting',data:{sortedSize:sortedCombos.length,firstFewMoves:sortedCombos.slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    
+    return sortedCombos
   }
 
   // Fallback: try single moves if no combinations found
+  // Check if we need to enter from bar
+  const currentBarCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
+  if (currentBarCount > 0) {
+    // Try bar moves
+    const sortedDice = [...availableDice].sort((a, b) => b - a)
+    for (const die of sortedDice) {
+      const move = canEnterFromBar(boardState, die)
+      if (move) {
+        moveCombinations.push({
+          moves: [move],
+          description: `bar/${move.to}`,
+          totalPips: die
+        })
+        return moveCombinations
+      }
+    }
+  }
+  
   const playerPoints = getPlayerPoints(boardState)
   if (playerPoints.length === 0) return moveCombinations
 

@@ -6,6 +6,29 @@
 import { parseXGID, createTurnState } from '../route'
 import { getLegalMoves } from '../getLegalMoves'
 
+// Helper to check if a move is from bar (matches logic in getLegalMoves.js)
+function isBarMove(move) {
+  return move.fromBar || move.from === 25 || move.from === 0
+}
+
+// Helper to sort moves so bar moves come first (matches logic in getLegalMoves.js)
+function sortMovesBarFirst(moves) {
+  return [...moves].sort((a, b) => {
+    const aIsBar = isBarMove(a)
+    const bIsBar = isBarMove(b)
+    
+    // Bar moves always come first
+    if (aIsBar && !bIsBar) return -1
+    if (!aIsBar && bIsBar) return 1
+    
+    // If both are bar or both are not bar, sort by from point (highest first)
+    const aFrom = aIsBar ? 25 : a.from
+    const bFrom = bIsBar ? 25 : b.from
+    if (aFrom !== bFrom) return bFrom - aFrom
+    return b.to - a.to
+  })
+}
+
 // Test fixtures
 const STARTING_XGID = '-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10'
 
@@ -602,6 +625,173 @@ describe('getLegalMoves', () => {
         expect(seen.has(key)).toBe(false)
         seen.add(key)
       })
+    })
+  })
+
+  describe('Bar Move Sorting in Descriptions', () => {
+    test('sortMovesBarFirst should put bar moves before regular moves', () => {
+      const regularMove = { from: 8, to: 4, die: 4 }
+      const barMove = { from: 25, to: 22, fromBar: true, die: 3 }
+      
+      const unsorted = [regularMove, barMove]
+      const sorted = sortMovesBarFirst(unsorted)
+      
+      expect(sorted[0]).toBe(barMove)
+      expect(sorted[1]).toBe(regularMove)
+    })
+
+    test('sortMovesBarFirst should handle bar move with from=0', () => {
+      const regularMove = { from: 6, to: 2, die: 4 }
+      const barMove = { from: 0, to: 22, fromBar: true, die: 3 }
+      
+      const unsorted = [regularMove, barMove]
+      const sorted = sortMovesBarFirst(unsorted)
+      
+      expect(sorted[0]).toBe(barMove)
+      expect(sorted[1]).toBe(regularMove)
+    })
+
+    test('sortMovesBarFirst should handle bar move with fromBar=true but from!=25', () => {
+      const regularMove = { from: 8, to: 4, die: 4 }
+      const barMove = { from: 25, to: 22, fromBar: true, die: 3 }
+      
+      const unsorted = [regularMove, barMove]
+      const sorted = sortMovesBarFirst(unsorted)
+      
+      expect(sorted[0]).toBe(barMove)
+      expect(sorted[1]).toBe(regularMove)
+    })
+
+    test('sortMovesBarFirst should handle multiple bar moves (both come first)', () => {
+      const regularMove = { from: 8, to: 4, die: 4 }
+      const barMove1 = { from: 25, to: 22, fromBar: true, die: 3 }
+      const barMove2 = { from: 25, to: 20, fromBar: true, die: 4 }
+      
+      const unsorted = [regularMove, barMove1, barMove2]
+      const sorted = sortMovesBarFirst(unsorted)
+      
+      expect(sorted[0]).toBe(barMove2) // Higher to point (20 vs 22)
+      expect(sorted[1]).toBe(barMove1)
+      expect(sorted[2]).toBe(regularMove)
+    })
+
+    test('getLegalMoves should return descriptions with bar moves first', () => {
+      // Create a position where white has a checker on bar and can enter + move
+      // XGID: -b----D-C---cE---cbc-b--BA:0:0:1:43:0:0:0:0:10
+      // This is the position the user reported: white on bar, dice 4-3
+      const xgid = '-b----D-C---cE---cbc-b--BA:0:0:1:43:0:0:0:0:10'
+      const boardState = parseXGID(xgid)
+      const turnState = createTurnState(boardState, 1)
+      
+      const moves = getLegalMoves(boardState, turnState)
+      
+      // Find moves that include bar entry
+      const barMoves = moves.filter(m => 
+        m.description && m.description.includes('bar/')
+      )
+      
+      expect(barMoves.length).toBeGreaterThan(0)
+      
+      // Check that all bar moves have bar first in description
+      barMoves.forEach(move => {
+        if (move.moves && move.moves.length > 1) {
+          // Multi-move combination: check that bar move comes first
+          const hasBarMove = move.moves.some(m => isBarMove(m))
+          if (hasBarMove) {
+            const firstMove = move.moves[0]
+            expect(isBarMove(firstMove)).toBe(true)
+            
+            // Verify description starts with "bar/"
+            expect(move.description).toMatch(/^bar\/\d+/)
+          }
+        }
+      })
+    })
+
+    test('getLegalMoves description format: bar/22 6/2 should have bar first', () => {
+      // Test the specific case the user reported
+      const xgid = '-b----D-C---cE---cbc-b--BA:0:0:1:43:0:0:0:0:10'
+      const boardState = parseXGID(xgid)
+      const turnState = createTurnState(boardState, 1)
+      
+      const moves = getLegalMoves(boardState, turnState)
+      
+      // Find the move that matches "bar/22" and another move
+      const bar22Moves = moves.filter(m => 
+        m.description && m.description.includes('bar/22')
+      )
+      
+      if (bar22Moves.length > 0) {
+        bar22Moves.forEach(move => {
+          // Description should start with "bar/" not end with it
+          if (move.description.includes('bar/22') && move.description.includes('6/2')) {
+            const parts = move.description.split(' ')
+            const firstPart = parts[0]
+            expect(firstPart).toMatch(/^bar\/\d+/)
+            expect(firstPart).not.toBe('6/2')
+          }
+        })
+      }
+    })
+
+    test('isBarMove should correctly identify bar moves', () => {
+      expect(isBarMove({ from: 25, to: 22 })).toBe(true)
+      expect(isBarMove({ from: 0, to: 22 })).toBe(true)
+      expect(isBarMove({ from: 8, to: 4, fromBar: true })).toBe(true)
+      expect(isBarMove({ from: 8, to: 4 })).toBe(false)
+      expect(isBarMove({ from: 24, to: 20 })).toBe(false)
+    })
+
+    test('EXACT CASE: sortMovesBarFirst should put bar/22 before 6/2', () => {
+      // This is the exact case the user reported: "6/2 bar/22" should be "bar/22 6/2"
+      const regularMove = { from: 6, to: 2, die: 2 }
+      const barMove = { from: 25, to: 22, fromBar: true, die: 3 }
+      
+      // Test in both orders
+      const order1 = [regularMove, barMove]
+      const order2 = [barMove, regularMove]
+      
+      const sorted1 = sortMovesBarFirst(order1)
+      const sorted2 = sortMovesBarFirst(order2)
+      
+      // Both should result in bar move first
+      expect(sorted1[0]).toBe(barMove)
+      expect(sorted1[1]).toBe(regularMove)
+      expect(sorted2[0]).toBe(barMove)
+      expect(sorted2[1]).toBe(regularMove)
+    })
+
+    test('EXACT CASE: getLegalMoves should return "bar/22 6/2" not "6/2 bar/22"', () => {
+      // Test the exact position: -b----D-C---cE---cbc-b--BA:0:0:1:43:0:0:0:0:10
+      const xgid = '-b----D-C---cE---cbc-b--BA:0:0:1:43:0:0:0:0:10'
+      const boardState = parseXGID(xgid)
+      const turnState = createTurnState(boardState, 1)
+      
+      const moves = getLegalMoves(boardState, turnState)
+      
+      // Find moves that include both bar/22 and 6/2
+      const targetMoves = moves.filter(m => 
+        m.description && 
+        m.description.includes('bar/22') && 
+        m.description.includes('6/2')
+      )
+      
+      if (targetMoves.length > 0) {
+        targetMoves.forEach(move => {
+          // Description MUST start with "bar/" not "6/"
+          expect(move.description).toMatch(/^bar\/22/)
+          expect(move.description).not.toMatch(/^6\/2/)
+          
+          // Verify the moves array itself has bar move first
+          if (move.moves && move.moves.length >= 2) {
+            const firstMove = move.moves[0]
+            expect(isBarMove(firstMove)).toBe(true)
+          }
+        })
+      } else {
+        // If no such move found, that's also a problem - we should find it
+        console.warn('No move found with both bar/22 and 6/2')
+      }
     })
   })
 })

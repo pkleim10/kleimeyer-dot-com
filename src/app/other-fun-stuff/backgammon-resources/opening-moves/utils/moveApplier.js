@@ -36,13 +36,32 @@ export function applyMove(xgid, move, player = 'white') {
   const moveSteps = move.trim().split(/\s+/).map(step => {
     const parts = step.split('/')
     if (parts.length !== 2) return null
-    let fromPoint = parseInt(parts[0])
-    let toPoint = parseInt(parts[1])
+    
+    // Handle "bar" string - convert to numeric bar value
+    // Bar is represented as 0 (for black bar) or 25 (for white bar) in relative coordinates
+    let fromPoint = parts[0].toLowerCase() === 'bar' ? (player === 'white' ? 25 : 0) : parseInt(parts[0])
+    // Handle "off" string for bear-off moves
+    const isBearOff = parts[1].toLowerCase() === 'off'
+    let toPoint = isBearOff ? (player === 'white' ? -2 : -1) : parseInt(parts[1])
+    
+    // Skip if fromPoint is still NaN (invalid format)
+    // toPoint can be -1 or -2 for bear-off, which is valid
+    if (isNaN(fromPoint) || (!isBearOff && isNaN(toPoint))) return null
     
     // Convert BLACK point numbers to WHITE point numbers if needed
+    // BUT preserve special values: -1 (black tray), -2 (white tray), 0 (black bar), 25 (white bar)
     if (player === 'black') {
-      fromPoint = convertBlackToWhitePoint(fromPoint)
-      toPoint = convertBlackToWhitePoint(toPoint)
+      // Only convert if it's a regular point (1-24)
+      // Preserve special values: -1, -2, 0, 25
+      if (fromPoint >= 1 && fromPoint <= 24) {
+        fromPoint = convertBlackToWhitePoint(fromPoint)
+      }
+      // Preserve bear-off destinations (-1, -2) - don't convert them
+      // Also preserve bar positions (0, 25)
+      if (toPoint >= 1 && toPoint <= 24) {
+        toPoint = convertBlackToWhitePoint(toPoint)
+      }
+      // -1, -2, 0, 25 are special values and should not be converted
     }
     
     return [fromPoint, toPoint]
@@ -50,16 +69,108 @@ export function applyMove(xgid, move, player = 'white') {
   
   // Apply each move step sequentially
   for (const [fromPoint, toPoint] of moveSteps) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'moveApplier.js:58',message:'Processing move step',data:{fromPoint,toPoint,isNaNFrom:isNaN(fromPoint),isNaNTo:isNaN(toPoint),fromPointType:typeof fromPoint,toPointType:typeof toPoint,isBarMove:fromPoint===0||fromPoint===25},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
+    // Handle bar moves (fromPoint is 0 or 25)
+    if (fromPoint === 0 || fromPoint === 25) {
+      // Bar entry move - check if player has checkers on bar
+      const barCount = player === 'white' ? boardState.whiteBar : boardState.blackBar
+      if (barCount === 0) continue // No checkers on bar, skip this move
+      
+      // Validate entry point (toPoint must be 1-24)
+      if (toPoint < 1 || toPoint > 24) continue
+      
+      const toIndex = toPoint - 1
+      const toPointData = boardState.points[toIndex]
+      
+      // Check if entry is valid (empty, own point, or single opponent checker)
+      if (toPointData.count > 1 && toPointData.owner !== player) continue // Blocked
+      
+      // Track ghost checker at bar (we'll use a special point number for bar)
+      // For rendering purposes, we'll track bar moves separately
+      const barGhostPoint = player === 'white' ? 25 : 0
+      if (!ghostCheckers[barGhostPoint]) {
+        ghostCheckers[barGhostPoint] = []
+      }
+      ghostCheckers[barGhostPoint].push(1) // Bar checker is always position 1
+      ghostCheckerOwners[barGhostPoint] = player
+      
+      // Track move for arrow rendering
+      const toStackPosition = (toPointData.count === 1 && toPointData.owner !== player) ? 1 : (toPointData.count + 1)
+      moves.push({ from: barGhostPoint, to: toPoint, fromStackPosition: 1, toStackPosition })
+      
+      // Remove checker from bar
+      if (player === 'white') {
+        boardState.whiteBar = Math.max(0, boardState.whiteBar - 1)
+      } else {
+        boardState.blackBar = Math.max(0, boardState.blackBar - 1)
+      }
+      
+      // Handle hitting opponent blot
+      if (toPointData.count === 1 && toPointData.owner !== player) {
+        // Hit the opponent checker - send it to bar
+        if (toPointData.owner === 'black') {
+          boardState.blackBar++
+        } else {
+          boardState.whiteBar++
+        }
+        toPointData.count = 0
+        toPointData.owner = null
+      }
+      
+      // Add checker to destination point
+      if (toPointData.count === 0) {
+        toPointData.owner = player
+      }
+      toPointData.count++
+      
+      continue // Bar move handled, move to next step
+    }
+    
+    // Handle bear-off moves (toPoint is -1 for black tray or -2 for white tray)
+    if (toPoint === -1 || toPoint === -2) {
+      // Validate that fromPoint is in home board (1-24)
+      if (fromPoint < 1 || fromPoint > 24) continue
+      
+      const fromIndex = fromPoint - 1
+      const fromPointData = boardState.points[fromIndex]
+      
+      // Can't bear off from empty point or wrong player's point
+      if (!fromPointData || fromPointData.count === 0 || fromPointData.owner !== player) continue
+      
+      // Track ghost checker at original position
+      if (!ghostCheckers[fromPoint]) {
+        ghostCheckers[fromPoint] = []
+      }
+      ghostCheckers[fromPoint].push(fromPointData.count)
+      ghostCheckerOwners[fromPoint] = player
+      
+      // Track move for arrow rendering (to tray)
+      moves.push({ from: fromPoint, to: toPoint, fromStackPosition: fromPointData.count, toStackPosition: 1 })
+      
+      // Remove checker from source point (bear off)
+      fromPointData.count--
+      if (fromPointData.count === 0) {
+        fromPointData.owner = null
+      }
+      
+      continue // Bear-off move handled, move to next step
+    }
+    
+    // Regular point-to-point move
     if (fromPoint < 1 || fromPoint > 24 || toPoint < 1 || toPoint > 24) continue
     
     // Get point data (points array is 0-indexed, so point 1 is index 0)
     const fromIndex = fromPoint - 1
     const toIndex = toPoint - 1
+    
     const fromPointData = boardState.points[fromIndex]
     const toPointData = boardState.points[toIndex]
     
     // Can't move from empty point
-    if (fromPointData.count === 0 || !fromPointData.owner) continue
+    if (!fromPointData || fromPointData.count === 0 || !fromPointData.owner) continue
     
     // Ensure we're moving the correct player's checkers
     if (fromPointData.owner !== player) continue

@@ -1142,6 +1142,14 @@ export default function BackgammonBoard({
     const barTop = barY
     const barBottom = barY + barHeight
     
+    // Get ghost checker counts for bar (point 0 = black bar, point 25 = white bar)
+    const topBarGhostCount = ghostCheckers[0] || 0
+    const bottomBarGhostCount = ghostCheckers[25] || 0
+    const topBarGhostPositions = ghostCheckerPositions[0] || []
+    const bottomBarGhostPositions = ghostCheckerPositions[25] || []
+    const topBarGhostOwner = ghostCheckerOwners[0]
+    const bottomBarGhostOwner = ghostCheckerOwners[25]
+    
     // Render BLACK checkers (top bar)
     if (topBarCount > 0) {
       if (topBarCount > 3) {
@@ -1398,6 +1406,73 @@ export default function BackgammonBoard({
       }
     }
     
+    // Render ghost checkers on the bar (for suggested moves)
+    // Top bar (black) ghost checkers - point 0
+    if (topBarGhostCount > 0 && topBarGhostOwner === 'black') {
+      const ghostDisplayCount = Math.min(topBarGhostCount, 5)
+      const arrowColor = "#EF4444" // Red for BLACK
+      
+      for (let i = 0; i < ghostDisplayCount; i++) {
+        const stackPosition = topBarGhostPositions[i] || (i + 1)
+        const checkerTopY = barTop + (5 - stackPosition) * checkerDiameter
+        const checkerCenterY = checkerTopY + checkerRadius
+        
+        checkers.push(
+          <g key={`bar-top-black-ghost-${i}`}>
+            <circle
+              cx={barCenterX}
+              cy={checkerCenterY}
+              r={checkerRadius}
+              fill={COLORS.checkerBlack}
+              stroke="none"
+              opacity={0.6}
+            />
+            {/* Color overlay on ghost checker */}
+            <circle
+              cx={barCenterX}
+              cy={checkerCenterY}
+              r={checkerRadius}
+              fill={arrowColor}
+              opacity={0.3}
+            />
+          </g>
+        )
+      }
+    }
+    
+    // Bottom bar (white) ghost checkers - point 25
+    if (bottomBarGhostCount > 0 && bottomBarGhostOwner === 'white') {
+      const ghostDisplayCount = Math.min(bottomBarGhostCount, 5)
+      const arrowColor = "#3B82F6" // Blue for WHITE
+      
+      for (let i = 0; i < ghostDisplayCount; i++) {
+        const stackPosition = bottomBarGhostPositions[i] || (i + 1)
+        const checkerBottomY = barBottom - (5 - stackPosition) * checkerDiameter
+        const checkerCenterY = checkerBottomY - checkerRadius
+        
+        checkers.push(
+          <g key={`bar-bottom-white-ghost-${i}`}>
+            <circle
+              cx={barCenterX}
+              cy={checkerCenterY}
+              r={checkerRadius}
+              fill={COLORS.checkerWhite}
+              stroke="none"
+              opacity={0.6}
+            />
+            {/* Color overlay on ghost checker */}
+            <circle
+              cx={barCenterX}
+              cy={checkerCenterY}
+              r={checkerRadius}
+              fill={arrowColor}
+              opacity={0.3}
+            />
+          </g>
+        )
+      }
+    }
+    
     return checkers.length > 0 ? <g>{checkers}</g> : null
   }
   
@@ -1580,6 +1655,46 @@ export default function BackgammonBoard({
   // Get checker coordinates for a point (for arrow rendering)
   // stackPosition: 1-based from top of stack (1 = top checker, 2 = second from top, etc.)
   const getCheckerCoordinates = (whitePointNumber, isGhost = false, stackPosition = null) => {
+    // Handle bar positions (0 = black bar, 25 = white bar)
+    if (whitePointNumber === 0 || whitePointNumber === 25) {
+      const barX = leftBorderWidth + (innerWidth - BAR_WIDTH) / 2
+      const barY = topBorderWidth
+      const barHeight = innerHeight
+      const barCenterX = barX + BAR_WIDTH / 2
+      const barTop = barY
+      const barBottom = barY + barHeight
+      
+      if (whitePointNumber === 0) {
+        // Black bar (top)
+        // First checker is at barTop + 4 * checkerDiameter
+        const firstCheckerTopY = barTop + 4 * checkerDiameter
+        const firstCheckerCenterY = firstCheckerTopY + checkerRadius
+        // For ghost checkers, use stackPosition to determine Y offset
+        let checkerY = firstCheckerCenterY
+        if (isGhost && stackPosition !== null) {
+          // stackPosition 1 = first checker, 2 = second checker, etc.
+          // Second checker is at barTop + 3 * checkerDiameter, third at barTop + 2 * checkerDiameter
+          const offsetFromFirst = (stackPosition - 1) * checkerDiameter
+          checkerY = firstCheckerCenterY - offsetFromFirst
+        }
+        return { x: barCenterX, y: checkerY }
+      } else {
+        // White bar (bottom) - point 25
+        // First checker is at barBottom - 4 * checkerDiameter
+        const firstCheckerBottomY = barBottom - 4 * checkerDiameter
+        const firstCheckerCenterY = firstCheckerBottomY - checkerRadius
+        // For ghost checkers, use stackPosition to determine Y offset
+        let checkerY = firstCheckerCenterY
+        if (isGhost && stackPosition !== null) {
+          // stackPosition 1 = first checker, 2 = second checker, etc.
+          // Second checker is at barBottom - 3 * checkerDiameter, third at barBottom - 2 * checkerDiameter
+          const offsetFromFirst = (stackPosition - 1) * checkerDiameter
+          checkerY = firstCheckerCenterY + offsetFromFirst
+        }
+        return { x: barCenterX, y: checkerY }
+      }
+    }
+    
     const pos = getPointPosition(whitePointNumber)
     if (!pos) return null
     
@@ -1812,6 +1927,24 @@ export default function BackgammonBoard({
     
     // Validate that moves belong to the correct player
     const validateMove = (m) => {
+      // Handle bar moves (from = 0 or 25, or fromBar flag)
+      const isBarMove = m.fromBar || m.from === 0 || m.from === 25
+      if (isBarMove) {
+        // Validate bar move: check if player has checkers on bar
+        const barCount = moveOwner === 'white' ? boardState.whiteBar : boardState.blackBar
+        if (barCount === 0) {
+          console.error('Invalid bar move: no checkers on bar', {
+            from: m.from,
+            fromBar: m.fromBar,
+            moveOwner,
+            barCount
+          })
+          return false
+        }
+        return true
+      }
+      
+      // Handle regular moves (from = 1-24)
       if (m.from >= 1 && m.from <= 24) {
         const fromPoint = boardState.points[m.from - 1]
         if (!fromPoint || fromPoint.owner !== moveOwner || fromPoint.count === 0) {
@@ -1819,12 +1952,21 @@ export default function BackgammonBoard({
             from: m.from,
             expectedOwner: moveOwner,
             actualOwner: fromPoint?.owner,
-            count: fromPoint?.count
+            count: fromPoint?.count,
+            fromBar: m.fromBar
           })
           return false
         }
+        return true
       }
-      return true
+      
+      // Invalid from value
+      console.error('Invalid move: from value out of range', {
+        from: m.from,
+        fromBar: m.fromBar,
+        moveOwner
+      })
+      return false
     }
 
     let updatedXGID = currentXGID
@@ -1838,23 +1980,92 @@ export default function BackgammonBoard({
         moveOwner
       })
       
-      for (const singleMove of move.moves) {
+      for (let moveIndex = 0; moveIndex < move.moves.length; moveIndex++) {
+        const singleMove = move.moves[moveIndex]
         // Validate move against CURRENT board state (updated after previous moves)
         const currentBoardState = parseXGID(updatedXGID)
+        
+        console.log(`Validating move ${moveIndex + 1} of ${move.moves.length}:`, {
+          move: singleMove,
+          currentBoardState: {
+            whiteBar: currentBoardState.whiteBar,
+            blackBar: currentBoardState.blackBar,
+            player: currentBoardState.player
+          },
+          moveOwner,
+          currentXGID: updatedXGID.substring(0, 50)
+        })
+        
         const validateMoveAgainstCurrentState = (m) => {
+          // Defensive check: ensure move object has required properties
+          if (!m || typeof m.from !== 'number') {
+            console.error('Invalid move object structure:', {
+              move: m,
+              hasFrom: m?.hasOwnProperty('from'),
+              fromType: typeof m?.from,
+              fullMove: JSON.stringify(m)
+            })
+            return false
+          }
+          
+          // Handle bar moves (from = 0 or 25, or fromBar flag)
+          const isBarMove = m.fromBar === true || m.from === 0 || m.from === 25
+          if (isBarMove) {
+            // Validate bar move: check if player has checkers on bar
+            const barCount = moveOwner === 'white' ? currentBoardState.whiteBar : currentBoardState.blackBar
+            if (barCount === 0) {
+              console.error('Invalid bar move: no checkers on bar', {
+                from: m.from,
+                fromBar: m.fromBar,
+                moveOwner,
+                barCount,
+                whiteBar: currentBoardState.whiteBar,
+                blackBar: currentBoardState.blackBar,
+                fullMove: JSON.stringify(m)
+              })
+              return false
+            }
+            return true
+          }
+          
+          // Handle regular moves (from = 1-24)
           if (m.from >= 1 && m.from <= 24) {
             const fromPoint = currentBoardState.points[m.from - 1]
-            if (!fromPoint || fromPoint.owner !== moveOwner || fromPoint.count === 0) {
+            if (!fromPoint) {
+              console.error('Invalid move: from point does not exist', {
+                from: m.from,
+                pointsLength: currentBoardState.points.length,
+                fullMove: JSON.stringify(m)
+              })
+              return false
+            }
+            if (fromPoint.owner !== moveOwner || fromPoint.count === 0) {
               console.error('Invalid move: checker does not belong to current player', {
                 from: m.from,
                 expectedOwner: moveOwner,
                 actualOwner: fromPoint?.owner,
-                count: fromPoint?.count
+                count: fromPoint?.count,
+                fromBar: m.fromBar,
+                fullMove: JSON.stringify(m),
+                boardState: {
+                  whiteBar: currentBoardState.whiteBar,
+                  blackBar: currentBoardState.blackBar,
+                  point: currentBoardState.points[m.from - 1]
+                }
               })
               return false
             }
+            return true
           }
-          return true
+          
+          // Invalid from value
+          console.error('Invalid move: from value out of range', {
+            from: m.from,
+            fromBar: m.fromBar,
+            moveOwner,
+            fullMove: JSON.stringify(m)
+          })
+          return false
         }
         
         if (!validateMoveAgainstCurrentState(singleMove)) {
@@ -1863,12 +2074,27 @@ export default function BackgammonBoard({
         }
         
         // Convert absolute coordinates to relative coordinates based on current player's perspective
-        const fromRelative = singleMove.from >= 1 && singleMove.from <= 24 
-          ? absoluteToRelative(singleMove.from, currentPlayer)
-          : singleMove.from // Bar positions (0, 25) stay as-is
-        const toRelative = singleMove.to >= 1 && singleMove.to <= 24
-          ? absoluteToRelative(singleMove.to, currentPlayer)
-          : singleMove.to // Bar positions (0, 25) stay as-is
+        // For bar moves: convert based on owner (black bar = 0, white bar = 25)
+        let fromRelative
+        if (singleMove.fromBar || singleMove.from === 0 || singleMove.from === 25) {
+          // Bar move: convert based on owner
+          fromRelative = moveOwner === 'black' ? 0 : 25
+        } else if (singleMove.from >= 1 && singleMove.from <= 24) {
+          fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
+        } else {
+          fromRelative = singleMove.from // Keep other special values as-is
+        }
+        
+        // Convert bear-off destinations (0 or 25 in absolute) to tray values (-1 or -2)
+        let toRelative
+        if (singleMove.isBearOff || singleMove.to === 0 || singleMove.to === 25) {
+          // Bear-off move: convert to tray value based on owner
+          toRelative = moveOwner === 'black' ? -1 : -2
+        } else if (singleMove.to >= 1 && singleMove.to <= 24) {
+          toRelative = absoluteToRelative(singleMove.to, currentPlayer)
+        } else {
+          toRelative = singleMove.to // Bar positions (0, 25) stay as-is for bar moves
+        }
         
         console.log('Applying single move:', {
           absolute: { from: singleMove.from, to: singleMove.to },
@@ -1897,12 +2123,27 @@ export default function BackgammonBoard({
       
       // Handle single move
       // Convert absolute coordinates to relative coordinates based on current player's perspective
-      const fromRelative = move.from >= 1 && move.from <= 24
-        ? absoluteToRelative(move.from, currentPlayer)
-        : move.from // Bar positions (0, 25) stay as-is
-      const toRelative = move.to >= 1 && move.to <= 24
-        ? absoluteToRelative(move.to, currentPlayer)
-        : move.to // Bar positions (0, 25) stay as-is
+      // For bar moves: convert based on owner (black bar = 0, white bar = 25)
+      let fromRelative
+      if (move.fromBar || move.from === 0 || move.from === 25) {
+        // Bar move: convert based on owner
+        fromRelative = moveOwner === 'black' ? 0 : 25
+      } else if (move.from >= 1 && move.from <= 24) {
+        fromRelative = absoluteToRelative(move.from, currentPlayer)
+      } else {
+        fromRelative = move.from // Keep other special values as-is
+      }
+      
+      // Convert bear-off destinations (0 or 25 in absolute) to tray values (-1 or -2)
+      let toRelative
+      if (move.isBearOff || move.to === 0 || move.to === 25) {
+        // Bear-off move: convert to tray value based on owner
+        toRelative = moveOwner === 'black' ? -1 : -2
+      } else if (move.to >= 1 && move.to <= 24) {
+        toRelative = absoluteToRelative(move.to, currentPlayer)
+      } else {
+        toRelative = move.to // Bar positions (0, 25) stay as-is for bar moves
+      }
       
       updatedXGID = updateXGIDForMove(updatedXGID, fromRelative, toRelative, move.count || 1, moveOwner)
     }
@@ -1961,30 +2202,155 @@ export default function BackgammonBoard({
       if (move.moves) {
         // Handle move combinations - each move should use exactly one die
         for (const singleMove of move.moves) {
-          // Convert absolute coordinates to relative coordinates for distance calculation
-          const fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
-          const toRelative = absoluteToRelative(singleMove.to, currentPlayer)
+          console.log('[applyAIMove] Processing single move:', {
+            singleMove,
+            hasDie: !!singleMove.die,
+            dieValue: singleMove.die,
+            fromBar: singleMove.fromBar,
+            from: singleMove.from,
+            availableDice
+          })
+          
+          // For bar moves, use the die value directly from the move object
+          if (singleMove.fromBar || singleMove.from === 25 || singleMove.from === 0) {
+            if (singleMove.die && availableDice.includes(singleMove.die)) {
+              const matchingDieIndex = availableDice.indexOf(singleMove.die)
+              if (matchingDieIndex !== -1) {
+                usedDiceValues.push(singleMove.die)
+                availableDice.splice(matchingDieIndex, 1) // Remove this die from available dice
+                console.log('[applyAIMove] Bar move - used die:', singleMove.die)
+              } else {
+                console.warn('[applyAIMove] Bar move die not found in available dice:', {
+                  die: singleMove.die,
+                  availableDice
+                })
+              }
+            } else {
+              // Fallback: calculate distance for bar moves
+              const fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
+              const toRelative = absoluteToRelative(singleMove.to, currentPlayer)
+              const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
+              console.log('[applyAIMove] Bar move fallback - calculated distance:', {
+                fromRelative,
+                toRelative,
+                distance,
+                availableDice
+              })
+              if (distance !== null && distance > 0 && availableDice.includes(distance)) {
+                const matchingDieIndex = availableDice.indexOf(distance)
+                if (matchingDieIndex !== -1) {
+                  usedDiceValues.push(distance)
+                  availableDice.splice(matchingDieIndex, 1)
+                  console.log('[applyAIMove] Bar move fallback - used die:', distance)
+                }
+              }
+            }
+          } else if (singleMove.isBearOff || singleMove.to === 0 || singleMove.to === 25) {
+            // Bear-off move: use die value from move object, or calculate based on point number
+            if (singleMove.die && availableDice.includes(singleMove.die)) {
+              const matchingDieIndex = availableDice.indexOf(singleMove.die)
+              if (matchingDieIndex !== -1) {
+                usedDiceValues.push(singleMove.die)
+                availableDice.splice(matchingDieIndex, 1)
+                console.log('[applyAIMove] Bear-off move - used die:', singleMove.die)
+              }
+            } else {
+              // Fallback: for bear-off, the die should match the point number (relative 1-6)
+              const fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
+              if (fromRelative >= 1 && fromRelative <= 6 && availableDice.includes(fromRelative)) {
+                const matchingDieIndex = availableDice.indexOf(fromRelative)
+                if (matchingDieIndex !== -1) {
+                  usedDiceValues.push(fromRelative)
+                  availableDice.splice(matchingDieIndex, 1)
+                  console.log('[applyAIMove] Bear-off move fallback - used die:', fromRelative)
+                }
+              }
+            }
+          } else {
+            // Regular move: convert absolute coordinates to relative coordinates for distance calculation
+            const fromRelative = absoluteToRelative(singleMove.from, currentPlayer)
+            const toRelative = absoluteToRelative(singleMove.to, currentPlayer)
+            const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
+            if (distance !== null && distance > 0) {
+              // Find an available die that matches this distance
+              const matchingDieIndex = availableDice.indexOf(distance)
+              if (matchingDieIndex !== -1) {
+                usedDiceValues.push(distance)
+                availableDice.splice(matchingDieIndex, 1) // Remove this die from available dice
+                console.log('[applyAIMove] Regular move - used die:', distance)
+              }
+            }
+          }
+        }
+      } else {
+        // Handle single move
+        console.log('[applyAIMove] Processing single move:', {
+          move,
+          hasDie: !!move.die,
+          dieValue: move.die,
+          fromBar: move.fromBar,
+          from: move.from,
+          availableDice
+        })
+        
+        // For bar moves, use the die value directly from the move object
+        if (move.fromBar || move.from === 25 || move.from === 0) {
+          if (move.die && availableDice.includes(move.die)) {
+            const matchingDieIndex = availableDice.indexOf(move.die)
+            if (matchingDieIndex !== -1) {
+              usedDiceValues.push(move.die)
+              console.log('[applyAIMove] Single bar move - used die:', move.die)
+            }
+          } else {
+            // Fallback: calculate distance for bar moves
+            const fromRelative = absoluteToRelative(move.from, currentPlayer)
+            const toRelative = absoluteToRelative(move.to, currentPlayer)
+            const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
+            console.log('[applyAIMove] Single bar move fallback - calculated distance:', {
+              fromRelative,
+              toRelative,
+              distance,
+              availableDice
+            })
+            if (distance !== null && distance > 0 && availableDice.includes(distance)) {
+              const matchingDieIndex = availableDice.indexOf(distance)
+              if (matchingDieIndex !== -1) {
+                usedDiceValues.push(distance)
+                console.log('[applyAIMove] Single bar move fallback - used die:', distance)
+              }
+            }
+          }
+        } else if (move.isBearOff || move.to === 0 || move.to === 25) {
+          // Bear-off move: use die value from move object, or calculate based on point number
+          if (move.die && availableDice.includes(move.die)) {
+            const matchingDieIndex = availableDice.indexOf(move.die)
+            if (matchingDieIndex !== -1) {
+              usedDiceValues.push(move.die)
+              console.log('[applyAIMove] Single bear-off move - used die:', move.die)
+            }
+          } else {
+            // Fallback: for bear-off, the die should match the point number (relative 1-6)
+            const fromRelative = absoluteToRelative(move.from, currentPlayer)
+            if (fromRelative >= 1 && fromRelative <= 6 && availableDice.includes(fromRelative)) {
+              const matchingDieIndex = availableDice.indexOf(fromRelative)
+              if (matchingDieIndex !== -1) {
+                usedDiceValues.push(fromRelative)
+                console.log('[applyAIMove] Single bear-off move fallback - used die:', fromRelative)
+              }
+            }
+          }
+        } else {
+          // Regular move: convert absolute coordinates to relative coordinates for distance calculation
+          const fromRelative = absoluteToRelative(move.from, currentPlayer)
+          const toRelative = absoluteToRelative(move.to, currentPlayer)
           const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
           if (distance !== null && distance > 0) {
             // Find an available die that matches this distance
             const matchingDieIndex = availableDice.indexOf(distance)
             if (matchingDieIndex !== -1) {
               usedDiceValues.push(distance)
-              availableDice.splice(matchingDieIndex, 1) // Remove this die from available dice
+              console.log('[applyAIMove] Single regular move - used die:', distance)
             }
-          }
-        }
-      } else {
-        // Handle single move
-        // Convert absolute coordinates to relative coordinates for distance calculation
-        const fromRelative = absoluteToRelative(move.from, currentPlayer)
-        const toRelative = absoluteToRelative(move.to, currentPlayer)
-        const distance = calculateMoveDistance(fromRelative, toRelative, moveOwner)
-        if (distance !== null && distance > 0) {
-          // Find an available die that matches this distance
-          const matchingDieIndex = availableDice.indexOf(distance)
-          if (matchingDieIndex !== -1) {
-            usedDiceValues.push(distance)
           }
         }
       }
@@ -2000,11 +2366,26 @@ export default function BackgammonBoard({
         allDiceUsed: newUsedDice.length >= currentTurnState.dice.length
       })
 
-      // Check if turn is complete (all dice used)
+      // Check if turn is complete (all dice used OR all checkers borne off)
       const allDiceUsed = newUsedDice.length >= currentTurnState.dice.length
+      
+      // Check if all checkers are borne off (end of game)
+      const updatedBoardState = parseXGID(updatedXGID)
+      const playerBarCount = moveOwner === 'white' ? updatedBoardState.whiteBar : updatedBoardState.blackBar
+      let allCheckersBorneOff = playerBarCount === 0
+      if (allCheckersBorneOff) {
+        // Check if any checkers remain on the board
+        for (let i = 0; i < 24; i++) {
+          const pointData = updatedBoardState.points[i]
+          if (pointData.count > 0 && pointData.owner === moveOwner) {
+            allCheckersBorneOff = false
+            break
+          }
+        }
+      }
 
-      if (allDiceUsed) {
-        console.log('[applyAIMove] Turn complete - switching player')
+      if (allDiceUsed || allCheckersBorneOff) {
+        console.log('[applyAIMove] Turn complete - switching player', { allDiceUsed, allCheckersBorneOff })
         // End turn - switch to next player and clear dice
 
         // Update XGID to switch player and clear dice
@@ -2047,6 +2428,11 @@ export default function BackgammonBoard({
       }
     } else {
       // Not in PLAY mode or no turn state - just update XGID
+      console.log('[applyAIMove] Not in PLAY mode - updating XGID directly')
+      setEditableXGID(updatedXGID)
+      if (onChange) {
+        onChange(updatedXGID)
+      }
     }
 
     // Clear the AI analysis after applying

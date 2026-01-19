@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import BackgammonBoard from '../opening-moves/components/BackgammonBoard'
 import { parseXGID } from '../opening-moves/utils/xgidParser'
 import { applyMove } from '../opening-moves/utils/moveApplier'
+import { formatMove } from '@/utils/moveFormatter'
 
 export default function BoardEditorPage() {
   const { user } = useAuth()
@@ -163,21 +164,85 @@ export default function BoardEditorPage() {
       }]
     }
     
-    // Normalize: sort by highest originating point first (in absolute coordinates)
-    movesToProcess.sort((a, b) => b.fromAbs - a.fromAbs)
+    // Normalize: sort by highest originating point first (in RELATIVE coordinates)
+    // This ensures the display order matches the ghost/arrow drawing order
+    // Convert to relative first, then sort by relative from point (highest first)
+    movesToProcess = movesToProcess.map(m => {
+      const fromRel = (m.fromAbs >= 1 && m.fromAbs <= 24) 
+        ? absoluteToRelative(m.fromAbs)
+        : m.fromAbs
+      return {
+        ...m,
+        fromRel,
+        toRel: (m.toAbs >= 1 && m.toAbs <= 24)
+          ? absoluteToRelative(m.toAbs)
+          : m.toAbs
+      }
+    })
+    movesToProcess.sort((a, b) => {
+      // Sort by relative from point (highest first), but handle bar/off positions
+      if (a.fromRel < 1 || a.fromRel > 24) return 1
+      if (b.fromRel < 1 || b.fromRel > 24) return -1
+      return b.fromRel - a.fromRel
+    })
     
     // Now convert normalized moves to move string format
+    // IMPORTANT: applyMove expects moves in the MOVING PLAYER's relative coordinates
+    // So we need to convert from absolute coordinates to the moving player's relative coordinates
+    // The moving player is determined by the checker owner, not the current board player
     const moveParts = []
     for (const singleMove of movesToProcess) {
+      // Determine the moving player from the checker owner
+      // We need to check which player owns the checker at fromAbs
       const fromAbs = singleMove.fromAbs
-      const toAbs = singleMove.toAbs
+      let movingPlayer = moveOwner // Default to current player
+      
+      // If fromAbs is a valid point, check the owner
+      if (fromAbs >= 1 && fromAbs <= 24) {
+        const fromIndex = fromAbs - 1
+        const fromPointData = boardState.points[fromIndex]
+        if (fromPointData && fromPointData.owner) {
+          movingPlayer = fromPointData.owner
+        }
+      } else if (fromAbs === 25 || fromAbs === 0) {
+        // Bar move - check which bar has checkers
+        if (fromAbs === 25 && boardState.whiteBar > 0) {
+          movingPlayer = 'white'
+        } else if (fromAbs === 0 && boardState.blackBar > 0) {
+          movingPlayer = 'black'
+        }
+      }
+      
+      // Convert to moving player's relative coordinates
+      const movingPlayerNum = movingPlayer === 'white' ? 1 : -1
+      const fromRel = (fromAbs >= 1 && fromAbs <= 24) 
+        ? (movingPlayerNum === 1 ? fromAbs : 25 - fromAbs)
+        : fromAbs
+      const toRel = (singleMove.toAbs >= 1 && singleMove.toAbs <= 24)
+        ? (movingPlayerNum === 1 ? singleMove.toAbs : 25 - singleMove.toAbs)
+        : singleMove.toAbs
 
-      // Skip bar and off positions
-      if (fromAbs < 1 || fromAbs > 24 || toAbs < 1 || toAbs > 24) continue
+      // Handle bar moves - bar is represented as 25 or 0 in relative coordinates
+      // For bar moves, format as "bar/X" where X is the entry point
+      if (fromRel === 25 || fromRel === 0) {
+        if (toRel >= 1 && toRel <= 24) {
+          const asterisk = singleMove.hitBlot ? '*' : ''
+          moveParts.push(`bar/${toRel}${asterisk}`)
+        }
+        continue
+      }
 
-      // Convert to relative coordinates (current player's perspective)
-      const fromRel = absoluteToRelative(fromAbs)
-      const toRel = absoluteToRelative(toAbs)
+      // Handle bear-off moves (toAbs === 0 or toAbs === 25)
+      const isBearOffMove = singleMove.toAbs === 0 || singleMove.toAbs === 25
+      if (isBearOffMove) {
+        // Format bear-off move as "point/off" in moving player's relative coordinates
+        const asterisk = singleMove.hitBlot ? '*' : ''
+        moveParts.push(`${fromRel}/off${asterisk}`)
+        continue
+      }
+
+      // Skip off positions (but allow bar moves above)
+      if (fromRel < 1 || fromRel > 24 || toRel < 1 || toRel > 24) continue
 
       // Format as move string (e.g., "24/18" or "13/10*")
       const asterisk = singleMove.hitBlot ? '*' : ''
@@ -185,11 +250,18 @@ export default function BoardEditorPage() {
     }
     
     if (moveParts.length === 0) {
-      // Single move
+      // Single move - check if it's a bar move
       const fromAbs = move.from
       const toAbs = move.to
-
-      if (fromAbs >= 1 && fromAbs <= 24 && toAbs >= 1 && toAbs <= 24) {
+      
+      // Check if this is a bar move
+      if (fromAbs === 25 || fromAbs === 0) {
+        if (toAbs >= 1 && toAbs <= 24) {
+          const toRel = absoluteToRelative(toAbs)
+          const asterisk = move.hitBlot ? '*' : ''
+          moveParts.push(`bar/${toRel}${asterisk}`)
+        }
+      } else if (fromAbs >= 1 && fromAbs <= 24 && toAbs >= 1 && toAbs <= 24) {
         const fromRel = absoluteToRelative(fromAbs)
         const toRel = absoluteToRelative(toAbs)
         const asterisk = move.hitBlot ? '*' : ''
@@ -211,8 +283,26 @@ export default function BoardEditorPage() {
     // Join move parts with spaces (e.g., "13/10 10/8")
     const moveString = moveParts.join(' ')
 
-    // Use applyMove directly (like the Quiz does)
-    const result = applyMove(boardXGID, moveString, moveOwner)
+    // Determine the actual moving player from the moves
+    // Check the first move to see which player owns the checker
+    let actualMoveOwner = moveOwner
+    if (movesToProcess.length > 0) {
+      const firstMove = movesToProcess[0]
+      if (firstMove.fromAbs >= 1 && firstMove.fromAbs <= 24) {
+        const fromIndex = firstMove.fromAbs - 1
+        const fromPointData = boardState.points[fromIndex]
+        if (fromPointData && fromPointData.owner) {
+          actualMoveOwner = fromPointData.owner
+        }
+      } else if (firstMove.fromAbs === 25 && boardState.whiteBar > 0) {
+        actualMoveOwner = 'white'
+      } else if (firstMove.fromAbs === 0 && boardState.blackBar > 0) {
+        actualMoveOwner = 'black'
+      }
+    }
+    
+    // Use applyMove directly (like the Quiz does) with the actual moving player
+    const result = applyMove(boardXGID, moveString, actualMoveOwner)
 
     // Collapse sequences in moves array for arrow display only
     // Remove ghosts from intermediate points in sequences
@@ -395,6 +485,10 @@ export default function BoardEditorPage() {
       collapsedMoves
     })
 
+    // Sort collapsedMoves by highest originating point first (matching display order)
+    // This ensures arrows are drawn in the same order as displayed (e.g., 8/2 before 6/2)
+    collapsedMoves.sort((a, b) => b.from - a.from)
+
     return {
       finalXGID: result.xgid,
       ghostCheckers: updatedGhostCheckers,
@@ -404,107 +498,15 @@ export default function BoardEditorPage() {
     }
   }
 
-  // Format move for display in suggestion toolbar
+  // Format move for display in suggestion toolbar - use centralized formatter
   const formatMoveForToolbar = (move) => {
     if (!move) return ''
-
+    
     const boardState = parseXGID(boardXGID)
     const currentPlayer = boardState?.player !== undefined ? boardState.player : 1
-
-    // Helper to convert absolute to relative coordinates
-    const absoluteToRelative = (absolutePoint, player) => {
-      if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint
-      if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint
-      if (player === 1) return absolutePoint
-      return 25 - absolutePoint
-    }
-
-    // Handle move combinations
-    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
-      let convertedMoves = move.moves.map(m => {
-        const fromRel = absoluteToRelative(m.from, currentPlayer)
-        const toRel = absoluteToRelative(m.to, currentPlayer)
-        const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
-        const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
-        return { moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
-      })
-
-      // Normalize order: sort by highest originating point first
-      convertedMoves.sort((a, b) => {
-        const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
-        const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
-        return bFrom - aFrom
-      })
-
-      // Format as combined move (same checker or two checkers)
-      if (convertedMoves.length === 2) {
-        const [m1, m2] = convertedMoves
-        const m1Parts = m1.moveStr.split('/')
-        const m2Parts = m2.moveStr.split('/')
-        if (m1Parts[1] === m2Parts[0] && !m1.hitBlot) {
-          const asterisk = m2.hitBlot ? '*' : ''
-          const originalMoves = `${m1.moveStr}${m1.hitBlot ? '*' : ''} ${m2.moveStr}${m2.hitBlot ? '*' : ''}`
-          return `${m1Parts[0]}/${m2Parts[1]}${asterisk} (${originalMoves})`
-        }
-        if (m2Parts[1] === m1Parts[0] && !m2.hitBlot) {
-          const asterisk = m1.hitBlot ? '*' : ''
-          const originalMoves = `${m2.moveStr}${m2.hitBlot ? '*' : ''} ${m1.moveStr}${m1.hitBlot ? '*' : ''}`
-          return `${m2Parts[0]}/${m1Parts[1]}${asterisk} (${originalMoves})`
-        }
-        return convertedMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
-      }
-
-      // For 3+ moves, collapse sequences
-      const formattedParts = []
-      let i = 0
-      while (i < convertedMoves.length) {
-        if (convertedMoves[i].hitBlot) {
-          formattedParts.push(`${convertedMoves[i].moveStr}*`)
-          i++
-          continue
-        }
-
-        let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
-        let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
-        const sequenceMoves = [convertedMoves[i]]
-        let j = i + 1
-
-        while (j < convertedMoves.length &&
-               convertedMoves[j].moveStr.split('/')[0] === sequenceEnd &&
-               !convertedMoves[j].hitBlot) {
-          sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
-          sequenceMoves.push(convertedMoves[j])
-          j++
-        }
-
-        if (sequenceMoves.length > 1) {
-          const originalMovesStr = sequenceMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
-          formattedParts.push(`${sequenceStart}/${sequenceEnd} (${originalMovesStr})`)
-        } else {
-          formattedParts.push(`${sequenceStart}/${sequenceEnd}`)
-        }
-        i = j
-      }
-
-      return formattedParts.join(' ')
-    }
-
-    // Single move
-    if (move.from !== undefined && move.to !== undefined) {
-      const fromRel = absoluteToRelative(move.from, currentPlayer)
-      const toRel = absoluteToRelative(move.to, currentPlayer)
-      const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
-      const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
-      const asterisk = move.hitBlot ? '*' : ''
-      return `${from}/${to}${asterisk}`
-    }
-
-    // Fallback to description if available
-    if (move.description) {
-      return move.description
-    }
-
-    return ''
+    
+    // Use centralized formatter
+    return formatMove(move, currentPlayer)
   }
 
   // Show suggested move with ghost checkers and arrows
@@ -897,7 +899,7 @@ export default function BoardEditorPage() {
                     showTrays={true}
                     onPlayerChange={setCurrentPlayer}
                     showOptions={true}
-                    isEditable={true}
+                    isEditable={!showGhosts} // Disable editing when ghost moves are shown
                     editingMode={editingMode}
                     onChange={(newXGID) => {
                       const prevBoardState = parseXGID(boardXGID)

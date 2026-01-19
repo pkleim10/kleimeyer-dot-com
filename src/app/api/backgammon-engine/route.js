@@ -4,6 +4,7 @@
  */
 
 import { getLegalMoves } from './getLegalMoves'
+import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
@@ -43,9 +44,27 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
 /**
  * Run Monte Carlo simulations for move evaluation
  */
-function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 5) {
+function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 3) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:46',message:'runMonteCarlo entry',data:{numSimulations,playerOwner},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
+  
+  // Cache for getLegalMoves calls to avoid redundant calculations within this simulation batch
+  const legalMovesCache = new Map()
+  
+  const getCachedLegalMoves = (boardState, turnState) => {
+    // Create a simple cache key from board state and turn state
+    const boardKey = boardState.points.map(p => `${p.count}-${p.owner || 'null'}`).join(',')
+    const cacheKey = `${boardKey}-${boardState.whiteBar}-${boardState.blackBar}-${turnState.currentPlayer}-${turnState.dice.join(',')}`
+    if (legalMovesCache.has(cacheKey)) {
+      return legalMovesCache.get(cacheKey)
+    }
+    const moves = getLegalMoves(boardState, turnState)
+    legalMovesCache.set(cacheKey, moves)
+    return moves
+  }
 
   for (let i = 0; i < numSimulations; i++) {
     // Apply the move combination to get new board state
@@ -58,10 +77,17 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
     // Simulate random playout until game end or max moves
     let currentPlayer = opponentOwner
     let movesMade = 0
-    const maxMoves = 20 // Prevent infinite loops
+    const maxMoves = 10 // Reduced from 20 to 10 for faster simulations
 
     while (!isGameOver(currentBoard) && movesMade < maxMoves) {
-      const legalMoves = getLegalMoves(currentBoard, { currentPlayer, dice: getRandomDice() })
+      const randomDice = getRandomDice()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:64',message:'runMonteCarlo calling getLegalMoves',data:{simulation:i,movesMade,currentPlayer,randomDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      const legalMoves = getCachedLegalMoves(currentBoard, { currentPlayer, dice: randomDice })
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:64',message:'runMonteCarlo getLegalMoves returned',data:{simulation:i,movesMade,legalMovesLength:legalMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       if (legalMoves.length === 0) {
         break
       }
@@ -96,8 +122,17 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
  * Hybrid evaluation combining heuristic and MC
  */
 function evaluateMoveHybrid(boardState, move, playerOwner) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:98',message:'evaluateMoveHybrid entry',data:{moveDescription:move.description||'single move',playerOwner},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const heuristicScore = evaluateMoveHeuristically(boardState, move, playerOwner)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:100',message:'Before runMonteCarlo',data:{heuristicScore},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const mcScore = runMonteCarlo(boardState, move, playerOwner)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:100',message:'After runMonteCarlo',data:{mcScore},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
 
   // Combine scores (weighted average)
   const hybridScore = 0.6 * heuristicScore + 0.4 * mcScore
@@ -121,6 +156,46 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
 
     const bestEvaluation = evaluations[0]
     const bestMove = bestEvaluation.move
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:143',message:'analyzeMovesWithHybridEngine bestMove BEFORE check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    
+    // CRITICAL: Ensure moves array is sorted (bar moves first) - preserve source of truth
+    // The moves array from getLegalMoves should already be sorted, but verify and fix if needed
+    if (bestMove.moves && bestMove.moves.length > 1) {
+      const hasBarMove = bestMove.moves.some(m => m.fromBar || m.from === 25 || m.from === 0)
+      if (hasBarMove) {
+        const firstMove = bestMove.moves[0]
+        const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
+        if (!isFirstBar) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:150',message:'BUG DETECTED: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+          // #endregion
+          // Re-sort moves array to ensure bar moves come first
+          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          bestMove.moves.sort((a, b) => {
+            const aIsBar = isBarMove(a)
+            const bIsBar = isBarMove(b)
+            if (aIsBar && !bIsBar) return -1
+            if (!aIsBar && bIsBar) return 1
+            const aFrom = aIsBar ? 25 : a.from
+            const bFrom = bIsBar ? 25 : b.from
+            if (aFrom !== bFrom) return bFrom - aFrom
+            return b.to - a.to
+          })
+          // Rebuild description from sorted moves to ensure consistency
+          bestMove.moves.sort(sortMoves)
+          bestMove.description = rebuildDescription(bestMove.moves)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:165',message:'Fixed bestMove moves array and description',data:{fixedDescription:bestMove.description,fixedMoves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+          // #endregion
+        }
+      }
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:170',message:'analyzeMovesWithHybridEngine bestMove AFTER check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
     // Get current player from boardState for coordinate conversion
     const currentPlayer = boardState.player !== undefined ? boardState.player : 1
     const formattedMove = formatMove(bestMove, currentPlayer)
@@ -164,6 +239,44 @@ function validateAndReturnMove(hybridAnalysis, moves) {
 
   // Prefer using bestMove directly if available (most reliable)
   if (bestMove) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:190',message:'validateAndReturnMove bestMove BEFORE check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    // CRITICAL: Ensure moves array is sorted (bar moves first) before returning
+    // The moves array from getLegalMoves should already be sorted, but verify and fix if needed
+    if (bestMove.moves && bestMove.moves.length > 1) {
+      const hasBarMove = bestMove.moves.some(m => m.fromBar || m.from === 25 || m.from === 0)
+      if (hasBarMove) {
+        const firstMove = bestMove.moves[0]
+        const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
+        if (!isFirstBar) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:195',message:'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+          // #endregion
+          // Re-sort moves array to ensure bar moves come first
+          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          bestMove.moves.sort((a, b) => {
+            const aIsBar = isBarMove(a)
+            const bIsBar = isBarMove(b)
+            if (aIsBar && !bIsBar) return -1
+            if (!aIsBar && bIsBar) return 1
+            const aFrom = aIsBar ? 25 : a.from
+            const bFrom = bIsBar ? 25 : b.from
+            if (aFrom !== bFrom) return bFrom - aFrom
+            return b.to - a.to
+          })
+          // Rebuild description from sorted moves to ensure consistency
+          bestMove.moves.sort(sortMoves)
+          bestMove.description = rebuildDescription(bestMove.moves)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:210',message:'Fixed bestMove in validateAndReturnMove',data:{fixedDescription:bestMove.description,fixedMoves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+          // #endregion
+        }
+      }
+    }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:215',message:'validateAndReturnMove bestMove AFTER check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
     return {
       move: bestMove,
       reasoning: reasoning,
@@ -176,6 +289,31 @@ function validateAndReturnMove(hybridAnalysis, moves) {
   // Fallback to using index if bestMove not available
   if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
     const selectedCombination = moves[bestMoveIndex]
+    // CRITICAL: Ensure moves array is sorted (bar moves first) before returning
+    if (selectedCombination.moves && selectedCombination.moves.length > 1) {
+      const hasBarMove = selectedCombination.moves.some(m => m.fromBar || m.from === 25 || m.from === 0)
+      if (hasBarMove) {
+        const firstMove = selectedCombination.moves[0]
+        const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
+        if (!isFirstBar) {
+          // Re-sort moves array to ensure bar moves come first
+          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          selectedCombination.moves.sort((a, b) => {
+            const aIsBar = isBarMove(a)
+            const bIsBar = isBarMove(b)
+            if (aIsBar && !bIsBar) return -1
+            if (!aIsBar && bIsBar) return 1
+            const aFrom = aIsBar ? 25 : a.from
+            const bFrom = bIsBar ? 25 : b.from
+            if (aFrom !== bFrom) return bFrom - aFrom
+            return b.to - a.to
+          })
+          // Rebuild description from sorted moves to ensure consistency
+          selectedCombination.moves.sort(sortMoves)
+          selectedCombination.description = rebuildDescription(selectedCombination.moves)
+        }
+      }
+    }
     return {
       move: selectedCombination,
       reasoning: reasoning,
@@ -325,72 +463,137 @@ function parseXGID(xgid) {
 export { parseXGID, createTurnState, getLegalMoves }
 
 export async function POST(request) {
+  // Set a timeout of 30 seconds for the entire analysis
+  const timeoutMs = 30000
+  const startTime = Date.now()
+  
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('Analysis timeout: exceeded 30 seconds'))
+    }, timeoutMs)
+  })
+  
+  const analysisPromise = (async () => {
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false, usedDice = [] } = await request.json()
+
+      // Validate input
+      if (!xgid) {
+        return Response.json(
+          { error: 'XGID is required' },
+          { status: 400 }
+        )
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:341',message:'Before parseXGID',data:{xgid:xgid.substring(0,50),player,difficulty,maxMoves,usedDiceLength:usedDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+
+      // Parse position and generate legal moves
+      const boardState = parseXGID(xgid)
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:344',message:'Before createTurnState',data:{boardStatePlayer:boardState.player,boardStateDice:boardState.dice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+
+      // Create turn state for legal move generation
+      const turnState = createTurnState(boardState, player)
+      // If usedDice is provided, update turn state to reflect already used dice
+      if (usedDice && usedDice.length > 0) {
+        turnState.usedDice = usedDice
+      }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'Before getLegalMoves',data:{turnStateCurrentPlayer:turnState.currentPlayer,turnStateDice:turnState.dice,turnStateUsedDice:turnState.usedDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      const allLegalMoves = getLegalMoves(boardState, turnState)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.slice(0,20).map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+
+      // Collect debug information
+      const debugInfo = debug ? {
+        xgid,
+        legalMoves: allLegalMoves.map(move => ({
+          description: formatMove(move),
+          totalPips: move.totalPips || 0
+        }))
+      } : null
+
+      if (allLegalMoves.length === 0) {
+        return Response.json({
+          move: null,
+          reasoning: "No legal moves available",
+          confidence: 1.0,
+          source: 'local'
+        })
+      }
+
+      // Get top legal moves for engine analysis
+      const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:373',message:'Top moves selected',data:{topMovesLength:topMoves.length,topMoves:topMoves.map(m=>({movesLength:m.moves?m.moves.length:1,description:m.description,totalPips:m.totalPips,moves:m.moves?m.moves.map(mv=>({from:mv.from,to:mv.to,die:mv.die})):null})),topSingleMoves:topMoves.filter(m=>(m.moves?.length||1)===1).length,topMultiMoves:topMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+
+      // Get hybrid engine analysis
+      const playerOwner = player === 1 ? 'white' : 'black'
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'Before analyzeMovesWithHybridEngine',data:{playerOwner,topMovesLength:topMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'After analyzeMovesWithHybridEngine',data:{hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+
+      // Validate and return best hybrid suggestion
+      const result = validateAndReturnMove(hybridAnalysis, topMoves)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:432',message:'Final result',data:{resultMoveDescription:result.move?.description,resultMoveMovesLength:result.move?.moves?.length||1,resultReasoning:result.reasoning,resultSource:result.source},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+
+      if (!debugInfo) {
+        delete result.factorScores
+      }
+
+      // Include debug info if requested
+      if (debugInfo) {
+        result.debug = debugInfo
+      }
+
+      return Response.json(result)
+    } catch (error) {
+      throw error
+    }
+  })()
+  
   try {
-    const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false, usedDice = [] } = await request.json()
-
-    // Validate input
-    if (!xgid) {
-      return Response.json(
-        { error: 'XGID is required' },
-        { status: 400 }
-      )
-    }
-
-
-    // Parse position and generate legal moves
-    const boardState = parseXGID(xgid)
-
-    // Create turn state for legal move generation
-    const turnState = createTurnState(boardState, player)
-    // If usedDice is provided, update turn state to reflect already used dice
-    if (usedDice && usedDice.length > 0) {
-      turnState.usedDice = usedDice
-    }
-    const allLegalMoves = getLegalMoves(boardState, turnState)
-
-    // Collect debug information
-    const debugInfo = debug ? {
-      xgid,
-      legalMoves: allLegalMoves.map(move => ({
-        description: formatMove(move),
-        totalPips: move.totalPips || 0
-      }))
-    } : null
-
-    if (allLegalMoves.length === 0) {
-      return Response.json({
-        move: null,
-        reasoning: "No legal moves available",
-        confidence: 1.0,
-        source: 'local'
-      })
-    }
-
-    // Get top legal moves for engine analysis
-    const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
-
-    // Get hybrid engine analysis
-    const playerOwner = player === 1 ? 'white' : 'black'
-    const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner)
-
-    // Validate and return best hybrid suggestion
-    const result = validateAndReturnMove(hybridAnalysis, topMoves)
-
-    if (!debugInfo) {
-      delete result.factorScores
-    }
-
-    // Include debug info if requested
-    if (debugInfo) {
-      result.debug = debugInfo
-    }
-
-    return Response.json(result)
-
+    const result = await Promise.race([analysisPromise, timeoutPromise])
+    return result
   } catch (error) {
     console.error('Backgammon Engine API error:', error)
+    
+    // Check if it's a timeout error
+    if (error.message && error.message.includes('timeout')) {
+      const elapsed = Date.now() - startTime
+      return Response.json({
+        move: null,
+        reasoning: `Engine analysis timed out after ${(elapsed / 1000).toFixed(1)} seconds. The position may be too complex.`,
+        confidence: 0.1,
+        source: 'timeout'
+      }, { status: 200 })
+    }
 
-    // Return fallback response
+    // Return fallback response for other errors
     return Response.json({
       move: null,
       reasoning: 'Engine analysis failed due to server error',
@@ -429,9 +632,9 @@ function createTurnState(boardState, player) {
  * Select diverse top legal move combinations for engine analysis
  */
 function selectTopLegalMoves(allMoves, maxMoves) {
-  // For now, just return the best combinations
-  // In a full implementation, this would prioritize by strategic value
-  const limit = Math.max(18, maxMoves)
+  // Return only the requested number of moves to speed up evaluation
+  // Reduced from Math.max(18, maxMoves) to just maxMoves for better performance
+  const limit = maxMoves
   return allMoves.slice(0, Math.min(limit, allMoves.length))
 }
 
@@ -837,129 +1040,4 @@ function checkPrimeLength(boardState, playerOwner) {
 /**
  * Format move for display - converts absolute coordinates to relative based on player
  */
-function formatMove(move, player = null) {
-  if (!move) return 'No move'
-  
-  // Helper to convert absolute to relative coordinates
-  const absoluteToRelative = (absolutePoint, currentPlayer) => {
-    if (absolutePoint === 0 || absolutePoint === 25) return absolutePoint // Bar positions stay as-is
-    if (absolutePoint === -1 || absolutePoint === -2) return absolutePoint // Off positions stay as-is
-    if (currentPlayer === 1) return absolutePoint // White: absolute = relative
-    return 25 - absolutePoint // Black: relative = 25 - absolute
-  }
-  
-  if (move.moves) {
-    // This is a combination of moves
-    if (player === null) {
-      // Fallback: use description as-is if player not provided
-      return move.description || 'No move'
-    }
-    
-    // If description exists and player is white (1), we can use it directly
-    // since descriptions are built in absolute coordinates which match white's relative coordinates
-    if (move.description && player === 1) {
-      return move.description
-    }
-    
-    // For black or when description not available, convert coordinates
-    // Convert each move in the combination
-    let convertedMoves = move.moves.map(m => {
-      const fromRel = absoluteToRelative(m.from, player)
-      const toRel = absoluteToRelative(m.to, player)
-      const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
-      const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
-      const asterisk = m.hitBlot ? '*' : ''
-      return { from, to, moveStr: `${from}/${to}`, hitBlot: m.hitBlot }
-    })
-    
-    // Normalize order: sort by highest originating point first
-    convertedMoves = convertedMoves.sort((a, b) => {
-      const aFrom = parseInt(a.moveStr.split('/')[0]) || 0
-      const bFrom = parseInt(b.moveStr.split('/')[0]) || 0
-      return bFrom - aFrom // Highest first
-    })
-    
-    // Collapse sequences first (same checker moving: e.g., "8/6 6/5" -> "8/5")
-    // Then group identical moves
-    const formattedParts = []
-    let i = 0
-    while (i < convertedMoves.length) {
-      // If this move hits a blot, add it separately (hitting stops the sequence)
-      if (convertedMoves[i].hitBlot) {
-        formattedParts.push(`${convertedMoves[i].moveStr}*`)
-        i++
-        continue
-      }
-      
-      // Try to form a sequence starting from this move
-      let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
-      let sequenceEnd = convertedMoves[i].moveStr.split('/')[1]
-      let sequenceHitBlot = convertedMoves[i].hitBlot
-      const sequenceMoves = [convertedMoves[i]] // Track original moves in sequence
-      let j = i + 1
-      
-      // Check if this is part of a sequence (same checker moving)
-      // Only continue if next move starts where this one ends AND doesn't hit a blot
-      while (j < convertedMoves.length && 
-             convertedMoves[j].moveStr.split('/')[0] === sequenceEnd && 
-             !convertedMoves[j].hitBlot) {
-        sequenceEnd = convertedMoves[j].moveStr.split('/')[1]
-        sequenceHitBlot = sequenceHitBlot || convertedMoves[j].hitBlot
-        sequenceMoves.push(convertedMoves[j])
-        j++
-      }
-      
-      // Add collapsed move (or single move if not a sequence)
-      const asterisk = sequenceHitBlot ? '*' : ''
-      if (sequenceMoves.length > 1) {
-        // Collapsed sequence - show original moves in parentheses
-        const originalMovesStr = sequenceMoves.map(m => `${m.moveStr}${m.hitBlot ? '*' : ''}`).join(' ')
-        formattedParts.push(`${sequenceStart}/${sequenceEnd}${asterisk} (${originalMovesStr})`)
-      } else {
-        // Single move, no collapse
-        formattedParts.push(`${sequenceStart}/${sequenceEnd}${asterisk}`)
-      }
-      i = j // Move to next non-sequence move
-    }
-    
-    // Now group identical moves (including collapsed sequences)
-    const moveGroups = new Map()
-    for (const part of formattedParts) {
-      const key = part.replace('*', '') // Remove asterisk for grouping
-      if (!moveGroups.has(key)) {
-        moveGroups.set(key, { moveStr: part, count: 0 })
-      }
-      moveGroups.get(key).count++
-    }
-    
-    const parts = []
-    for (const group of moveGroups.values()) {
-      if (group.count > 1) {
-        // Extract the base move string and asterisk
-        const baseMove = group.moveStr.replace('*', '')
-        const hasAsterisk = group.moveStr.includes('*')
-        const asterisk = hasAsterisk ? '*' : ''
-        parts.push(`${baseMove}(${group.count})${asterisk}`)
-      } else {
-        parts.push(group.moveStr)
-      }
-    }
-    
-    // Sort by highest starting point first
-    parts.sort((a, b) => {
-      const aFrom = parseInt(a.split('/')[0]) || 0
-      const bFrom = parseInt(b.split('/')[0]) || 0
-      return bFrom - aFrom
-    })
-    
-    return parts.join(' ')
-  }
-  
-  // Single move
-  const fromRel = absoluteToRelative(move.from, player || 1)
-  const toRel = absoluteToRelative(move.to, player || 1)
-  const from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
-  const to = toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel
-  const asterisk = move.hitBlot ? '*' : ''
-  return `${from}/${to}${asterisk}`
-}
+// formatMove is now imported from utils/moveFormatter
