@@ -343,7 +343,7 @@ function applyMoveToBoard(boardState, move) {
 
 export async function POST(request) {
   try {
-    const { xgid, player, difficulty = 'intermediate', maxMoves = 5, debug = false } = await request.json()
+    const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false } = await request.json()
 
     // Validate input
     if (!xgid) {
@@ -1094,8 +1094,10 @@ Using the VERIFIED data above, rate each move using the 7 strategic factors (wit
 Hitting (${adjustedWeights?.H ?? BASE_FACTOR_WEIGHTS.H}), Development (${adjustedWeights?.D ?? BASE_FACTOR_WEIGHTS.D}), Safety (${adjustedWeights?.S ?? BASE_FACTOR_WEIGHTS.S}), Pressure (${adjustedWeights?.P ?? BASE_FACTOR_WEIGHTS.P}), Diversity (${adjustedWeights?.Dv ?? BASE_FACTOR_WEIGHTS.Dv}), Timing (${adjustedWeights?.T ?? BASE_FACTOR_WEIGHTS.T}), Flexibility (${adjustedWeights?.F ?? BASE_FACTOR_WEIGHTS.F}).
 Use these weights (already adjusted for context) to compute a weighted total for each move, then choose the best move.
 
-EARLY OPENING GUIDANCE:
-In EARLY openings (money play), per XG rollouts, slightly favor aggressive slots or builders on golden/outer points (5pt, 4pt, 7pt, 11pt) when weighted risk <40% — the long-term prime/duplication/flex upside often outweighs the moderate hit risk.
+EARLY OPENING GUIDANCE (money play, XG rollouts):
+- Slightly favor aggressive slots or builders on golden/outer points (5pt, 4pt, 7pt, 11pt) when weighted risk <40% — the long-term prime-building, duplication, and flexibility upside very often outweighs moderate hit risk.
+- ZERO-RISK key-point slots are especially powerful: making the 5-point or 4-point with no blot left (e.g., 8/5 6/5 on 3-1, 8/4 6/4 on 4-2) is almost always the top play due to immediate home board strength and prime potential.
+- When two moves have close totals, prioritize the one that makes or slots a golden point (5pt/4pt) over purely safe builder/split plays.
 
 FEW-SHOT EXAMPLE FOR 21 (2-1):
 Best: 13/11 6/5 (slot 5pt + builder). Equity ~+0.506.
@@ -1112,10 +1114,22 @@ Best: 24/23 13/9 (run + builder). Equity ~+0.45.
 D=9–10 (strong builder), P=7–8 (anchor pressure), S=8–9 (low risk), TOTAL highest.
 Close alt: 13/9 6/5 (5pt slot). Med risk, slightly lower equity.
 
+FEW-SHOT EXAMPLE FOR 43 (4-3):
+Best: 13/10 13/9 (aggressive double builder down from midpoint to 10 and 9, small blot on 9). Equity edge.
+D=9–10 (high outer flex), S=8–9 (low hit risk), P=6–7, TOTAL highest.
+Close alt: 24/20 13/10 (deep anchor + builder). Higher P but lower long-term structure.
+
 FEW-SHOT EXAMPLE FOR 62 (6-2):
 Best: 24/18 13/11 (deep run + builder down). Equity ~+0.49.
 D=9–10 (race + outer flex), S=9–10 (zero risk), P=7–8, TOTAL highest.
 Close alt: 13/5 (risky home run). High blot exposure, lower equity.
+
+FEW-SHOT EXAMPLE FOR 53 (5-3):
+Best: 8/3 6/3 (zero-risk slot 3pt with both dice). Equity ~+0.49.
+D=9–10 (strong home slot), S=10 (zero risk), P=9 (immediate holding), TOTAL highest.
+Close alt: 13/8 8/5 (builder + 5pt slot). Moderate risk blot, slightly lower equity.
+
+In EARLY game, when totals close, prefer zero-risk home slots (3pt/4pt/5pt) over moderate-risk 5pt slots with builder.
 
 ${responseFormat}`
 }
