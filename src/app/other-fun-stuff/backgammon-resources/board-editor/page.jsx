@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import BackgammonBoard from '../opening-moves/components/BackgammonBoard'
@@ -79,12 +80,21 @@ export default function BoardEditorPage() {
       // Automatically show ghost checkers when a move is suggested
       if (result.move) {
         const ghostData = convertMoveToGhostCheckers(result.move, boardXGID)
-        setSuggestedGhostCheckers(ghostData.ghostCheckers)
-        setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
-        setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
-        setSuggestedMoves(ghostData.moves)
-        setSuggestedMoveXGID(ghostData.finalXGID) // Store final XGID after applying move (for board display)
-        setShowGhosts(true)
+        // Use flushSync to ensure all updates happen synchronously in a single render
+        // This prevents flickering: final board state + ghosts update together
+        // Approach: Draw final position, add ghosts at original points, arrows to final points
+        flushSync(() => {
+          // Set final board state first (checkers already moved)
+          setSuggestedMoveXGID(ghostData.finalXGID)
+          // Then set ghost checkers at original positions (where checkers came from)
+          setSuggestedGhostCheckers(ghostData.ghostCheckers)
+          setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+          setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+          // Set arrows to final positions (where checkers went to)
+          setSuggestedMoves(ghostData.moves)
+          // Enable ghost display
+          setShowGhosts(true)
+        })
         // Save ghost data so we can restore it after clearing
         setSavedGhostData({
           ghostCheckers: { ...ghostData.ghostCheckers },
@@ -418,21 +428,42 @@ export default function BoardEditorPage() {
   // Show ghost checkers (restore from saved data)
   const handleShowGhosts = () => {
     if (savedGhostData) {
-      setSuggestedGhostCheckers(savedGhostData.ghostCheckers)
-      setSuggestedGhostCheckerPositions(savedGhostData.ghostCheckerPositions)
-      setSuggestedGhostCheckerOwners(savedGhostData.ghostCheckerOwners)
-      setSuggestedMoves(savedGhostData.moves)
-      setSuggestedMoveXGID(savedGhostData.finalXGID)
-      setShowGhosts(true)
+      // Create deep copies to avoid reference issues
+      const ghostCheckersCopy = JSON.parse(JSON.stringify(savedGhostData.ghostCheckers))
+      const ghostCheckerPositionsCopy = JSON.parse(JSON.stringify(savedGhostData.ghostCheckerPositions))
+      const ghostCheckerOwnersCopy = JSON.parse(JSON.stringify(savedGhostData.ghostCheckerOwners))
+      const movesCopy = JSON.parse(JSON.stringify(savedGhostData.moves))
+      
+      // Restore all data atomically in a single flushSync
+      // This ensures board state and ghosts update together without flicker
+      flushSync(() => {
+        // 1. Set final board state FIRST (checkers already moved to final positions)
+        setSuggestedMoveXGID(savedGhostData.finalXGID)
+        // 2. Set ghost checkers at original positions (where checkers came from)
+        setSuggestedGhostCheckers(ghostCheckersCopy)
+        setSuggestedGhostCheckerPositions(ghostCheckerPositionsCopy)
+        setSuggestedGhostCheckerOwners(ghostCheckerOwnersCopy)
+        // 3. Set arrows to final positions (where checkers went to)
+        setSuggestedMoves(movesCopy)
+        // 4. Enable ghost display LAST - ensures all data is ready before board renders
+        setShowGhosts(true)
+      })
     } else if (engineAnalysis && engineAnalysis.move) {
       // If no saved data, regenerate ghosts from current analysis
       const ghostData = convertMoveToGhostCheckers(engineAnalysis.move, boardXGID)
-      setSuggestedGhostCheckers(ghostData.ghostCheckers)
-      setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
-      setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
-      setSuggestedMoves(ghostData.moves)
-      setSuggestedMoveXGID(ghostData.finalXGID)
-      setShowGhosts(true)
+      // Use flushSync to ensure all updates happen atomically in a single render
+      flushSync(() => {
+        // 1. Set final board state FIRST (checkers already moved to final positions)
+        setSuggestedMoveXGID(ghostData.finalXGID)
+        // 2. Set ghost checkers at original positions (where checkers came from)
+        setSuggestedGhostCheckers(ghostData.ghostCheckers)
+        setSuggestedGhostCheckerPositions(ghostData.ghostCheckerPositions)
+        setSuggestedGhostCheckerOwners(ghostData.ghostCheckerOwners)
+        // 3. Set arrows to final positions (where checkers went to)
+        setSuggestedMoves(ghostData.moves)
+        // 4. Enable ghost display LAST - ensures all data is ready before board renders
+        setShowGhosts(true)
+      })
       // Save the regenerated data
       setSavedGhostData({
         ghostCheckers: { ...ghostData.ghostCheckers },
@@ -683,6 +714,7 @@ export default function BoardEditorPage() {
               <div className="flex justify-center">
                 <div className="rounded-lg shadow-lg overflow-hidden">
                   <BackgammonBoard 
+                    key={showGhosts && suggestedMoveXGID ? `ghost-${suggestedMoveXGID}` : `normal-${boardXGID}`} // Force remount when switching between ghost/normal to prevent flicker
                     direction={0} 
                     showBoardLabels={false} 
                     showPointNumbers={true}
