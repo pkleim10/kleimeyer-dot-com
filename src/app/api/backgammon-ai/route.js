@@ -3,20 +3,179 @@
  * Provides server-side AI analysis with access to environment variables
  */
 
-const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
-const XAI_MODEL = 'grok-4-fast-reasoning'
-// Toggle for context-based weighting adjustments (easy on/off without code rollback)
-const ENABLE_CONTEXT_ADJUSTMENTS = true
+// Heuristic weights for move evaluation
+const HEURISTIC_WEIGHTS = {
+  blots: -0.5,     // Negative for safety
+  hits: 0.3,       // Positive for aggression
+  pointsMade: 0.4, // Positive for development
+  pipGain: 0.2,    // Positive for efficiency
+  homeBoard: 0.1,  // Positive for home board strength
+  primeLength: 0.15 // Positive for blocking
+}
 
-// Base factor weights (used to compute adjusted weights passed to AI)
-const BASE_FACTOR_WEIGHTS = {
-  H: 10,  // Hitting
-  D: 9,   // Development
-  S: 8,   // Safety
-  P: 8,   // Pressure
-  Dv: 7,  // Diversity
-  T: 6,   // Timing
-  F: 6    // Flexibility
+/**
+ * Evaluate move using heuristic scoring
+ */
+function evaluateMoveHeuristically(boardState, move, playerOwner) {
+  const analysis = buildVerifiedMoveAnalysis(boardState, move, playerOwner)
+
+  let score = 0
+  score += analysis.blots.count * HEURISTIC_WEIGHTS.blots
+  score += analysis.hits.count * HEURISTIC_WEIGHTS.hits
+  score += analysis.pointsMade.newlyMade.length * HEURISTIC_WEIGHTS.pointsMade
+  score += analysis.pips.gain * HEURISTIC_WEIGHTS.pipGain
+
+  // Simple home board strength: count checkers in home board
+  const homeBoardStart = playerOwner === 'white' ? 1 : 19
+  const homeBoardEnd = playerOwner === 'white' ? 6 : 24
+  const homeBoardCheckers = countCheckersInRange(boardState, playerOwner, homeBoardStart, homeBoardEnd)
+  score += homeBoardCheckers * HEURISTIC_WEIGHTS.homeBoard
+
+  // Simple prime potential: check for 6-point prime
+  const primeLength = checkPrimeLength(boardState, playerOwner)
+  score += primeLength * HEURISTIC_WEIGHTS.primeLength
+
+  return score
+}
+
+/**
+ * Run Monte Carlo simulations for move evaluation
+ */
+function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 5) {
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  let wins = 0
+
+  for (let i = 0; i < numSimulations; i++) {
+    // Apply the move combination to get new board state
+    let currentBoard = cloneBoardState(boardState)
+    const moves = moveCombination.moves || [moveCombination]
+    for (const move of moves) {
+      currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, playerOwner)
+    }
+
+    // Simulate random playout until game end or max moves
+    let currentPlayer = opponentOwner
+    let movesMade = 0
+    const maxMoves = 20 // Prevent infinite loops
+
+    while (!isGameOver(currentBoard) && movesMade < maxMoves) {
+      const legalMoves = getLegalMoves(currentBoard, { currentPlayer, dice: getRandomDice() })
+      if (legalMoves.length === 0) {
+        break
+      }
+
+      // Randomly select a move
+      const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)]
+      const randomMoves = randomMove.moves || [randomMove]
+      for (const move of randomMoves) {
+        currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, currentPlayer)
+      }
+      currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
+      movesMade++
+    }
+
+    // Check if playerOwner won or has advantage
+    const winner = getWinner(currentBoard)
+    if (winner === playerOwner) {
+      wins++
+    } else if (winner === null) {
+      // Game not finished, check pip count advantage
+      const pipCounts = calculatePipCounts(currentBoard)
+      const playerPip = playerOwner === 'white' ? pipCounts.white : pipCounts.black
+      const opponentPip = playerOwner === 'white' ? pipCounts.black : pipCounts.white
+      if (playerPip < opponentPip) wins += 0.5 // Partial win for pip advantage
+    }
+  }
+
+  return wins / numSimulations
+}
+
+/**
+ * Hybrid evaluation combining heuristic and MC
+ */
+function evaluateMoveHybrid(boardState, move, playerOwner) {
+  const heuristicScore = evaluateMoveHeuristically(boardState, move, playerOwner)
+  const mcScore = runMonteCarlo(boardState, move, playerOwner)
+
+  // Combine scores (weighted average)
+  const hybridScore = 0.6 * heuristicScore + 0.4 * mcScore
+
+  return {
+    move,
+    heuristicScore,
+    mcScore,
+    hybridScore
+  }
+}
+
+/**
+ * Analyze moves using hybrid engine
+ */
+function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
+  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner))
+
+  // Sort by hybrid score descending
+  evaluations.sort((a, b) => b.hybridScore - a.hybridScore)
+
+  const bestEvaluation = evaluations[0]
+  const bestMove = bestEvaluation.move
+  const reasoning = `Hybrid evaluation selected ${formatMove(bestMove)} with score ${evaluations[0].hybridScore.toFixed(3)}`
+
+  return {
+    bestMoveIndex: 0, // Just use the first (best) evaluation's move
+    reasoning,
+    confidence: 0.9, // High confidence for deterministic evaluation
+    factorScores: evaluations.map((evaluation, idx) => ({
+      moveNumber: idx + 1,
+      moveDescription: formatMove(evaluation.move),
+      scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`
+    })),
+    bestMove: bestMove
+  }
+}
+
+/**
+ * Validate hybrid suggestion and return move combination
+ */
+function validateAndReturnMove(hybridAnalysis, moves) {
+  const { bestMoveIndex, reasoning, confidence, factorScores } = hybridAnalysis
+
+  if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
+    const selectedCombination = moves[bestMoveIndex]
+    return {
+      move: selectedCombination,
+      reasoning: reasoning,
+      confidence: confidence,
+      factorScores: factorScores,
+      source: 'hybrid'
+    }
+  }
+
+  // Fallback to first combination
+  return {
+    move: moves[0],
+    reasoning: "Hybrid evaluation failed, using first move",
+    confidence: 0.3,
+    factorScores: null,
+    source: 'fallback'
+  }
+}
+
+// Helper functions for MC
+function getRandomDice() {
+  const d1 = Math.floor(Math.random() * 6) + 1
+  const d2 = Math.floor(Math.random() * 6) + 1
+  return d1 === d2 ? [d1, d1, d1, d1] : [d1, d2]
+}
+
+function isGameOver(boardState) {
+  // For simplicity in MC, never consider game over - just simulate a few moves
+  return false
+}
+
+function getWinner(boardState) {
+  // For simplicity, return null - no winner in short simulations
+  return null
 }
 
 // Helper functions copied from xgidParser.js
@@ -353,19 +512,6 @@ export async function POST(request) {
       )
     }
 
-    // Get API key from environment
-    const XAI_API_KEY = process.env.XAI_API_KEY
-    if (!XAI_API_KEY) {
-      return Response.json(
-        {
-          move: null,
-          reasoning: 'AI analysis not available - XAI_API_KEY not configured',
-          confidence: 0.1,
-          source: 'error'
-        },
-        { status: 200 }
-      )
-    }
 
     // Parse position and generate legal moves
     const boardState = parseXGID(xgid)
@@ -380,9 +526,7 @@ export async function POST(request) {
       legalMoves: allLegalMoves.map(move => ({
         description: formatMove(move),
         totalPips: move.totalPips || 0
-      })),
-      prompt: '',
-      response: ''
+      }))
     } : null
 
     if (allLegalMoves.length === 0) {
@@ -397,11 +541,12 @@ export async function POST(request) {
     // Get top legal moves for AI analysis
     const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
 
-    // Get AI strategic analysis
-    const aiAnalysis = await analyzeMovesWithAI(xgid, topMoves, difficulty, player, debugInfo)
+    // Get hybrid engine analysis
+    const playerOwner = player === 1 ? 'white' : 'black'
+    const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner)
 
-    // Validate and return best AI suggestion
-    const result = validateAndReturnMove(aiAnalysis, topMoves)
+    // Validate and return best hybrid suggestion
+    const result = validateAndReturnMove(hybridAnalysis, topMoves)
 
     if (!debugInfo) {
       delete result.factorScores
@@ -819,35 +964,6 @@ function buildVerifiedMoveAnalysis(boardState, moveCombination, playerOwner) {
 // ============================================================================
 // CONTEXT CLASSIFICATION - Stage and Game Type for weight adjustments
 // ============================================================================
-function classifyGameContext(boardState, playerOwner) {
-  const isWhite = playerOwner === 'white'
-  const pipCounts = calculatePipCounts(boardState)
-  const pipDiff = isWhite ? (pipCounts.white - pipCounts.black) : (pipCounts.black - pipCounts.white)
-
-  const whiteBack = countCheckersInRange(boardState, 'white', 19, 24)
-  const blackBack = countCheckersInRange(boardState, 'black', 1, 6)
-  const playerBack = isWhite ? whiteBack : blackBack
-  const opponentBack = isWhite ? blackBack : whiteBack
-
-  const contact = hasContact(boardState)
-  let stage = 'MID'
-  if (!contact) {
-    stage = 'LATE (RACE)'
-  } else {
-    if (playerBack >= 2 && opponentBack >= 2) stage = 'EARLY'
-  }
-
-  let type = 'CONTACT'
-  if (!contact) {
-    type = 'RUNNING'
-  } else if (playerBack >= 3 && pipDiff > 10) {
-    type = 'BACKGAME'
-  } else if (playerBack >= 1) {
-    type = 'HOLDING'
-  }
-
-  return { stage, type, contact, pipDiff, playerBack, opponentBack }
-}
 
 function countCheckersInRange(boardState, owner, startPoint, endPoint) {
   let count = 0
@@ -866,163 +982,27 @@ function hasContact(boardState) {
   return whiteInUpper && blackInLower
 }
 
-function getAdjustedFactorWeights(gameContext) {
-  const weights = { ...BASE_FACTOR_WEIGHTS }
-
-  if (!ENABLE_CONTEXT_ADJUSTMENTS || !gameContext) return weights
-
-  const stage = gameContext.stage
-  if (stage === 'EARLY') {
-    weights.D += 1
-    weights.S -= 1
-    weights.P += 1
-    weights.Dv += 1
-    weights.F += 1
-  } else if (stage === 'MID') {
-    weights.H += 1
-    weights.S += 1
-    weights.P += 1
-  } else if (stage === 'LATE') {
-    weights.H -= 1
-    weights.D -= 1
-    weights.S += 1
-    weights.P -= 1
-    weights.T += 2
-    weights.F += 1
+function checkPrimeLength(boardState, playerOwner) {
+  // Simple check for longest consecutive points owned
+  let maxPrime = 0
+  let currentPrime = 0
+  for (let i = 1; i <= 24; i++) {
+    const point = boardState.points[i - 1]
+    if (point.owner === playerOwner && point.count >= 2) {
+      currentPrime++
+      maxPrime = Math.max(maxPrime, currentPrime)
+    } else {
+      currentPrime = 0
+    }
   }
-
-  const type = gameContext.type
-  if (type === 'RUNNING') {
-    weights.H -= 1
-    weights.D -= 1
-    weights.S += 1
-    weights.P -= 1
-    weights.T += 2
-    weights.F += 1
-  } else if (type === 'HOLDING') {
-    weights.S += 1
-    weights.P += 1
-    weights.F += 1
-  } else if (type === 'BLITZ') {
-    weights.H += 2
-    weights.D += 1
-    weights.P += 2
-    weights.T -= 1
-  } else if (type === 'BACKGAME') {
-    weights.D -= 1
-    weights.S += 1
-    weights.P += 1
-    weights.Dv += 1
-    weights.T -= 2
-    weights.F += 1
-  }
-
-  return weights
+  return maxPrime
 }
+
 
 /**
  * Call xAI for strategic analysis
  */
-async function analyzeMovesWithAI(xgid, moves, difficulty, player, debugInfo = null) {
-  const XAI_API_KEY = process.env.XAI_API_KEY
 
-  const playerOwner = player === 1 ? 'white' : 'black'
-  const boardState = parseXGID(xgid)
-  const verifiedAnalyses = moves.map((move, index) => ({
-    moveNumber: index + 1,
-    ...buildVerifiedMoveAnalysis(boardState, move, playerOwner)
-  }))
-
-  const gameContext = ENABLE_CONTEXT_ADJUSTMENTS ? classifyGameContext(boardState, playerOwner) : null
-  const adjustedWeights = getAdjustedFactorWeights(gameContext)
-  const prompt = buildHybridPrompt(
-    xgid,
-    moves,
-    verifiedAnalyses,
-    difficulty,
-    player,
-    gameContext,
-    adjustedWeights,
-    Boolean(debugInfo)
-  )
-
-  // Store prompt in debug info
-  if (debugInfo) {
-    debugInfo.prompt = prompt
-    debugInfo.verifiedAnalyses = verifiedAnalyses
-    if (gameContext) debugInfo.gameContext = gameContext
-    debugInfo.adjustedWeights = adjustedWeights
-  }
-
-  const response = await fetch(XAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${XAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: XAI_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1200,
-      temperature: 0.3 // Consistent strategic analysis
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`xAI API error: ${response.status}`)
-  }
-
-  const data = await response.json()
-  const aiResponse = data.choices[0].message.content
-
-  // Store response in debug info
-  if (debugInfo) {
-    debugInfo.response = aiResponse
-  }
-
-  return parseAIResponse(aiResponse)
-}
-
-/**
- * Build strategic analysis prompt
- */
-function buildAnalysisPrompt(xgid, moves, difficulty, player) {
-  // Parse XGID to get player and dice info
-  const parts = xgid.split(':')
-  const playerNum = parseInt(parts[3] || '1')
-  const dice = parts[4] || '00'
-  const playerColor = playerNum === 1 ? 'WHITE' : 'BLACK'
-  const opponentColor = playerNum === 1 ? 'BLACK' : 'WHITE'
-
-  const moveList = moves.map((move, i) =>
-    `${i + 1}. ${formatMove(move)}`
-  ).join('\n')
-
-  return `You are a ${difficulty} level backgammon expert analyzing from ${playerColor}'s perspective.
-
-Current position:
-XGID: ${xgid}
-${playerColor} to move with dice: ${dice}
-
-Legal moves to consider:
-${moveList}
-
-IMPORTANT:
-- You are playing as ${playerColor}, so analyze from ${playerColor}'s viewpoint
-- ${playerColor} must use both dice when possible (unless blocked)
-- Points are numbered 1-24 from ${playerColor}'s perspective (1-6 = ${playerColor}'s home board, 19-24 = opponent's home board)
-- Lower point numbers (1-6) are ${playerColor}'s home board where pieces bear off
-- Higher point numbers (19-24) are opponent's home board
-
-Focus on: blot safety, board control, timing, race position, and using both dice efficiently.
-
-Respond with format:
-BEST_MOVE: [move number]
-FACTOR_SCORES: For each move, output one concise line using ONLY the move number:
-MOVE X: H a×w=b | D a×w=b | S a×w=b | P a×w=b | Dv a×w=b | T a×w=b | F a×w=b | TOTAL=sum
-REASONING: [2-3 sentence strategic analysis from ${playerColor}'s perspective]
-CONFIDENCE: [0.0-1.0]`
-}
 
 /**
  * Build HYBRID prompt with verified deterministic data
@@ -1137,74 +1117,6 @@ ${responseFormat}`
 /**
  * Parse AI response
  */
-function parseAIResponse(response) {
-  const lines = response.split('\n')
-  let bestMove = null
-  let reasoning = ''
-  let confidence = 0.5
-  const factorScores = []
-
-  lines.forEach(line => {
-    if (line.startsWith('BEST_MOVE:')) {
-      bestMove = parseInt(line.split(':')[1].trim())
-    } else if (line.startsWith('MOVE ') && line.includes('|')) {
-      const match = line.match(/^MOVE\s+(\d+):\s*(.*)$/)
-      if (match) {
-        factorScores.push({
-          moveNumber: parseInt(match[1], 10),
-          scores: match[2].trim()
-        })
-      }
-    } else if (line.startsWith('REASONING:')) {
-      reasoning = line.substring(10).trim()
-    } else if (line.startsWith('CONFIDENCE:')) {
-      confidence = parseFloat(line.split(':')[1].trim()) || 0.5
-    }
-  })
-
-  return {
-    bestMoveIndex: bestMove - 1,
-    reasoning,
-    confidence,
-    factorScores
-  }
-}
-
-/**
- * Validate AI suggestion and return move combination
- */
-function validateAndReturnMove(aiAnalysis, moves) {
-  const { bestMoveIndex, reasoning, confidence, factorScores } = aiAnalysis
-  const mappedFactorScores = Array.isArray(factorScores) && factorScores.length > 0
-    ? factorScores
-      .filter(entry => entry.moveNumber >= 1 && entry.moveNumber <= moves.length)
-      .map(entry => ({
-        moveNumber: entry.moveNumber,
-        moveDescription: formatMove(moves[entry.moveNumber - 1]),
-        scores: entry.scores
-      }))
-    : null
-
-  if (bestMoveIndex >= 0 && bestMoveIndex < moves.length) {
-    const selectedCombination = moves[bestMoveIndex]
-    return {
-      move: selectedCombination,
-      reasoning: reasoning,
-      confidence: confidence,
-      factorScores: mappedFactorScores,
-      source: 'ai'
-    }
-  }
-
-  // Fallback to first combination if AI gave invalid index
-  return {
-    move: moves[0],
-    reasoning: "AI suggestion invalid, using conservative move combination",
-    confidence: 0.3,
-    factorScores: mappedFactorScores,
-    source: 'fallback'
-  }
-}
 
 /**
  * Format move for display
