@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -22,6 +22,8 @@ export default function BoardEditorPage() {
   const [xgidInputValue, setXgidInputValue] = useState(STARTING_XGID) // Current input value
   const [xgidError, setXgidError] = useState(null) // Validation error message
   const [usedDice, setUsedDice] = useState([]) // Track dice that have been used in the current turn
+  const [turnStartXGID, setTurnStartXGID] = useState(STARTING_XGID) // Track board state at the start of the current turn
+  const [resetKey, setResetKey] = useState(0) // Key to force BackgammonBoard to reset turnState
 
   // Ghost checkers and arrows for suggested move
   const [suggestedGhostCheckers, setSuggestedGhostCheckers] = useState({})
@@ -617,8 +619,11 @@ export default function BoardEditorPage() {
 
   // Keep currentPlayer in sync with boardState.player from XGID
   // This ensures currentPlayer always reflects the authoritative player from the board state
+  const prevBoardStateRef = useRef(null)
   useEffect(() => {
     const boardState = parseXGID(boardXGID)
+    const prevBoardState = prevBoardStateRef.current
+    
     if (boardState && boardState.player !== undefined) {
       const xgidPlayer = boardState.player
       const prevPlayer = currentPlayer
@@ -626,14 +631,44 @@ export default function BoardEditorPage() {
       // Update currentPlayer to match XGID player (source of truth)
       setCurrentPlayer(xgidPlayer)
       
-      // Reset usedDice when:
+      // Reset usedDice and update turnStartXGID when:
       // 1. Dice are cleared (turn complete) - "00"
       // 2. Player changes (new turn)
-      if (boardState.dice === '00' || (prevPlayer !== undefined && prevPlayer !== xgidPlayer)) {
+      // 3. Dice are rolled (new turn starts) - dice changes from "00" to something else
+      const diceRolled = prevBoardState?.dice === '00' && boardState.dice !== '00'
+      const diceCleared = prevBoardState?.dice !== '00' && boardState.dice === '00'
+      const playerChanged = prevPlayer !== undefined && prevPlayer !== xgidPlayer
+      
+      if (diceCleared || playerChanged) {
         setUsedDice([])
       }
+      
+      // Update turnStartXGID when a new turn starts (dice rolled or player changed)
+      if (diceRolled || playerChanged) {
+        setTurnStartXGID(boardXGID)
+      }
+      
+      // Update ref for next comparison
+      prevBoardStateRef.current = boardState
     }
   }, [boardXGID, currentPlayer]) // Depend on both to detect player changes
+  
+  // Reset handler - restores board to start of current turn
+  const handleReset = () => {
+    if (editingMode !== 'play') return
+    
+    // Check if there are any moves made (usedDice has entries or board changed)
+    const hasMoves = usedDice.length > 0 || boardXGID !== turnStartXGID
+    
+    if (hasMoves) {
+      // Restore board to turn start state
+      setBoardXGID(turnStartXGID)
+      setUsedDice([])
+      handleClearEngineAnalysis()
+      // Increment resetKey to force BackgammonBoard to reset its turnState
+      setResetKey(prev => prev + 1)
+    }
+  }
 
   // Save engine difficulty to localStorage
   useEffect(() => {
@@ -761,9 +796,10 @@ export default function BoardEditorPage() {
                 </p>
               </div>
 
-              {/* Editing Mode Toggle and Start Button */}
+              {/* Combined Button Bar */}
               <div className="flex justify-center mb-4">
-                <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-1">
+                <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-1 flex-wrap justify-center max-w-full">
+                  {/* EDIT | PLAY */}
                   <button
                     onClick={() => {
                       setEditingMode('free')
@@ -788,24 +824,24 @@ export default function BoardEditorPage() {
                     PLAY
                   </button>
                   <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                  
+                  {/* Start */}
                   <button
                     onClick={() => {
                       // Reset to starting position and clear game state
                       setBoardXGID(STARTING_XGID)
                       setUsedDice([]) // Clear used dice tracking
+                      setTurnStartXGID(STARTING_XGID) // Reset turn start tracking
                       handleClearEngineAnalysis() // Clear engine analysis when starting new game
-                      // Note: STARTING_XGID already has player=1 (white) and dice=00 (cleared)
+                      // Note: STARTING_XGID already has player=0 (OPEN) and dice=00 (cleared)
                     }}
                     className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                   >
                     Start
                   </button>
-                </div>
-              </div>
-
-              {/* Suggestion Toolbar - Permanent */}
-              <div className="flex justify-center mb-4">
-                <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-2">
+                  <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                  
+                  {/* Suggest Move */}
                   {(() => {
                     // Check if player needs to roll dice (dice are "00")
                     const boardState = boardXGID ? parseXGID(boardXGID) : null
@@ -829,11 +865,15 @@ export default function BoardEditorPage() {
                       </button>
                     )
                   })()}
+                  
+                  {/* Move Notation */}
                   {engineAnalysis && engineAnalysis.move && (
                     <>
-                      <span className="text-gray-700 dark:text-gray-300 font-mono text-sm">
+                      <span className="text-gray-700 dark:text-gray-300 font-mono text-sm px-2">
                         {formatMoveForToolbar(engineAnalysis.move)}
                       </span>
+                      
+                      {/* Apply */}
                       <button
                         onClick={(e) => {
                           e.preventDefault()
@@ -861,6 +901,12 @@ export default function BoardEditorPage() {
                       >
                         Apply
                       </button>
+                    </>
+                  )}
+                  
+                  {/* Clear/Show */}
+                  {engineAnalysis && engineAnalysis.move && (
+                    <>
                       <button
                         onClick={() => {
                           if (showGhosts) {
@@ -875,6 +921,20 @@ export default function BoardEditorPage() {
                       </button>
                     </>
                   )}
+                  
+                  {/* Reset */}
+                  {editingMode === 'play' && (
+                    <>
+                      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                      <button
+                        onClick={handleReset}
+                        disabled={usedDice.length === 0 && boardXGID === turnStartXGID}
+                        className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Reset
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -882,7 +942,7 @@ export default function BoardEditorPage() {
               <div className="flex justify-center">
                 <div className="rounded-lg shadow-lg overflow-hidden">
                   <BackgammonBoard 
-                    key={showGhosts ? `ghost-${suggestedMoveXGID || 'none'}` : 'normal'} // Force remount when switching between ghost/normal to prevent flicker, but NOT on every board change
+                    key={showGhosts ? `ghost-${suggestedMoveXGID || 'none'}-reset${resetKey}` : `normal-reset${resetKey}`} // Force remount when switching between ghost/normal or when reset, but NOT on every board change
                     direction={0} 
                     showBoardLabels={false} 
                     showPointNumbers={true}

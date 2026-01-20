@@ -850,35 +850,31 @@ export default function BackgammonBoard({
   
   // Helper: Render dice
   const renderDice = () => {
-    // Check for opening roll state (player === 0) - show re-roll watermark if dice are equal
     const currentBoardState = parseXGID(editableXGID || effectiveXGID || xgid)
+    
+    // For opening roll with doubles, show dice from openingRollDice state
+    let diceToShow = null
+    let showRerollWatermark = false
+    
     if (currentBoardState.player === 0 && openingRollDice) {
-      // Show re-roll watermark if dice are equal (winner is null)
+      // Show dice from openingRollDice state (even if doubles)
+      const higherDie = Math.max(openingRollDice.whiteDie, openingRollDice.blackDie)
+      const lowerDie = Math.min(openingRollDice.whiteDie, openingRollDice.blackDie)
+      diceToShow = `${higherDie}${lowerDie}`
+      
+      // Show re-roll watermark if dice are equal (winner is null or doubles)
       if (openingRollDice.winner === null || openingRollDice.whiteDie === openingRollDice.blackDie) {
-        const diceY = topBorderWidth + innerHeight / 2
-        const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
-        return (
-          <text
-            x={rightHalfCenterX}
-            y={diceY}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize="24"
-            fill="#888888"
-            opacity={0.7}
-            style={{ pointerEvents: 'none' }}
-          >
-            Re-roll
-          </text>
-        )
+        showRerollWatermark = true
       }
+    } else {
+      // Normal dice display
+      // In editable mode, use dice from editableXGID (boardState.dice), otherwise use finalEffectiveDice
+      // Don't show dice if value is "00" - keep it consistent with XGID
+      diceToShow = isEditable 
+        ? (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null)
+        : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
     }
     
-    // In editable mode, use dice from editableXGID (boardState.dice), otherwise use finalEffectiveDice
-    // Don't show dice if value is "00" - keep it consistent with XGID
-    const diceToShow = isEditable 
-      ? (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null)
-      : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
     if (!diceToShow) return null
     
     // Parse dice values
@@ -902,9 +898,16 @@ export default function BackgammonBoard({
     // Determine dice colors
     let baseDieFill1, baseDieFill2, basePipFill1, basePipFill2
     
-    // Opening move (moveNumber === 1): show different colored dice
-    // xg5 format is "higherDie lowerDie" (e.g., "53" means 5 and 3, where 5 is higher)
-    if (moveNumber === 1 && openingRollDice) {
+    // For opening roll doubles (player === 0, openingRollDice with null winner), show one white, one black die
+    if (currentBoardState.player === 0 && openingRollDice && openingRollDice.winner === null) {
+      // Opening roll doubles: show one white die, one black die (same value)
+      baseDieFill1 = COLORS.checkerWhite // First die = white
+      basePipFill1 = COLORS.stroke
+      baseDieFill2 = COLORS.checkerBlack // Second die = black
+      basePipFill2 = COLORS.checkerWhite
+    } else if (moveNumber === 1 && openingRollDice && openingRollDice.winner) {
+      // Opening move (moveNumber === 1): show different colored dice
+      // xg5 format is "higherDie lowerDie" (e.g., "53" means 5 and 3, where 5 is higher)
       const winnerIsWhite = openingRollDice.winner === 'white'
       
       // First die (die1) is always the higher die = winner's color
@@ -1099,6 +1102,26 @@ export default function BackgammonBoard({
             }}
           />
         </g>
+      )
+    }
+    
+    // Add re-roll watermark to the right of dice if needed
+    if (showRerollWatermark) {
+      const watermarkX = die2X + dieRadius + dieSize * 0.3 // Position to the right of second die
+      diceElements.push(
+        <text
+          key="reroll-watermark"
+          x={watermarkX}
+          y={diceY}
+          textAnchor="start"
+          dominantBaseline="middle"
+          fontSize="20"
+          fill="#888888"
+          opacity={0.7}
+          style={{ pointerEvents: 'none' }}
+        >
+          Re-roll
+        </text>
       )
     }
     
@@ -1988,6 +2011,13 @@ export default function BackgammonBoard({
 
     console.log('[applyAIMove] Using XGID:', currentXGID)
     const boardState = parseXGID(currentXGID)
+    
+    // Prevent AI moves during opening roll doubles state
+    if (boardState.player === 0 && openingRollDice && openingRollDice.winner === null) {
+      console.warn('[applyAIMove] Cannot apply move during opening roll doubles state')
+      return
+    }
+    
     console.log('[applyAIMove] Board state:', {
       player: boardState.player,
       dice: boardState.dice,
@@ -3060,6 +3090,15 @@ export default function BackgammonBoard({
   
   // Drag handlers
   const handleCheckerMouseDown = (e, point, stackPosition, owner, count, isTray = false, trayOwner = null) => {
+    // Prevent dragging during opening roll doubles state
+    const currentXGID = editableXGID || effectiveXGID || xgid
+    if (currentXGID) {
+      const boardState = parseXGID(currentXGID)
+      if (boardState.player === 0 && openingRollDice && openingRollDice.winner === null) {
+        // Opening roll doubles state - no moves allowed
+        return
+      }
+    }
     if (!isEditable) return
     
     e.preventDefault()
@@ -3333,6 +3372,20 @@ export default function BackgammonBoard({
 
       if (!draggedChecker) return
       
+      // Prevent moves during opening roll doubles state
+      const currentXGID = editableXGID || effectiveXGID || xgid
+      if (currentXGID) {
+        const boardState = parseXGID(currentXGID)
+        if (boardState.player === 0 && openingRollDice && openingRollDice.winner === null) {
+          // Opening roll doubles state - no moves allowed
+          setDraggedChecker(null)
+          setDragPosition(null)
+          setDragOverPoint(null)
+          setDragScreenPosition({ x: 0, y: 0 })
+          return
+        }
+      }
+      
       // Find the SVG element
       const svg = document.querySelector('.backgammon-board')
       if (!svg) return
@@ -3348,7 +3401,6 @@ export default function BackgammonBoard({
         const dropPointAbsolute = getPointFromCoordinates(x, y)
         
         if (dropPointAbsolute !== null) {
-          const currentXGID = editableXGID || effectiveXGID || xgid
           if (currentXGID) {
             const boardState = parseXGID(currentXGID)
             
@@ -3719,11 +3771,23 @@ export default function BackgammonBoard({
       
       // Handle opening roll (player === 0)
       if (currentBoardState.player === 0) {
-        // Opening roll: roll one white die and one black die
+        // First opening roll: force doubles (same value on both dice) - one time only for verification
+        if (!openingRollDice) {
+          const dieValue = Math.floor(Math.random() * 6) + 1
+          const whiteDie = dieValue
+          const blackDie = dieValue
+          
+          // Show re-roll watermark (doubles require re-roll)
+          setOpeningRollDice({ whiteDie, blackDie, winner: null }) // null winner indicates re-roll needed
+          // Don't update XGID - keep player as 0 (OPEN state) until re-roll
+          return
+        }
+        
+        // Subsequent opening roll (re-roll after doubles): roll normally
         const whiteDie = Math.floor(Math.random() * 6) + 1
         const blackDie = Math.floor(Math.random() * 6) + 1
         
-        // If dice are equal, show re-roll watermark but don't update XGID yet
+        // If dice are equal again, show re-roll watermark but don't update XGID yet
         if (whiteDie === blackDie) {
           setOpeningRollDice({ whiteDie, blackDie, winner: null }) // null winner indicates re-roll needed
           // Don't update XGID - keep player as 0 (OPEN state)
