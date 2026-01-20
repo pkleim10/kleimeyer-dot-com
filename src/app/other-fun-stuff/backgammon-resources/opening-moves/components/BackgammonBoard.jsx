@@ -62,6 +62,10 @@ export default function BackgammonBoard({
   const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
   // Win state
   const [winner, setWinner] = useState(null) // 'black' | 'white' | null
+  // Move number tracking (0 = before opening roll, 1 = opening move, 2+ = normal play)
+  const [moveNumber, setMoveNumber] = useState(0)
+  // Opening roll dice state (stores white/black dice values for opening move display)
+  const [openingRollDice, setOpeningRollDice] = useState(null) // {whiteDie: number, blackDie: number, winner: 'white'|'black'} | null
   // Use a ref to track the latest turnState synchronously (React state updates are async)
   // IMPORTANT: We update the ref directly when we set turnState, and never sync it back from state
   // This prevents stale state from overwriting our ref updates
@@ -98,6 +102,15 @@ export default function BackgammonBoard({
     player: undefined,
     dice: undefined
   }
+
+  // Reset move number and opening roll dice when board resets to OPEN state
+  useEffect(() => {
+    if (boardState.player === 0 && !openingRollDice && moveNumber > 0) {
+      // Board reset to OPEN state - reset move tracking
+      setMoveNumber(0)
+      setOpeningRollDice(null)
+    }
+  }, [boardState.player, openingRollDice, moveNumber])
 
   // Check for win condition whenever board state changes
   // Only check when not showing ghost previews to prevent duplicate win popups
@@ -837,6 +850,30 @@ export default function BackgammonBoard({
   
   // Helper: Render dice
   const renderDice = () => {
+    // Check for opening roll state (player === 0) - show re-roll watermark if dice are equal
+    const currentBoardState = parseXGID(editableXGID || effectiveXGID || xgid)
+    if (currentBoardState.player === 0 && openingRollDice) {
+      // Show re-roll watermark if dice are equal (winner is null)
+      if (openingRollDice.winner === null || openingRollDice.whiteDie === openingRollDice.blackDie) {
+        const diceY = topBorderWidth + innerHeight / 2
+        const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
+        return (
+          <text
+            x={rightHalfCenterX}
+            y={diceY}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="24"
+            fill="#888888"
+            opacity={0.7}
+            style={{ pointerEvents: 'none' }}
+          >
+            Re-roll
+          </text>
+        )
+      }
+    }
+    
     // In editable mode, use dice from editableXGID (boardState.dice), otherwise use finalEffectiveDice
     // Don't show dice if value is "00" - keep it consistent with XGID
     const diceToShow = isEditable 
@@ -862,9 +899,28 @@ export default function BackgammonBoard({
     const die1X = rightHalfCenterX - dieSize * 0.6 // First die slightly left
     const die2X = rightHalfCenterX + dieSize * 0.6 // Second die slightly right
     
-    // Dice colors based on player
-    const baseDieFill = finalEffectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
-    const basePipFill = finalEffectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
+    // Determine dice colors
+    let baseDieFill1, baseDieFill2, basePipFill1, basePipFill2
+    
+    // Opening move (moveNumber === 1): show different colored dice
+    // xg5 format is "higherDie lowerDie" (e.g., "53" means 5 and 3, where 5 is higher)
+    if (moveNumber === 1 && openingRollDice) {
+      const winnerIsWhite = openingRollDice.winner === 'white'
+      
+      // First die (die1) is always the higher die = winner's color
+      baseDieFill1 = winnerIsWhite ? COLORS.checkerWhite : COLORS.checkerBlack
+      basePipFill1 = winnerIsWhite ? COLORS.stroke : COLORS.checkerWhite
+      
+      // Second die (die2) is always the lower die = loser's color
+      baseDieFill2 = winnerIsWhite ? COLORS.checkerBlack : COLORS.checkerWhite
+      basePipFill2 = winnerIsWhite ? COLORS.checkerWhite : COLORS.stroke
+    } else {
+      // Normal play: dice colors based on current player
+      baseDieFill1 = finalEffectivePlayer === 1 ? COLORS.checkerWhite : COLORS.checkerBlack
+      baseDieFill2 = baseDieFill1
+      basePipFill1 = finalEffectivePlayer === 1 ? COLORS.stroke : COLORS.checkerWhite
+      basePipFill2 = basePipFill1
+    }
     
     // Check if dice are used (in play mode)
     // Count occurrences of each die value in usedDice
@@ -882,10 +938,10 @@ export default function BackgammonBoard({
     }
     
     // Grey out used dice
-    const die1Fill = die1Used ? '#888888' : baseDieFill
-    const die2Fill = die2Used ? '#888888' : baseDieFill
-    const die1PipFill = die1Used ? '#666666' : basePipFill
-    const die2PipFill = die2Used ? '#666666' : basePipFill
+    const die1Fill = die1Used ? '#888888' : baseDieFill1
+    const die2Fill = die2Used ? '#888888' : baseDieFill2
+    const die1PipFill = die1Used ? '#666666' : basePipFill1
+    const die2PipFill = die2Used ? '#666666' : basePipFill2
     
     const diceElements = []
     
@@ -2420,6 +2476,12 @@ export default function BackgammonBoard({
         console.log('[applyAIMove] Turn complete - switching player', { allDiceUsed, allCheckersBorneOff })
         // End turn - switch to next player and clear dice
 
+        // Increment move number after opening turn completes
+        if (moveNumber === 1) {
+          setMoveNumber(2)
+          setOpeningRollDice(null) // Clear opening roll dice after first turn
+        }
+
         // Update XGID to switch player and clear dice
         const parts = updatedXGID.split(':')
         const currentPlayer = parseInt(parts[3])
@@ -3162,6 +3224,12 @@ export default function BackgammonBoard({
               updatedTurnState.isTurnComplete = true
               updatedTurnState.noLegalMoves = true
               
+              // Increment move number after opening turn completes
+              if (moveNumber === 1) {
+                setMoveNumber(2)
+                setOpeningRollDice(null) // Clear opening roll dice after first turn
+              }
+              
               const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
               const parts = newXGID.split(':')
               parts[3] = String(nextPlayer)
@@ -3175,6 +3243,13 @@ export default function BackgammonBoard({
               }
             } else if (allDiceUsed) {
               updatedTurnState.isTurnComplete = true
+              
+              // Increment move number after opening turn completes
+              if (moveNumber === 1) {
+                setMoveNumber(2)
+                setOpeningRollDice(null) // Clear opening roll dice after first turn
+              }
+              
               const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
               const parts = newXGID.split(':')
               parts[3] = String(nextPlayer)
@@ -3436,6 +3511,12 @@ export default function BackgammonBoard({
                       updatedTurnState.isTurnComplete = true
                       updatedTurnState.noLegalMoves = true
                       
+                      // Increment move number after opening turn completes
+                      if (moveNumber === 1) {
+                        setMoveNumber(2)
+                        setOpeningRollDice(null) // Clear opening roll dice after first turn
+                      }
+                      
                       // Switch to next player and reset dice
                       const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
                       const parts = newXGID.split(':')
@@ -3458,6 +3539,13 @@ export default function BackgammonBoard({
                       // All dice used - turn is complete
                       console.log('[handleGlobalMouseUp] Turn complete - all dice used')
                       updatedTurnState.isTurnComplete = true
+                      
+                      // Increment move number after opening turn completes
+                      if (moveNumber === 1) {
+                        setMoveNumber(2)
+                        setOpeningRollDice(null) // Clear opening roll dice after first turn
+                      }
+                      
                       const nextPlayer = updatedTurnState.currentPlayer === 'white' ? -1 : 1
                       const parts = newXGID.split(':')
                       parts[3] = String(nextPlayer)
@@ -3627,11 +3715,60 @@ export default function BackgammonBoard({
       const currentXGID = editableXGID || effectiveXGID || xgid
       if (!currentXGID) return
       
-      const newXGID = rollRandomDice(currentXGID)
-      setEditableXGID(newXGID)
+      const currentBoardState = parseXGID(currentXGID)
       
-      if (onChange) {
-        onChange(newXGID)
+      // Handle opening roll (player === 0)
+      if (currentBoardState.player === 0) {
+        // Opening roll: roll one white die and one black die
+        const whiteDie = Math.floor(Math.random() * 6) + 1
+        const blackDie = Math.floor(Math.random() * 6) + 1
+        
+        // If dice are equal, show re-roll watermark but don't update XGID yet
+        if (whiteDie === blackDie) {
+          setOpeningRollDice({ whiteDie, blackDie, winner: null }) // null winner indicates re-roll needed
+          // Don't update XGID - keep player as 0 (OPEN state)
+          return
+        }
+        
+        // Different values - determine winner
+        const winner = whiteDie > blackDie ? 'white' : 'black'
+        const winnerPlayer = winner === 'white' ? 1 : -1
+        
+        // Set xg4 to winner, xg5 to dice values (higher die first)
+        const higherDie = Math.max(whiteDie, blackDie)
+        const lowerDie = Math.min(whiteDie, blackDie)
+        const diceString = `${higherDie}${lowerDie}`
+        
+        const parts = currentXGID.split(':')
+        parts[3] = String(winnerPlayer) // xg4 = winner
+        parts[4] = diceString // xg5 = dice values
+        
+        // Ensure all parts exist
+        while (parts.length < 10) {
+          if (parts.length === 9) {
+            parts.push('10')
+          } else {
+            parts.push('0')
+          }
+        }
+        
+        const newXGID = parts.join(':')
+        
+        setOpeningRollDice({ whiteDie, blackDie, winner })
+        setMoveNumber(1) // Opening move
+        setEditableXGID(newXGID)
+        
+        if (onChange) {
+          onChange(newXGID)
+        }
+      } else {
+        // Normal roll
+        const newXGID = rollRandomDice(currentXGID)
+        setEditableXGID(newXGID)
+        
+        if (onChange) {
+          onChange(newXGID)
+        }
       }
     }
   }
@@ -3904,14 +4041,20 @@ export default function BackgammonBoard({
   const bottomTrayWhiteCount = effectiveXGID ? (15 - boardState.whiteBar - boardState.points.reduce((sum, p) => sum + (p.owner === 'white' ? p.count : 0), 0)) : 15
   
   // Determine information bar text
-  const playerName = finalEffectivePlayer === 1 ? 'WHITE' : 'BLACK'
-  // Check if dice are actually shown on the board (same logic as renderDice)
-  const diceToCheck = isEditable 
-    ? (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null)
-    : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
-  const needsToRoll = !diceToCheck
-  const actionText = needsToRoll ? 'to roll' : 'to play'
-  const infoText = `${playerName} ${actionText}`
+  let infoText
+  if (boardState.player === 0) {
+    // OPEN state (opening roll)
+    infoText = "OPENING roll"
+  } else {
+    const playerName = finalEffectivePlayer === 1 ? 'WHITE' : 'BLACK'
+    // Check if dice are actually shown on the board (same logic as renderDice)
+    const diceToCheck = isEditable 
+      ? (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null)
+      : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
+    const needsToRoll = !diceToCheck
+    const actionText = needsToRoll ? 'to roll' : 'to play'
+    infoText = `${playerName} ${actionText}`
+  }
   
   // Generate modified XGID string that reflects current effective values
   const getDisplayXGID = () => {
@@ -3927,9 +4070,9 @@ export default function BackgammonBoard({
     // Update xg3 (cubeOwner) with current effective value
     modifiedParts[2] = String(finalEffectiveCubeOwner ?? 0)
     
-    // Update xg4 (player) with current effective value - ensure it's -1 or 1
+    // Update xg4 (player) with current effective value - allow -1, 0, or 1
     const playerValue = finalEffectivePlayer ?? 1
-    modifiedParts[3] = String(playerValue === -1 ? -1 : 1)
+    modifiedParts[3] = String(playerValue === -1 ? -1 : (playerValue === 0 ? 0 : 1))
     
     // Update xg5 (dice) with current effective value - ensure it's a valid 2-digit string
     let diceValue = finalEffectiveDice
@@ -4181,6 +4324,7 @@ export default function BackgammonBoard({
                   onChange={(e) => handleSettingsChange('player', parseInt(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                 >
+                  <option value={0}>OPEN</option>
                   <option value={-1}>Black</option>
                   <option value={1}>White</option>
                 </select>

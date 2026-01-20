@@ -13,7 +13,8 @@ export default function BoardEditorPage() {
   const { user } = useAuth()
   
   // Starting position XGID (xg1: checker positions, xg2: cubeValue, xg3: cubeOwner, xg4: player, xg5: dice, xg6-xg10: match play values)
-  const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:1:00:0:0:0:0:10"
+  // xg4=0 means OPEN state (opening roll)
+  const STARTING_XGID = "-b----E-C---eE---c-e----B-:0:0:0:00:0:0:0:0:10"
   
   const [currentPlayer, setCurrentPlayer] = useState(1) // Track current player: -1 = black, 1 = white
   const [boardXGID, setBoardXGID] = useState(STARTING_XGID) // Track board state
@@ -660,9 +661,9 @@ export default function BoardEditorPage() {
       return { valid: false, error: 'xg3 (cubeOwner) must be -1, 0, or 1' }
     }
 
-    // xg4: -1 or 1
-    if (parts[3] && !/^-?1$/.test(parts[3])) {
-      return { valid: false, error: 'xg4 (player) must be -1 or 1' }
+    // xg4: -1, 0, or 1 (0 = OPEN state)
+    if (parts[3] && !/^-?[01]$/.test(parts[3])) {
+      return { valid: false, error: 'xg4 (player) must be -1, 0 (OPEN), or 1' }
     }
 
     // xg5: 00-66 (two digits)

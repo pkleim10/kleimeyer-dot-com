@@ -47,7 +47,7 @@ function charToOwner(char) {
  * Parse xg1 (first part of XGID string)
  * xg2: cubeValue (exponent 0-6)
  * xg3: cubeOwner (-1 = black, 0 = nobody, 1 = white)
- * xg4: player (-1 = black, 1 = white)
+ * xg4: player (-1 = black, 0 = OPEN, 1 = white)
  * xg5: dice ("00" = player to roll, "XY" = rolled dice values, e.g., "36" = 3 and 6)
  * @param {string} xgid - Full XGID string (format: "xg1:xg2:xg3:xg4:xg5:...")
  * @returns {Object} - Parsed board state with cubeValue, cubeOwner, player, and dice
@@ -119,11 +119,11 @@ export function parseXGID(xgid) {
     }
   }
 
-  // Parse xg4 (player): should be -1 or 1
+  // Parse xg4 (player): should be -1, 0, or 1 (0 = OPEN state for opening roll)
   let player = undefined
   if (xg4 !== undefined && xg4 !== '') {
     const parsed = parseInt(xg4, 10)
-    if (!isNaN(parsed) && (parsed === -1 || parsed === 1)) {
+    if (!isNaN(parsed) && (parsed === -1 || parsed === 0 || parsed === 1)) {
       player = parsed
     }
   }
@@ -143,7 +143,7 @@ export function parseXGID(xgid) {
     points, // Array of 24 objects, each with {count, owner}
     cubeValue, // Exponent 0-6, or undefined if not provided
     cubeOwner, // -1 (black), 0 (nobody), 1 (white), or undefined if not provided
-    player, // -1 (black), 1 (white), or undefined if not provided
+    player, // -1 (black), 0 (OPEN), 1 (white), or undefined if not provided
     dice // "00" (to roll) or "XY" (rolled values), or undefined if not provided
   }
 }
