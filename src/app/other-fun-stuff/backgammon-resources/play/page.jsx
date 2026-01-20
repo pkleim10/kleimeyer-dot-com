@@ -1123,17 +1123,6 @@ export default function PlayPage() {
           }}
         />
         
-        {/* Close button in top-right */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-50 bg-white dark:bg-slate-800 rounded-full p-2 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          aria-label="Close help"
-        >
-          <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        
         {/* Render all helpers simultaneously */}
         {helpers.map((helper, index) => {
           const position = labelPositions.find(p => p.id === helper.id)
@@ -1309,8 +1298,8 @@ export default function PlayPage() {
                 }
                 
                 const targetButtonCenterY = targetRect.top + targetRect.height / 2
-                // For info helper, point to right edge; for others, point to center
-                const horizontalEndX = helper.id === 'info'
+                // For info and options helpers, point to right edge; for others, point to center
+                const horizontalEndX = (helper.id === 'info' || helper.id === 'options')
                   ? targetRect.right
                   : targetRect.left + targetRect.width / 2
                 // Store coordinates relative to initial overlay position
@@ -1351,9 +1340,16 @@ export default function PlayPage() {
                 const boardRightEdge = boardRect ? boardRect.right : targetRect.left + targetRect.width
                 const horizontalEndX = boardRightEdge
                 // Store angled segment endpoint relative to overlay
+                // Point to right edge of button for right-side helpers, except helper 3 (start) which points 10px inside top-right corner
+                const buttonEdgeX = helper.id === 'start'
+                  ? targetRect.right - 10  // 10px inside right edge for helper 3
+                  : targetRect.right  // Right edge for other right-side helpers
+                const buttonEdgeY = helper.id === 'start'
+                  ? targetRect.top + 10  // 10px inside top edge for helper 3
+                  : targetButtonCenterY  // Right edge center for other right-side helpers
                 initialAngledCoordsRef.current = {
-                  angledEndX: buttonCenterX - overlayRect.left,
-                  angledEndY: targetButtonCenterY - overlayRect.top
+                  angledEndX: buttonEdgeX - overlayRect.left,
+                  angledEndY: buttonEdgeY - overlayRect.top
                 }
               }
               
@@ -1440,9 +1436,16 @@ export default function PlayPage() {
                 }
                 
                 // Store angled segment endpoint relative to overlay
+                // Point to left edge of button for left-side helpers, except helper 1 (play) which points 10px inside top-left corner
+                const buttonEdgeX = helper.id === 'play'
+                  ? targetRect.left + 10  // 10px inside left edge for helper 1
+                  : targetRect.left  // Left edge for other left-side helpers
+                const buttonEdgeY = helper.id === 'play' 
+                  ? targetRect.top + 10  // 10px inside top edge for helper 1
+                  : targetButtonCenterY  // Left edge center for other left-side helpers
                 initialAngledCoordsRef.current = {
-                  angledEndX: buttonCenterX - overlayRect.left,
-                  angledEndY: targetButtonCenterY - overlayRect.top
+                  angledEndX: buttonEdgeX - overlayRect.left,
+                  angledEndY: buttonEdgeY - overlayRect.top
                 }
               }
               
