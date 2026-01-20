@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import BackgammonBoard from '../opening-moves/components/BackgammonBoard'
@@ -24,6 +25,13 @@ export default function PlayPage() {
   const [usedDice, setUsedDice] = useState([]) // Track dice that have been used in the current turn
   const [turnStartXGID, setTurnStartXGID] = useState(STARTING_XGID) // Track board state at the start of the current turn
   const [resetKey, setResetKey] = useState(0) // Key to force BackgammonBoard to reset turnState
+  
+  // Help overlay state
+  const [showHelpOverlay, setShowHelpOverlay] = useState(false)
+  const editButtonRef = useRef(null)
+  const playButtonRef = useRef(null)
+  const startButtonRef = useRef(null)
+  const suggestMoveButtonRef = useRef(null)
 
   // Ghost checkers and arrows for suggested move
   const [suggestedGhostCheckers, setSuggestedGhostCheckers] = useState({})
@@ -746,6 +754,835 @@ export default function PlayPage() {
   const screenColor = user?.user_metadata?.other_fun_stuff_background_color ??
                       user?.user_metadata?.just_for_me_background_color ?? '#f9fafb'
 
+  // Help Overlay Component
+  const HelpOverlay = ({ editButtonRef, playButtonRef, startButtonRef, suggestMoveButtonRef, onClose }) => {
+    const [docHeight, setDocHeight] = useState('100vh')
+    
+    useEffect(() => {
+      const calculateDocHeight = () => {
+        // Calculate document height excluding the overlay itself to avoid feedback loop
+        const body = document.body
+        const html = document.documentElement
+        const height = Math.max(
+          body.scrollHeight,
+          body.offsetHeight,
+          html.clientHeight,
+          html.scrollHeight,
+          html.offsetHeight
+        )
+        setDocHeight(`${height}px`)
+      }
+      
+      // Calculate on mount and when window resizes
+      calculateDocHeight()
+      window.addEventListener('resize', calculateDocHeight)
+      
+      return () => {
+        window.removeEventListener('resize', calculateDocHeight)
+      }
+    }, [])
+    
+    // Helper configurations
+    const helpers = [
+      {
+        id: 'play',
+        number: 1,
+        title: 'PLAY Mode',
+        description: 'Click PLAY to play a game with move validation. The engine will enforce legal moves and track dice usage. Use this mode to practice against our HAM analytic engine.',
+        buttonRef: playButtonRef,
+        side: 'left'
+      },
+      {
+        id: 'edit',
+        number: 2,
+        title: 'EDIT Mode',
+        description: 'Click EDIT to freely move checkers and set up board positions. Perfect for exploring different game states or practicing specific scenarios.',
+        buttonRef: editButtonRef,
+        side: 'left' // Can be 'left' or 'right'
+      },
+      {
+        id: 'start',
+        number: 3,
+        title: 'Start',
+        description: 'Click Start to reset the board to the starting position and begin a new game.',
+        buttonRef: startButtonRef,
+        side: 'right' // Place Start helper on the right side
+      },
+      {
+        id: 'suggest',
+        number: 4,
+        title: 'Suggest Move',
+        description: 'Click the lightbulb icon to get a move suggestion from our HAM analytic engine. The suggested move will be highlighted on the board.',
+        buttonRef: suggestMoveButtonRef,
+        side: 'right' // Place Suggest Move helper on the right side
+      },
+      {
+        id: 'options',
+        number: 5,
+        title: 'Board Options',
+        description: 'Click the gear icon to configure board settings such as player perspective, direction, cube settings, dice, and more.',
+        buttonRef: { current: null }, // Will be set via selector
+        side: 'right',
+        horizontalOnly: true // Flag for horizontal-only arrow (no angle)
+      },
+      {
+        id: 'dice',
+        number: 6,
+        title: 'Dice Area',
+        description: 'The dice are displayed here showing the current roll. In PLAY mode, click the dice to roll them. The dice show which moves are available.',
+        buttonRef: { current: null }, // Will be set via selector
+        side: 'right',
+        horizontalOnly: true // Flag for horizontal-only arrow (no angle)
+      },
+      {
+        id: 'info',
+        number: 7,
+        title: 'Info Bar',
+        description: 'Click to change the active player, or opening roll. In EDIT mode, clicking cycles through WHITE > BLACK > OPEN states.',
+        buttonRef: { current: null }, // Will be set via selector
+        side: 'right',
+        horizontalOnly: true // Flag for horizontal-only arrow (no angle)
+      },
+      {
+        id: 'cube',
+        number: 8,
+        title: 'Doubling Cube',
+        description: 'The doubling cube shows the current stake multiplier. Click the cube to double the stakes. The cube can be offered, accepted, or declined during gameplay.',
+        buttonRef: { current: null }, // Will be set via selector
+        side: 'left',
+        horizontalOnly: true // Flag for horizontal-only arrow (no angle)
+      },
+      {
+        id: 'xgid',
+        number: 9,
+        title: 'XGID Input',
+        description: 'Enter or paste an XGID string to set the board position. XGID is a standard format for encoding backgammon positions. Press Enter or click outside to apply.',
+        buttonRef: { current: null }, // Will be set via selector
+        side: 'left',
+        horizontalOnly: true // Flag for horizontal-only arrow (no angle)
+      }
+    ]
+
+    // Calculate optimal label positions to avoid arrow crossings
+    const [labelPositions, setLabelPositions] = useState([])
+    const editLabelRef = useRef(null)
+    const playLabelRef = useRef(null)
+    const startLabelRef = useRef(null)
+    const suggestLabelRef = useRef(null)
+    const optionsLabelRef = useRef(null)
+    const diceLabelRef = useRef(null)
+    const infoLabelRef = useRef(null)
+    const cubeLabelRef = useRef(null)
+    const xgidLabelRef = useRef(null)
+    
+    // Create a ref for the options gear button using a selector
+    const optionsButtonRef = useRef(null)
+    
+    useEffect(() => {
+      // Find the options gear button by ID
+      const gearButton = document.getElementById('board-options-gear-button')
+      if (gearButton) {
+        optionsButtonRef.current = gearButton
+        // Update the helper's buttonRef
+        const optionsHelper = helpers.find(h => h.id === 'options')
+        if (optionsHelper) {
+          optionsHelper.buttonRef.current = gearButton
+        }
+      }
+      
+      // Find the info bar by ID
+      const infoBar = document.getElementById('info-bar')
+      if (infoBar) {
+        // Update the helper's buttonRef
+        const infoHelper = helpers.find(h => h.id === 'info')
+        if (infoHelper) {
+          infoHelper.buttonRef.current = infoBar
+        }
+      }
+    }, [helpers])
+
+    useEffect(() => {
+      const calculateOptimalPositions = () => {
+        const positions = []
+        const minSpacing = 100 // Minimum spacing between labels to prevent overlap
+        
+        // Explicit positioning order:
+        // Left side: PLAY (top), EDIT (below PLAY)
+        // Right side: START (top), SUGGEST (below START)
+        
+        // Process left side helpers in explicit order
+        const leftOrder = ['play', 'edit', 'cube', 'xgid']
+        let lastLeftLabelBottom = 0
+        
+        leftOrder.forEach((helperId, index) => {
+          const helper = helpers.find(h => h.id === helperId && h.side === 'left')
+          if (!helper) return
+          
+          const labelRef = helper.id === 'edit' ? editLabelRef 
+            : helper.id === 'play' ? playLabelRef
+            : helper.id === 'cube' ? cubeLabelRef
+            : xgidLabelRef
+          
+          // For cube helper, find button via selector
+          let buttonElement = helper.buttonRef?.current
+          if (helper.id === 'cube' && !buttonElement) {
+            buttonElement = document.getElementById('doubling-cube-reference')
+          }
+          
+          if (labelRef?.current && buttonElement) {
+            const labelRect = labelRef.current.getBoundingClientRect()
+            const labelHeight = labelRect.height || 80
+            const buttonRect = buttonElement.getBoundingClientRect()
+            const buttonCenterY = buttonRect.top + buttonRect.height / 2
+            
+            let labelTop
+            if (index === 0) {
+              // PLAY - top of page
+              labelTop = 95 // Fixed top margin (20 + 75px offset)
+            } else if (index === 1) {
+              // EDIT - just below PLAY
+              labelTop = lastLeftLabelBottom + minSpacing
+            } else if (index === 2) {
+              // CUBE - aligned vertically with cube (not stacked)
+              // For cube helper, align vertically with the cube center
+              labelTop = buttonCenterY - labelHeight / 2
+            } else {
+              labelTop = lastLeftLabelBottom + minSpacing
+            }
+            
+            // For horizontal-only arrows (cube), align with button center vertically
+            let horizontalY
+            if (helper.horizontalOnly) {
+              horizontalY = buttonCenterY
+            } else {
+              horizontalY = labelTop + labelHeight / 2
+            }
+            
+            positions.push({
+              id: helper.id,
+              top: labelTop,
+              buttonCenterY: buttonCenterY,
+              horizontalY: horizontalY,
+              side: 'left'
+            })
+            
+            lastLeftLabelBottom = labelTop + labelHeight
+          }
+        })
+
+        // Process right side helpers in explicit order
+        const rightOrder = ['start', 'suggest', 'options', 'dice', 'info']
+        let lastRightLabelBottom = 0
+        
+        rightOrder.forEach((helperId, index) => {
+          const helper = helpers.find(h => h.id === helperId && h.side === 'right')
+          if (!helper) return
+          
+          const labelRef = helper.id === 'start' ? startLabelRef 
+            : helper.id === 'suggest' ? suggestLabelRef 
+            : helper.id === 'options' ? optionsLabelRef
+            : helper.id === 'dice' ? diceLabelRef
+            : infoLabelRef
+          
+          // For options, dice, info, and cube helpers, find button via selector
+          let buttonElement = helper.buttonRef?.current
+          if (helper.id === 'options' && !buttonElement) {
+            buttonElement = document.getElementById('board-options-gear-button')
+          } else if (helper.id === 'dice' && !buttonElement) {
+            buttonElement = document.getElementById('dice-area-reference')
+          } else if (helper.id === 'info' && !buttonElement) {
+            buttonElement = document.getElementById('info-bar')
+          } else if (helper.id === 'cube' && !buttonElement) {
+            buttonElement = document.getElementById('doubling-cube-reference')
+          }
+          
+          if (labelRef?.current && buttonElement) {
+            const labelRect = labelRef.current.getBoundingClientRect()
+            const labelHeight = labelRect.height || 80
+            const buttonRect = buttonElement.getBoundingClientRect()
+            
+            // Get button bar to check for overlap (only for non-options, non-dice, non-info buttons)
+            let buttonBarRect = null
+            if (helper.id !== 'options' && helper.id !== 'dice' && helper.id !== 'info') {
+              const buttonBar = buttonElement.closest('.inline-flex')
+              buttonBarRect = buttonBar?.getBoundingClientRect()
+            }
+            
+            // Calculate where horizontal arrow would be (below bar if needed)
+            const buttonCenterY = buttonRect.top + buttonRect.height / 2
+            let horizontalY = buttonCenterY
+            if (buttonBarRect) {
+              const barBottom = buttonBarRect.bottom
+              if (horizontalY >= buttonBarRect.top && horizontalY <= barBottom) {
+                horizontalY = barBottom + 10 // Position below bar
+              }
+            }
+            
+            let labelTop
+            if (index === 0) {
+              // START - top of page
+              labelTop = 95 // Fixed top margin (20 + 75px offset)
+            } else if (index === 1) {
+              // SUGGEST - just below START
+              labelTop = lastRightLabelBottom + minSpacing
+            } else if (index === 2) {
+              // OPTIONS - just below SUGGEST
+              labelTop = lastRightLabelBottom + minSpacing
+            } else if (index === 3) {
+              // DICE - aligned vertically with dice area (not stacked)
+              // For dice helper, align vertically with the dice area center
+              labelTop = buttonCenterY - labelHeight / 2
+            } else if (index === 4) {
+              // INFO - just below DICE
+              labelTop = lastRightLabelBottom + minSpacing
+            } else {
+              // Fallback
+              labelTop = buttonCenterY - labelHeight / 2
+            }
+            
+            // For horizontal-only arrows (options, dice, info, cube, xgid), align with button center vertically
+            if (helper.horizontalOnly) {
+              horizontalY = buttonCenterY
+              // For dice, info, cube, and xgid, labelTop is already set above (aligned with their respective elements)
+              // For options, set labelTop here
+              if (helper.id === 'options') {
+                labelTop = buttonCenterY - labelHeight / 2
+              }
+            } else {
+              // Ensure horizontal arrow Y is consistent with label position
+              horizontalY = labelTop + labelHeight / 2
+            }
+            
+            positions.push({
+              id: helper.id,
+              top: labelTop,
+              buttonCenterY: buttonCenterY,
+              horizontalY: horizontalY,
+              side: 'right'
+            })
+            
+            lastRightLabelBottom = labelTop + labelHeight
+          }
+        })
+
+        setLabelPositions(positions)
+      }
+
+      // Wait for all refs to be ready
+      const timeoutId = setTimeout(() => {
+        calculateOptimalPositions()
+        setTimeout(calculateOptimalPositions, 100)
+      }, 0)
+
+      window.addEventListener('resize', calculateOptimalPositions)
+      // Don't listen to scroll - overlay scrolls with page naturally, recalculating causes double movement
+
+      return () => {
+        clearTimeout(timeoutId)
+        window.removeEventListener('resize', calculateOptimalPositions)
+      }
+    }, [helpers, editLabelRef, playLabelRef, startLabelRef, suggestLabelRef, optionsLabelRef, diceLabelRef, infoLabelRef, cubeLabelRef, xgidLabelRef])
+
+    useEffect(() => {
+      const handleEsc = (e) => {
+        if (e.key === 'Escape') {
+          onClose()
+        }
+      }
+      document.addEventListener('keydown', handleEsc)
+      return () => document.removeEventListener('keydown', handleEsc)
+    }, [onClose])
+
+    const overlayContent = (
+      <div
+        className="absolute z-50"
+        style={{
+          top: 0,
+          left: 0,
+          right: 0,
+          height: docHeight,
+          width: '100%'
+        }}
+        onClick={(e) => {
+          // Close if clicking on backdrop
+          if (e.target === e.currentTarget || e.target.classList.contains('help-backdrop')) {
+            onClose()
+          }
+        }}
+      >
+        {/* Semi-transparent backdrop - allows page to be readable */}
+        <div 
+          className="absolute bg-black bg-opacity-20 help-backdrop pointer-events-none"
+          style={{
+            top: 0,
+            left: 0,
+            right: 0,
+            height: docHeight
+          }}
+        />
+        
+        {/* Close button in top-right */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 bg-white dark:bg-slate-800 rounded-full p-2 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          aria-label="Close help"
+        >
+          <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
+        {/* Render all helpers simultaneously */}
+        {helpers.map((helper, index) => {
+          const position = labelPositions.find(p => p.id === helper.id)
+          const labelRef = helper.id === 'edit' ? editLabelRef 
+            : helper.id === 'play' ? playLabelRef 
+            : helper.id === 'start' ? startLabelRef 
+            : helper.id === 'suggest' ? suggestLabelRef
+            : helper.id === 'options' ? optionsLabelRef
+            : helper.id === 'dice' ? diceLabelRef
+            : helper.id === 'info' ? infoLabelRef
+            : cubeLabelRef
+          return (
+            <HelperLabel
+              key={helper.id}
+              helper={helper}
+              index={index}
+              labelRef={labelRef}
+              optimalTop={position?.top}
+              buttonCenterY={position?.buttonCenterY}
+              horizontalY={position?.horizontalY}
+              side={position?.side || helper.side}
+              horizontalOnly={helper.horizontalOnly || false}
+            />
+          )
+        })}
+      </div>
+    )
+    
+    // Render overlay at body level using portal so it's positioned relative to viewport
+    if (typeof document !== 'undefined') {
+      return createPortal(overlayContent, document.body)
+    }
+    return overlayContent
+  }
+
+  // Individual Helper Label Component with line to trigger
+  const HelperLabel = ({ helper, index, labelRef, optimalTop, buttonCenterY, horizontalY, side = 'left', horizontalOnly = false }) => {
+    const [labelPosition, setLabelPosition] = useState({ top: 0, left: 0, right: 0 })
+    const [linePath, setLinePath] = useState({ 
+      horizontalStartX: 0, 
+      horizontalStartY: 0, 
+      horizontalEndX: 0, 
+      horizontalEndY: 0,
+      angledStartX: 0,
+      angledStartY: 0,
+      angledEndX: 0,
+      angledEndY: 0,
+      horizontalOnly: false
+    })
+    // Store initial vertical offset for horizontal-only helpers to prevent drift
+    const initialVerticalOffsetRef = useRef(null)
+    // Store initial arrow coordinates for horizontal-only helpers to prevent drift
+    const initialArrowCoordsRef = useRef(null)
+    // Store initial overlay position for coordinate conversion
+    const initialOverlayRectRef = useRef(null)
+    // Store initial angled segment coordinates for non-horizontal helpers to prevent arrowhead drift
+    const initialAngledCoordsRef = useRef(null)
+
+    useEffect(() => {
+      const updatePositions = () => {
+        // For options and dice helpers, use the selector to find the button
+        let buttonElement = helper.buttonRef?.current
+        if (helper.id === 'options' && !buttonElement) {
+          buttonElement = document.getElementById('board-options-gear-button')
+        } else if (helper.id === 'dice' && !buttonElement) {
+          buttonElement = document.getElementById('dice-area-reference')
+        } else if (helper.id === 'info' && !buttonElement) {
+          buttonElement = document.getElementById('info-bar')
+        } else if (helper.id === 'cube' && !buttonElement) {
+          buttonElement = document.getElementById('doubling-cube-reference')
+        } else if (helper.id === 'xgid' && !buttonElement) {
+          buttonElement = document.getElementById('xgid-input-container')
+        }
+        
+        if (buttonElement && labelRef?.current) {
+          const targetRect = buttonElement.getBoundingClientRect()
+          const labelRect = labelRef.current.getBoundingClientRect()
+          
+          // Get scroll position to convert viewport coordinates to document coordinates
+          const scrollX = window.scrollX || window.pageXOffset || 0
+          const scrollY = window.scrollY || window.pageYOffset || 0
+          
+          // Find board container
+          const boardContainer = document.getElementById('backgammon-board-container')
+          const boardRect = boardContainer?.getBoundingClientRect()
+          
+          // Find button bar position (container with buttons) - only for buttons that are in the button bar
+          let buttonBarRect = null
+          // Only check for button bar if this is not a dice, options, info, or cube helper (they're not in the button bar)
+          if (helper.id !== 'dice' && helper.id !== 'options' && helper.id !== 'info' && helper.id !== 'cube' && buttonElement && typeof buttonElement.closest === 'function') {
+            const buttonBar = buttonElement.closest('.inline-flex')
+            buttonBarRect = buttonBar?.getBoundingClientRect()
+          }
+          
+          // 1 inch = 96px (standard CSS pixel ratio)
+          const oneInch = 96
+          
+          // Use optimal position if calculated, otherwise fallback to button alignment
+          // Since overlay scrolls with page, use viewport coordinates directly (no scroll offset needed)
+          let labelTop
+          if (horizontalOnly) {
+            // For horizontal-only helpers, calculate initial offset once, then maintain it
+            // This prevents drift when overlay scrolls with page
+            if (initialVerticalOffsetRef.current === null) {
+              const targetButtonCenterY = targetRect.top + targetRect.height / 2
+              initialVerticalOffsetRef.current = targetButtonCenterY - labelRect.height / 2
+            }
+            labelTop = initialVerticalOffsetRef.current
+          } else if (optimalTop !== undefined) {
+            // optimalTop is already in viewport coordinates, use directly
+            labelTop = optimalTop
+          } else if (buttonCenterY !== undefined) {
+            // buttonCenterY is in viewport coordinates, use directly
+            labelTop = buttonCenterY - (labelRect.height || 80) / 2
+          } else {
+            // Fallback: align with button (viewport coordinates)
+            labelTop = targetRect.top + targetRect.height / 2 - (labelRect.height || 80) / 2
+          }
+          
+          const labelCenterY = labelTop + labelRect.height / 2
+          const buttonCenterX = targetRect.left + targetRect.width / 2
+          const targetButtonCenterY = targetRect.top + targetRect.height / 2
+          
+          // Determine horizontal arrow Y position - avoid button bar overlap
+          // Use provided horizontalY if available (from optimal positioning), otherwise calculate
+          // All coordinates are in viewport space
+          let finalHorizontalY = horizontalY !== undefined ? horizontalY : labelCenterY
+          if (buttonBarRect && horizontalY === undefined) {
+            const barTop = buttonBarRect.top
+            const barBottom = buttonBarRect.bottom
+            
+            // Check if horizontal line would overlap button bar
+            if (labelCenterY >= barTop && labelCenterY <= barBottom) {
+              // Horizontal line would overlap bar - prefer positioning below (more space)
+              finalHorizontalY = barBottom + 10 // 10px clearance below bar
+              // Adjust label position to align with horizontal arrow
+              labelTop = finalHorizontalY - labelRect.height / 2
+            }
+          } else if (horizontalY !== undefined && !horizontalOnly) {
+            // Use the optimal horizontalY and adjust label to match (but not for horizontal-only)
+            finalHorizontalY = horizontalY
+            labelTop = horizontalY - labelRect.height / 2
+          }
+          
+          // Position label on left or right side relative to board
+          // Text should border the 1 inch space between board and text
+          // Use viewport coordinates directly since overlay scrolls with page
+          if (side === 'right') {
+            // For info bar helper, position relative to info bar, not board
+            let labelLeft
+            if (helper.id === 'info') {
+              // Position text so its left edge is 1 inch to the right of info bar's right edge
+              labelLeft = targetRect.right + oneInch
+            } else {
+              // Position text so its left edge is 1 inch to the right of board's right edge
+              labelLeft = boardRect ? boardRect.right + oneInch : window.innerWidth - 40 - labelRect.width
+            }
+            setLabelPosition({ top: labelTop, left: labelLeft, right: 0 })
+            
+            if (horizontalOnly) {
+              // Horizontal-only arrow: goes directly from text to button horizontally
+              // labelTop is already calculated above
+              
+              // Get overlay container for coordinate conversion
+              const overlayElement = labelRef.current?.closest('[class*="absolute z-50"]') || document.body
+              
+              // Store initial overlay position and arrow coordinates once
+              if (initialArrowCoordsRef.current === null || initialOverlayRectRef.current === null) {
+                const overlayRect = overlayElement.getBoundingClientRect()
+                initialOverlayRectRef.current = {
+                  left: overlayRect.left,
+                  top: overlayRect.top
+                }
+                
+                const targetButtonCenterY = targetRect.top + targetRect.height / 2
+                const horizontalEndX = targetRect.left + targetRect.width / 2
+                // Store coordinates relative to initial overlay position
+                initialArrowCoordsRef.current = {
+                  labelLeft: labelLeft - overlayRect.left, // Label left relative to overlay
+                  horizontalOffset: horizontalEndX - labelLeft, // Horizontal distance from label to button
+                  verticalY: targetButtonCenterY - overlayRect.top // Vertical position relative to overlay
+                }
+              }
+              
+              // Use stored coordinates - maintain initial positions relative to overlay
+              setLinePath({
+                horizontalStartX: initialArrowCoordsRef.current.labelLeft,
+                horizontalStartY: initialArrowCoordsRef.current.verticalY,
+                horizontalEndX: initialArrowCoordsRef.current.labelLeft + initialArrowCoordsRef.current.horizontalOffset,
+                horizontalEndY: initialArrowCoordsRef.current.verticalY,
+                angledStartX: 0,
+                angledStartY: 0,
+                angledEndX: 0,
+                angledEndY: 0,
+                horizontalOnly: true
+              })
+            } else {
+              // Calculate two-segment arrow: horizontal then angled (mirror image of left side)
+              // Arrow starts from text's left edge (which borders the 1 inch space)
+              
+              // Get overlay container for coordinate conversion
+              const overlayElement = labelRef.current?.closest('[class*="absolute z-50"]') || document.body
+              
+              // Store initial overlay position and angled segment coordinates once
+              if (initialOverlayRectRef.current === null || initialAngledCoordsRef.current === null) {
+                const overlayRect = overlayElement.getBoundingClientRect()
+                initialOverlayRectRef.current = {
+                  left: overlayRect.left,
+                  top: overlayRect.top
+                }
+                
+                const boardRightEdge = boardRect ? boardRect.right : targetRect.left + targetRect.width
+                const horizontalEndX = boardRightEdge
+                // Store angled segment endpoint relative to overlay
+                initialAngledCoordsRef.current = {
+                  angledEndX: buttonCenterX - overlayRect.left,
+                  angledEndY: targetButtonCenterY - overlayRect.top
+                }
+              }
+              
+              const lineStartX = labelLeft
+              const lineStartY = finalHorizontalY
+              
+              // Horizontal segment ends at board's right edge (1 inch away from text)
+              const boardRightEdge = boardRect ? boardRect.right : targetRect.left + targetRect.width
+              const horizontalEndX = boardRightEdge
+              const horizontalEndY = finalHorizontalY
+              
+              // Angled segment from horizontal end (at board edge) angles to button center
+              // Use stored overlay-relative coordinates for endpoint
+              const angledStartX = horizontalEndX
+              const angledStartY = horizontalEndY
+              
+              setLinePath({
+                horizontalStartX: lineStartX,
+                horizontalStartY: lineStartY,
+                horizontalEndX: horizontalEndX,
+                horizontalEndY: horizontalEndY,
+                angledStartX: angledStartX,
+                angledStartY: angledStartY,
+                angledEndX: initialAngledCoordsRef.current.angledEndX,
+                angledEndY: initialAngledCoordsRef.current.angledEndY,
+                horizontalOnly: false
+              })
+            }
+          } else {
+            // Left side - position text so its right edge is 1 inch to the left of board's left edge
+            const labelLeft = boardRect ? boardRect.left - oneInch - labelRect.width : 40
+            setLabelPosition({ top: labelTop, left: labelLeft, right: 0 })
+            
+            if (horizontalOnly) {
+              // Horizontal-only arrow: goes directly from text to button horizontally
+              // labelTop is already calculated above
+              
+              // Get overlay container for coordinate conversion
+              const overlayElement = labelRef.current?.closest('[class*="absolute z-50"]') || document.body
+              
+              // Store initial overlay position and arrow coordinates once
+              if (initialArrowCoordsRef.current === null || initialOverlayRectRef.current === null) {
+                const overlayRect = overlayElement.getBoundingClientRect()
+                initialOverlayRectRef.current = {
+                  left: overlayRect.left,
+                  top: overlayRect.top
+                }
+                
+                const targetButtonCenterY = targetRect.top + targetRect.height / 2
+                const horizontalEndX = targetRect.left + targetRect.width / 2
+                // Store coordinates relative to initial overlay position
+                initialArrowCoordsRef.current = {
+                  labelRight: (labelLeft + labelRect.width) - overlayRect.left, // Label right edge relative to overlay
+                  horizontalOffset: horizontalEndX - (labelLeft + labelRect.width), // Horizontal distance from label to button (negative for left side)
+                  verticalY: targetButtonCenterY - overlayRect.top // Vertical position relative to overlay
+                }
+              }
+              
+              // Use stored coordinates - maintain initial positions relative to overlay
+              setLinePath({
+                horizontalStartX: initialArrowCoordsRef.current.labelRight,
+                horizontalStartY: initialArrowCoordsRef.current.verticalY,
+                horizontalEndX: initialArrowCoordsRef.current.labelRight + initialArrowCoordsRef.current.horizontalOffset,
+                horizontalEndY: initialArrowCoordsRef.current.verticalY,
+                angledStartX: 0,
+                angledStartY: 0,
+                angledEndX: 0,
+                angledEndY: 0,
+                horizontalOnly: true
+              })
+            } else {
+              // Get overlay container for coordinate conversion
+              const overlayElement = labelRef.current?.closest('[class*="absolute z-50"]') || document.body
+              
+              // Store initial overlay position and angled segment coordinates once
+              if (initialOverlayRectRef.current === null || initialAngledCoordsRef.current === null) {
+                const overlayRect = overlayElement.getBoundingClientRect()
+                initialOverlayRectRef.current = {
+                  left: overlayRect.left,
+                  top: overlayRect.top
+                }
+                
+                // Store angled segment endpoint relative to overlay
+                initialAngledCoordsRef.current = {
+                  angledEndX: buttonCenterX - overlayRect.left,
+                  angledEndY: targetButtonCenterY - overlayRect.top
+                }
+              }
+              
+              // Calculate two-segment arrow: horizontal then angled
+              // Arrow starts from text's right edge (which borders the 1 inch space)
+              const lineStartX = labelLeft + labelRect.width
+              const lineStartY = finalHorizontalY
+              
+              // Horizontal segment ends at board's left edge (1 inch away from text)
+              const boardLeftEdge = boardRect ? boardRect.left : targetRect.left
+              const horizontalEndX = boardLeftEdge
+              const horizontalEndY = finalHorizontalY
+              
+              // Angled segment from horizontal end (at board edge) to button center
+              // Use stored overlay-relative coordinates for endpoint
+              const angledStartX = horizontalEndX
+              const angledStartY = horizontalEndY
+              
+              setLinePath({
+                horizontalStartX: lineStartX,
+                horizontalStartY: lineStartY,
+                horizontalEndX: horizontalEndX,
+                horizontalEndY: horizontalEndY,
+                angledStartX: angledStartX,
+                angledStartY: angledStartY,
+                angledEndX: initialAngledCoordsRef.current.angledEndX,
+                angledEndY: initialAngledCoordsRef.current.angledEndY
+              })
+            }
+          }
+        }
+      }
+
+      // Use requestAnimationFrame to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        updatePositions()
+        // Update again after a short delay to account for initial render
+        setTimeout(updatePositions, 100)
+      }, 0)
+
+      window.addEventListener('resize', updatePositions)
+      // Don't listen to scroll - overlay scrolls with page naturally, updating on scroll causes double movement
+
+      return () => {
+        clearTimeout(timeoutId)
+        window.removeEventListener('resize', updatePositions)
+      }
+    }, [helper.id, optimalTop, buttonCenterY, horizontalY, labelRef, side, horizontalOnly])
+
+    // For options, dice, info, cube, and xgid helpers, check if button exists via selector
+    if (helper.id === 'options') {
+      const optionsButton = document.getElementById('board-options-gear-button')
+      if (!optionsButton) return null
+    } else if (helper.id === 'dice') {
+      const diceButton = document.getElementById('dice-area-reference')
+      if (!diceButton) return null
+    } else if (helper.id === 'info') {
+      const infoButton = document.getElementById('info-bar')
+      if (!infoButton) return null
+    } else if (helper.id === 'cube') {
+      const cubeButton = document.getElementById('doubling-cube-reference')
+      if (!cubeButton) return null
+    } else if (helper.id === 'xgid') {
+      const xgidButton = document.getElementById('xgid-input-container')
+      if (!xgidButton) return null
+    } else if (!helper.buttonRef?.current) {
+      return null
+    }
+
+    return (
+      <>
+        {/* Text Label on the side with container */}
+        <div
+          ref={labelRef}
+          className="absolute z-50 pointer-events-auto max-w-xs p-4 bg-gray-100 dark:bg-gray-800 rounded-lg"
+          style={{
+            top: `${labelPosition.top}px`,
+            left: labelPosition.left > 0 ? `${labelPosition.left}px` : 'auto',
+            right: labelPosition.right > 0 ? `${labelPosition.right}px` : 'auto',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-sm font-bold flex items-center justify-center">
+              {helper.number}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-900 dark:text-white leading-relaxed">
+                {helper.description}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Two-segment arrow: horizontal then angled */}
+        {linePath.horizontalStartX > 0 && (
+          <svg
+            className="absolute pointer-events-none z-40"
+            style={{
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            <defs>
+              <marker
+                id={`arrowhead-${helper.id}`}
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon
+                  points="0 0, 10 3, 0 6"
+                  fill="#000000"
+                />
+              </marker>
+            </defs>
+            {/* Horizontal segment */}
+            <line
+              x1={linePath.horizontalStartX}
+              y1={linePath.horizontalStartY}
+              x2={linePath.horizontalEndX}
+              y2={linePath.horizontalEndY}
+              stroke="#000000"
+              strokeWidth="2"
+              markerEnd={linePath.horizontalOnly ? `url(#arrowhead-${helper.id})` : undefined}
+            />
+            {/* Angled segment with arrowhead - only render if not horizontal-only */}
+            {!linePath.horizontalOnly && (
+              <line
+                x1={linePath.angledStartX}
+                y1={linePath.angledStartY}
+                x2={linePath.angledEndX}
+                y2={linePath.angledEndY}
+                stroke="#000000"
+                strokeWidth="2"
+                markerEnd={`url(#arrowhead-${helper.id})`}
+              />
+            )}
+          </svg>
+        )}
+      </>
+    )
+  }
+
   return (
     <div
       className="relative min-h-screen"
@@ -782,7 +1619,7 @@ export default function PlayPage() {
                 </h1>
               </div>
               <p className="text-gray-600 dark:text-gray-400 text-lg">
-                Play backgammon with an AI engine. Edit board positions, analyze moves, and practice your game.
+                Play backgammon with our HAM analytic engine. Edit board positions, analyze moves, and practice your game.
               </p>
             </div>
           </div>
@@ -801,6 +1638,7 @@ export default function PlayPage() {
                 <div className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-1 shadow-sm gap-1 flex-wrap justify-center max-w-full">
                   {/* EDIT | PLAY */}
                   <button
+                    ref={editButtonRef}
                     onClick={() => {
                       setEditingMode('free')
                       handleClearEngineAnalysis() // Clear engine analysis when switching to EDIT mode
@@ -814,6 +1652,7 @@ export default function PlayPage() {
                     EDIT
                   </button>
                   <button
+                    ref={playButtonRef}
                     onClick={() => setEditingMode('play')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       editingMode === 'play'
@@ -827,6 +1666,7 @@ export default function PlayPage() {
                   
                   {/* Start */}
                   <button
+                    ref={startButtonRef}
                     onClick={() => {
                       // Reset to starting position and clear game state
                       setBoardXGID(STARTING_XGID)
@@ -850,6 +1690,7 @@ export default function PlayPage() {
                     const needsToRoll = boardState && boardState.dice === '00'
                     return (
                       <button
+                        ref={suggestMoveButtonRef}
                         onClick={handleEngineAnalysis}
                         disabled={isAnalyzing || editingMode !== 'play' || needsToRoll}
                         className="px-3 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
@@ -933,12 +1774,35 @@ export default function PlayPage() {
                       </button>
                     </>
                   )}
+                  
+                  {/* Help Button */}
+                  <button
+                    onClick={() => setShowHelpOverlay(!showHelpOverlay)}
+                    className="ml-2 p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Show help"
+                    aria-label="Show help"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
 
+              {/* Help Overlay */}
+              {showHelpOverlay && (
+                <HelpOverlay
+                  editButtonRef={editButtonRef}
+                  playButtonRef={playButtonRef}
+                  startButtonRef={startButtonRef}
+                  suggestMoveButtonRef={suggestMoveButtonRef}
+                  onClose={() => setShowHelpOverlay(false)}
+                />
+              )}
+
               {/* Board Display */}
               <div className="flex justify-center">
-                <div className="rounded-lg shadow-lg overflow-hidden">
+                <div id="backgammon-board-container" className="rounded-lg shadow-lg overflow-hidden">
                   <BackgammonBoard 
                     key={showGhosts ? `ghost-${suggestedMoveXGID || 'none'}-reset${resetKey}` : `normal-reset${resetKey}`} // Force remount when switching between ghost/normal or when reset, but NOT on every board change
                     direction={0} 
@@ -1002,7 +1866,7 @@ export default function PlayPage() {
               </div>
               
               {/* XGID Input */}
-              <div className="mt-4 p-4 bg-gray-100 dark:bg-slate-700 rounded-lg">
+              <div id="xgid-input-container" className="mt-4 p-4 bg-gray-100 dark:bg-slate-700 rounded-lg">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   XGID:
                 </label>

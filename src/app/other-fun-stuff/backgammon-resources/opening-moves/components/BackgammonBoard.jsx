@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { parseXGID } from '../utils/xgidParser'
 import { getAIMove } from '../utils/aiBackgammon'
-import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove, hasPlayerWon } from '../utils/gameLogic.js'
+import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove, hasPlayerWon, findCollapsedMovePath } from '../utils/gameLogic.js'
 import { formatMove } from '@/utils/moveFormatter'
 
 export default function BackgammonBoard({ 
@@ -807,7 +807,7 @@ export default function BackgammonBoard({
     } : {}
     
     return (
-      <g key="doubling-cube" {...cubeHandlers}>
+      <g key="doubling-cube" id="doubling-cube-reference" {...cubeHandlers}>
         <rect
           x={cubeX}
           y={cubeY}
@@ -1166,7 +1166,7 @@ export default function BackgammonBoard({
       )
     }
     
-    return <g>{diceElements}</g>
+    return <g id="dice-area">{diceElements}</g>
   }
   
   // Helper: Render "No legal moves" message and "End Turn" button
@@ -3484,8 +3484,59 @@ export default function BackgammonBoard({
             if (dropPointForValidation !== draggedChecker.point) {
             // Validate move
               if (validateMove(draggedChecker.point, dropPointForValidation, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
-                // Update XGID - use dropPoint (relative to boardState.player) for updateXGIDForMove
-              const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
+                // Check if this is a collapsed move (direct move doesn't match a die)
+                let collapsedPath = null
+                let newXGID = currentXGID
+                
+                // In play mode, check for collapsed moves
+                if (effectiveEditingMode === 'play' && draggedChecker.point >= 1 && draggedChecker.point <= 24 && dropPointForValidation >= 1 && dropPointForValidation <= 24) {
+                  const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
+                  
+                  // Get available dice
+                  let availableDice = []
+                  if (turnState && turnState.currentPlayer === draggedChecker.owner) {
+                    availableDice = getAvailableDice(turnState.dice, turnState.usedDice || [])
+                  } else if (boardState.dice && boardState.dice !== '00') {
+                    const die1 = parseInt(boardState.dice[0])
+                    const die2 = parseInt(boardState.dice[1])
+                    if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
+                      const isDoubles = die1 === die2
+                      availableDice = isDoubles ? [die1, die1, die1, die1] : [die1, die2]
+                    }
+                  }
+                  
+                  // Check if direct move matches a die
+                  const directMatch = distance !== null && distance > 0 && availableDice.includes(distance)
+                  
+                  // If direct move doesn't match, try to find collapsed path
+                  if (!directMatch && availableDice.length > 0) {
+                    const currentPlayer = boardState.player !== undefined ? boardState.player : (draggedChecker.owner === 'white' ? 1 : -1)
+                    collapsedPath = findCollapsedMovePath(
+                      draggedChecker.point,
+                      dropPointForValidation,
+                      draggedChecker.owner,
+                      boardState,
+                      availableDice,
+                      currentPlayer
+                    )
+                  }
+                }
+                
+                // Apply move(s)
+                if (collapsedPath && collapsedPath.length > 0) {
+                  // Apply collapsed move path (multiple intermediate moves)
+                  let workingXGID = currentXGID
+                  for (const move of collapsedPath) {
+                    // Convert move coordinates for updateXGIDForMove
+                    const moveFrom = move.from
+                    const moveTo = move.to
+                    workingXGID = updateXGIDForMove(workingXGID, moveFrom, moveTo, draggedChecker.count, draggedChecker.owner)
+                  }
+                  newXGID = workingXGID
+                } else {
+                  // Apply direct move
+                  newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
+                }
               
               // Check if player has won (all 15 checkers borne off)
               const newBoardState = parseXGID(newXGID)
@@ -3543,51 +3594,59 @@ export default function BackgammonBoard({
               
               // Then handle turn state and dice tracking (in both play and free modes if dice are present)
               if (shouldTrackDice && currentTurnState && currentTurnState.dice && currentTurnState.dice.length > 0) {
-                  const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
-                if (distance !== null && distance > 0) {
                   const availableDice = getAvailableDice(currentTurnState.dice, currentTurnState.usedDice || [])
                   const isBearingOff = (dropPointForValidation === -1 || dropPointForValidation === -2)
                   const checkersToMove = draggedChecker.count
                   
                   // Find dice that can be used for this move
                   let diceToUse = []
-                  if (isBearingOff) {
-                    // For bearing off: point N can only bear off with die N (point number = die number)
-                    // Exception: if lowest remaining die > highest occupied point, must bear off from highest point
-                    const fromPoint = draggedChecker.point
-                    const bearingOff = canBearOff(boardState, draggedChecker.owner, boardState.player)
-                    const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, draggedChecker.owner, boardState.player) : null
-                    
-                    if (highestOccupiedPoint !== null && availableDice.length > 0) {
-                      const lowestRemainingDie = Math.min(...availableDice)
-                      if (lowestRemainingDie > highestOccupiedPoint) {
-                        // Exception: lowest remaining die exceeds highest occupied point - must use dice to bear off from highest point
-                        if (fromPoint === highestOccupiedPoint) {
-                          // Use multiple dice of the lowest die value (which exceeds highest occupied point) for multi-checker moves
-                          const matchingDice = availableDice.filter(d => d === lowestRemainingDie)
+                  
+                  // If collapsed path exists, use dice from the path
+                  if (collapsedPath && collapsedPath.length > 0) {
+                    diceToUse = collapsedPath.map(move => move.dieUsed)
+                  } else {
+                    // Otherwise, calculate dice for direct move
+                    const distance = calculateMoveDistance(draggedChecker.point, dropPointForValidation, draggedChecker.owner)
+                    if (distance !== null && distance > 0) {
+                      if (isBearingOff) {
+                        // For bearing off: point N can only bear off with die N (point number = die number)
+                        // Exception: if lowest remaining die > highest occupied point, must bear off from highest point
+                        const fromPoint = draggedChecker.point
+                        const bearingOff = canBearOff(boardState, draggedChecker.owner, boardState.player)
+                        const highestOccupiedPoint = bearingOff ? getHighestOccupiedPoint(boardState, draggedChecker.owner, boardState.player) : null
+                        
+                        if (highestOccupiedPoint !== null && availableDice.length > 0) {
+                          const lowestRemainingDie = Math.min(...availableDice)
+                          if (lowestRemainingDie > highestOccupiedPoint) {
+                            // Exception: lowest remaining die exceeds highest occupied point - must use dice to bear off from highest point
+                            if (fromPoint === highestOccupiedPoint) {
+                              // Use multiple dice of the lowest die value (which exceeds highest occupied point) for multi-checker moves
+                              const matchingDice = availableDice.filter(d => d === lowestRemainingDie)
+                              if (matchingDice.length >= checkersToMove) {
+                                diceToUse = matchingDice.slice(0, checkersToMove)
+                              }
+                            }
+                          } else {
+                            // Normal bearing off: point number must equal die number
+                            const matchingDice = availableDice.filter(d => d === fromPoint)
+                            if (matchingDice.length >= checkersToMove) {
+                              diceToUse = matchingDice.slice(0, checkersToMove)
+                            }
+                          }
+                        } else {
+                          // Normal bearing off: point number must equal die number
+                          const matchingDice = availableDice.filter(d => d === fromPoint)
                           if (matchingDice.length >= checkersToMove) {
                             diceToUse = matchingDice.slice(0, checkersToMove)
                           }
                         }
                       } else {
-                        // Normal bearing off: point number must equal die number
-                        const matchingDice = availableDice.filter(d => d === fromPoint)
-                        if (matchingDice.length >= checkersToMove) {
-                          diceToUse = matchingDice.slice(0, checkersToMove)
+                        // For regular moves, find dice === distance
+                        const usableDice = availableDice.filter(d => d === distance)
+                        if (usableDice.length >= checkersToMove) {
+                          diceToUse = usableDice.slice(0, checkersToMove)
                         }
                       }
-                    } else {
-                      // Normal bearing off: point number must equal die number
-                      const matchingDice = availableDice.filter(d => d === fromPoint)
-                      if (matchingDice.length >= checkersToMove) {
-                        diceToUse = matchingDice.slice(0, checkersToMove)
-                      }
-                    }
-                  } else {
-                    // For regular moves, find dice === distance
-                    const usableDice = availableDice.filter(d => d === distance)
-                    if (usableDice.length >= checkersToMove) {
-                      diceToUse = usableDice.slice(0, checkersToMove)
                     }
                   }
                   
@@ -3706,15 +3765,9 @@ export default function BackgammonBoard({
                       onChange(newXGID)
                     }
                   }
-                } else {
-                  // Invalid distance - shouldn't happen if validation worked
-                  if (onChange) {
-                    onChange(newXGID)
-                  }
-                }
               } else {
                 // Not play mode or no turn state - just notify
-              if (onChange) {
+                if (onChange) {
                   onChange(newXGID)
                 }
               }
@@ -4457,6 +4510,7 @@ export default function BackgammonBoard({
       {/* Options icon button */}
       {showOptions && (
         <button
+          id="board-options-gear-button"
           onClick={() => {
             setShowOptionsDialog(true)
           }}
@@ -4734,6 +4788,17 @@ export default function BackgammonBoard({
         {/* Dice */}
         {renderDice()}
         
+        {/* Dice area reference element (always rendered for help overlay) */}
+        <circle
+          id="dice-area-reference"
+          cx={leftBorderWidth + innerWidth * 0.75}
+          cy={topBorderWidth + innerHeight / 2}
+          r={1}
+          fill="transparent"
+          pointerEvents="none"
+          style={{ visibility: 'hidden' }}
+        />
+        
         {/* Board labels */}
         {activeShowBoardLabels && getLabelPositions().map(pos => renderLabel(pos.text, pos.x, pos.y, pos.baseline))}
         
@@ -4894,6 +4959,7 @@ export default function BackgammonBoard({
       
       {/* Information bar */}
       <div 
+        id="info-bar"
         className="w-full text-center py-3 px-4"
         style={{
           backgroundColor: '#4b5563', // dark grey
