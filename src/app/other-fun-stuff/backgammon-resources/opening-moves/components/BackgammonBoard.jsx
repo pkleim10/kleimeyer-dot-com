@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { parseXGID } from '../utils/xgidParser'
 import { getAIMove } from '../utils/aiBackgammon'
-import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove } from '../utils/gameLogic.js'
+import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove, hasPlayerWon } from '../utils/gameLogic.js'
 
 export default function BackgammonBoard({ 
   direction = 0, 
@@ -60,6 +60,8 @@ export default function BackgammonBoard({
   
   // Turn state for play mode
   const [turnState, setTurnState] = useState(null) // {currentPlayer: 'black'|'white', dice: number[], usedDice: number[], isTurnComplete: boolean, mustEnterFromBar: boolean, noLegalMoves: boolean}
+  // Win state
+  const [winner, setWinner] = useState(null) // 'black' | 'white' | null
   // Use a ref to track the latest turnState synchronously (React state updates are async)
   // IMPORTANT: We update the ref directly when we set turnState, and never sync it back from state
   // This prevents stale state from overwriting our ref updates
@@ -96,6 +98,31 @@ export default function BackgammonBoard({
     player: undefined,
     dice: undefined
   }
+
+  // Check for win condition whenever board state changes
+  // Only check when not showing ghost previews to prevent duplicate win popups
+  useEffect(() => {
+    if (!effectiveXGID) {
+      setWinner(null)
+      return
+    }
+    
+    // Don't check for wins when showing ghost previews
+    // The win will be detected when the move is actually applied
+    if (ghostsVisible) {
+      return
+    }
+    
+    const currentBoardState = parseXGID(effectiveXGID)
+    
+    // Check if either player has won
+    if (hasPlayerWon(currentBoardState, 'white')) {
+      setWinner('white')
+    } else if (hasPlayerWon(currentBoardState, 'black')) {
+      setWinner('black')
+    }
+    // Don't clear winner here - once set, it stays until board is reset
+  }, [effectiveXGID, ghostsVisible])
   
   // Use cubeValue from XGID if available, otherwise use prop value
   const effectiveCubeValue = boardState.cubeValue !== undefined ? boardState.cubeValue : cubeValue
@@ -2384,6 +2411,11 @@ export default function BackgammonBoard({
         }
       }
 
+      // Check if player has won (all 15 checkers borne off)
+      if (hasPlayerWon(updatedBoardState, moveOwner)) {
+        setWinner(moveOwner)
+      }
+
       if (allDiceUsed || allCheckersBorneOff) {
         console.log('[applyAIMove] Turn complete - switching player', { allDiceUsed, allCheckersBorneOff })
         // End turn - switch to next player and clear dice
@@ -2429,6 +2461,13 @@ export default function BackgammonBoard({
     } else {
       // Not in PLAY mode or no turn state - just update XGID
       console.log('[applyAIMove] Not in PLAY mode - updating XGID directly')
+      const updatedBoardState = parseXGID(updatedXGID)
+      
+      // Check if player has won (all 15 checkers borne off)
+      if (hasPlayerWon(updatedBoardState, moveOwner)) {
+        setWinner(moveOwner)
+      }
+      
       setEditableXGID(updatedXGID)
       if (onChange) {
         onChange(updatedXGID)
@@ -3047,6 +3086,13 @@ export default function BackgammonBoard({
     if (validateMove(relativePoint, targetTray, count, owner, effectiveEditingMode, boardState, turnState)) {
       // Update XGID - move only the clicked checker and checkers above it to tray
       const newXGID = updateXGIDForMove(currentXGID, relativePoint, targetTray, count, owner)
+      
+      // Check if player has won (all 15 checkers borne off)
+      const newBoardState = parseXGID(newXGID)
+      if (hasPlayerWon(newBoardState, owner)) {
+        setWinner(owner)
+      }
+      
       setEditableXGID(newXGID)
       
       // Track dice usage in PLAY mode (same logic as handleGlobalMouseUp)
@@ -3253,6 +3299,12 @@ export default function BackgammonBoard({
               if (validateMove(draggedChecker.point, dropPointForValidation, draggedChecker.count, draggedChecker.owner, effectiveEditingMode, boardState, turnState)) {
                 // Update XGID - use dropPoint (relative to boardState.player) for updateXGIDForMove
               const newXGID = updateXGIDForMove(currentXGID, draggedChecker.point, dropPoint, draggedChecker.count, draggedChecker.owner)
+              
+              // Check if player has won (all 15 checkers borne off)
+              const newBoardState = parseXGID(newXGID)
+              if (hasPlayerWon(newBoardState, draggedChecker.owner)) {
+                setWinner(draggedChecker.owner)
+              }
               
               // Track dice usage in PLAY mode (or FREE mode if dice are present)
               // Initialize turnState if it doesn't exist (can happen on first move)
@@ -4549,6 +4601,37 @@ export default function BackgammonBoard({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Win message overlay */}
+      {winner && (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-50"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(2px)'
+          }}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl p-8 text-center border-2 border-amber-600"
+            style={{
+              minWidth: '300px',
+              maxWidth: '90%'
+            }}
+          >
+            <h2
+              className="text-4xl font-bold mb-6 text-gray-900 dark:text-white"
+            >
+              {winner === 'white' ? 'WHITE wins!' : 'BLACK wins!'}
+            </h2>
+            <button
+              onClick={() => setWinner(null)}
+              className="px-6 py-3 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors font-medium text-lg"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

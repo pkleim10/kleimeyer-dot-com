@@ -71,6 +71,32 @@ export function canBearOff(boardState, owner, currentPlayer) {
 }
 
 /**
+ * Check if a player has won the game (all 15 checkers borne off)
+ * @param {Object} boardState - Current board state
+ * @param {string} owner - 'black' | 'white'
+ * @returns {boolean} - True if player has won (all 15 checkers borne off)
+ */
+export function hasPlayerWon(boardState, owner) {
+  // Check bar count
+  const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
+  if (barCount > 0) {
+    return false
+  }
+  
+  // Check point count
+  let pointCount = 0
+  for (let i = 0; i < 24; i++) {
+    const pointData = boardState.points[i]
+    if (pointData.count > 0 && pointData.owner === owner) {
+      pointCount += pointData.count
+    }
+  }
+  
+  // Player has won if bar + points = 0 (all 15 checkers borne off)
+  return barCount + pointCount === 0
+}
+
+/**
  * Get the highest occupied point in player's home board when bearing off
  * Returns relative point number (1-6) in current player's perspective
  * @param {Object} boardState - Current board state (in white's perspective)
