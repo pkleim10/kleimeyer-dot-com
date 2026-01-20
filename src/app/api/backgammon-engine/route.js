@@ -521,6 +521,7 @@ export async function POST(request) {
         xgid,
         legalMoves: allLegalMoves.map(move => ({
           description: formatMove(move),
+          moves: move.moves, // Include moves array for relative coordinate conversion
           totalPips: move.totalPips || 0
         }))
       } : null

@@ -62,15 +62,38 @@ function canMakeMove(boardState, owner, currentPlayer, fromPoint, die) {
   const isInHomeBoard = fromPoint >= homeBoardStart && fromPoint <= homeBoardEnd
   
   if (isInHomeBoard && canBearOff(boardState, owner)) {
-    // Bearing off: toPoint < 1 (white) or toPoint > 24 (black)
-    if ((owner === 'white' && toPoint < 1) || (owner === 'black' && toPoint > 24)) {
-      return {
-        from: fromPoint,
-        to: owner === 'white' ? 0 : 25, // Use 0 for white off, 25 for black off
-        count: 1,
-        die: die,
-        isBearOff: true
+    // Convert fromPoint to relative coordinates (1-6 for home board)
+    const relativePoint = owner === 'white' ? fromPoint : (25 - fromPoint)
+    
+    // Check if this would be a bear-off move (toPoint goes beyond board)
+    const wouldBearOff = (owner === 'white' && toPoint < 1) || (owner === 'black' && toPoint > 24)
+    
+    if (wouldBearOff) {
+      // Bearing off rules:
+      // 1. Point N can only bear off with die N (exact match: point number = die number)
+      // 2. Exception: If lowest remaining die > highest occupied point, MUST bear off from highest point with lowest die
+      
+      // Get highest occupied point
+      const highestOccupiedPoint = getHighestOccupiedPoint(boardState, owner)
+      
+      // Check if die matches point number (normal case)
+      if (die === relativePoint) {
+        return {
+          from: fromPoint,
+          to: owner === 'white' ? 0 : 25, // Use 0 for white off, 25 for black off
+          count: 1,
+          die: die,
+          isBearOff: true
+        }
       }
+      
+      // Check exception: if lowest die > highest occupied point, must bear off from highest point
+      // Note: We don't have access to all remaining dice here, so we can't check "lowest remaining die"
+      // This check will be done at the combination generation level
+      // For now, only allow exact match (die === relativePoint)
+      
+      // Otherwise, this is not a valid bear-off move
+      return null
     }
   }
 
@@ -666,11 +689,16 @@ function getLegalMoves(boardState, turnState) {
     const canBearOffNow = canBearOff(currentState, owner)
     if (canBearOffNow && !stillMustEnterFromBar && playerPoints.length > 0) {
       const highestPoint = getHighestOccupiedPoint(currentState, owner)
-      const lowestDie = Math.min(...remainingDice)
-      
-      if (highestPoint !== null && highestPoint < lowestDie) {
-        // MUST bear off from highest point - only allow moves from that point
-        playerPoints = [highestPoint]
+      if (highestPoint !== null && remainingDice.length > 0) {
+        const lowestDie = Math.min(...remainingDice)
+        
+        // Convert highest point to relative coordinates for comparison
+        const highestPointRelative = owner === 'white' ? highestPoint : (25 - highestPoint)
+        
+        if (lowestDie > highestPointRelative) {
+          // MUST bear off from highest point - only allow moves from that point
+          playerPoints = [highestPoint]
+        }
       }
     }
     
@@ -776,9 +804,84 @@ function getLegalMoves(boardState, turnState) {
   fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:527',message:'After generateCombinations call',data:{allCombosLength:allCombos.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
 
+  // Helper function to check if a die can be fully used from a board state
+  const canDieBeFullyUsed = (state, owner, die) => {
+    const currentPlayer = owner === 'white' ? 1 : -1
+    
+    // Check if die can bear off from point equal to die value (in relative coordinates)
+    if (canBearOff(state, owner)) {
+      const homeBoardStart = owner === 'white' ? 1 : 19
+      const homeBoardEnd = owner === 'white' ? 6 : 24
+      const absolutePoint = owner === 'white' ? die : (25 - die)
+      
+      if (absolutePoint >= homeBoardStart && absolutePoint <= homeBoardEnd) {
+        const pointData = state.points[absolutePoint - 1]
+        if (pointData.owner === owner && pointData.count > 0) {
+          // Can bear off from point equal to die value
+          return true
+        }
+      }
+    }
+    
+    // Check if die can be used for a regular move (not bear-off)
+    const playerPoints = getPlayerPoints(state)
+    for (const fromPoint of playerPoints) {
+      const move = canMakeMove(state, owner, currentPlayer, fromPoint, die)
+      if (move && !move.isBearOff) {
+        // Can make a regular move using full die value
+        return true
+      }
+    }
+    
+    return false
+  }
+  
+  // Filter out combinations that don't use all dice fully when they can be
+  // Rule: If the full value of a die can be used, it must be used
+  const validCombos = []
+  for (const combo of allCombos) {
+    // Check if all dice were used
+    const usedDiceInCombo = combo.moves.map(m => m.die)
+    const allDiceUsed = availableDice.every(die => {
+      const countInCombo = usedDiceInCombo.filter(d => d === die).length
+      const countAvailable = availableDice.filter(d => d === die).length
+      return countInCombo === countAvailable
+    })
+    
+    if (!allDiceUsed) {
+      // Not all dice were used - check if any unused die could have been fully used from original board state
+      const unusedDice = []
+      for (const die of availableDice) {
+        const countInCombo = usedDiceInCombo.filter(d => d === die).length
+        const countAvailable = availableDice.filter(d => d === die).length
+        if (countInCombo < countAvailable) {
+          // This die was not fully used - add remaining instances
+          for (let i = 0; i < countAvailable - countInCombo; i++) {
+            unusedDice.push(die)
+          }
+        }
+      }
+      
+      // Check if any unused die could have been fully used from the ORIGINAL board state
+      let hasUnusedFullyUsableDie = false
+      for (const die of unusedDice) {
+        if (canDieBeFullyUsed(boardState, owner, die)) {
+          hasUnusedFullyUsableDie = true
+          break
+        }
+      }
+      
+      if (hasUnusedFullyUsableDie) {
+        continue // Skip this combo - it doesn't use a die that could be fully used
+      }
+    }
+    
+    validCombos.push(combo)
+  }
+  
   // Deduplicate combinations
   const unique = new Map()
-  for (const combo of allCombos) {
+  for (const combo of validCombos) {
     const key = buildKey(combo.moves)
     if (!unique.has(key)) {
       unique.set(key, combo)

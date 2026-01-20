@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { parseXGID } from '../utils/xgidParser'
 import { getAIMove } from '../utils/aiBackgammon'
 import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove, hasPlayerWon } from '../utils/gameLogic.js'
+import { formatMove } from '@/utils/moveFormatter'
 
 export default function BackgammonBoard({ 
   direction = 0, 
@@ -105,12 +106,12 @@ export default function BackgammonBoard({
 
   // Reset move number and opening roll dice when board resets to OPEN state
   useEffect(() => {
-    if (boardState.player === 0 && !openingRollDice && moveNumber > 0) {
-      // Board reset to OPEN state - reset move tracking
+    if (boardState.player === 0) {
+      // Board reset to OPEN state - always reset move tracking
       setMoveNumber(0)
       setOpeningRollDice(null)
     }
-  }, [boardState.player, openingRollDice, moveNumber])
+  }, [boardState.player])
 
   // Check for win condition whenever board state changes
   // Only check when not showing ghost previews to prevent duplicate win popups
@@ -862,8 +863,8 @@ export default function BackgammonBoard({
       const lowerDie = Math.min(openingRollDice.whiteDie, openingRollDice.blackDie)
       diceToShow = `${higherDie}${lowerDie}`
       
-      // Show re-roll watermark if dice are equal (winner is null or doubles)
-      if (openingRollDice.winner === null || openingRollDice.whiteDie === openingRollDice.blackDie) {
+      // Show re-roll watermark only in PLAY mode if dice are equal (winner is null or doubles)
+      if (effectiveEditingMode === 'play' && (openingRollDice.winner === null || openingRollDice.whiteDie === openingRollDice.blackDie)) {
         showRerollWatermark = true
       }
     } else {
@@ -2690,7 +2691,11 @@ export default function BackgammonBoard({
     const xgidParts = currentXGID.split(':')
     
     // Get current player for coordinate conversion
-    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    // Special case: if player is 0 (OPEN state), use checker owner for coordinate conversion
+    let currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    if (currentPlayer === 0) {
+      currentPlayer = owner === 'black' ? -1 : 1
+    }
     
     // Handle tray moves
     if (from === -1 || from === -2) {
@@ -3115,6 +3120,7 @@ export default function BackgammonBoard({
     // Determine current player for coordinate conversion:
     // - In PLAY mode: use turnState.currentPlayer (most accurate for game logic)
     // - In EDIT mode: use finalEffectivePlayer (display player, allows moving any checker)
+    // - Special case: if player is 0 (OPEN state), use checker owner for conversion
     let currentPlayer = 1 // Default to white
     if (effectiveEditingMode === 'play') {
       // Play mode: use turnState which tracks the actual current player
@@ -3126,7 +3132,9 @@ export default function BackgammonBoard({
       }
     } else {
       // Edit mode: use display player (allows moving any checker from any perspective)
-      currentPlayer = finalEffectivePlayer !== undefined ? finalEffectivePlayer : 1
+      const effectivePlayer = finalEffectivePlayer !== undefined ? finalEffectivePlayer : 1
+      // If player is 0 (OPEN state), use checker owner for coordinate conversion
+      currentPlayer = effectivePlayer === 0 ? (owner === 'black' ? -1 : 1) : effectivePlayer
     }
     
     const relativePoint = isTray 
@@ -3173,7 +3181,11 @@ export default function BackgammonBoard({
     
     // Convert point to relative coordinates (point comes in as white's absolute perspective)
     // Use the actual current player from boardState, not the display player
-    const currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    // Special case: if player is 0 (OPEN state), use checker owner for conversion
+    let currentPlayer = boardState.player !== undefined ? boardState.player : 1
+    if (currentPlayer === 0) {
+      currentPlayer = owner === 'black' ? -1 : 1
+    }
     const relativePoint = (point === 0 || point === 25) 
       ? point  // Bars don't need conversion
       : (currentPlayer === 1 
@@ -3408,9 +3420,15 @@ export default function BackgammonBoard({
             // dropPointAbsolute is in white's absolute perspective (1-24)
             // updateXGIDForMove expects relative coordinates based on boardState.player
             // In EDIT mode, use finalEffectivePlayer if available; in PLAY mode, use boardState.player
-            const currentPlayerForConversion = effectiveEditingMode === 'play' 
+            // Special case: if player is 0 (OPEN state), use checker owner for conversion
+            let currentPlayerForConversion = effectiveEditingMode === 'play' 
               ? (boardState.player !== undefined ? boardState.player : 1)
               : (finalEffectivePlayer !== undefined ? finalEffectivePlayer : (boardState.player !== undefined ? boardState.player : 1))
+            
+            // If player is 0 (OPEN state), use draggedChecker.owner for coordinate conversion
+            if (currentPlayerForConversion === 0) {
+              currentPlayerForConversion = draggedChecker.owner === 'black' ? -1 : 1
+            }
             
             const dropPoint = (dropPointAbsolute >= 1 && dropPointAbsolute <= 24)
               ? (currentPlayerForConversion === -1 ? 25 - dropPointAbsolute : dropPointAbsolute)
@@ -3701,7 +3719,7 @@ export default function BackgammonBoard({
   
   // Dice click handler - single click cycles the die value
   const handleDiceClick = (e, dieIndex) => {
-    if (!isEditable || effectiveEditingMode !== 'free') return
+    if (!isEditable || effectiveEditingMode === 'play') return
     
     
     e.preventDefault()
@@ -3771,23 +3789,11 @@ export default function BackgammonBoard({
       
       // Handle opening roll (player === 0)
       if (currentBoardState.player === 0) {
-        // First opening roll: force doubles (same value on both dice) - one time only for verification
-        if (!openingRollDice) {
-          const dieValue = Math.floor(Math.random() * 6) + 1
-          const whiteDie = dieValue
-          const blackDie = dieValue
-          
-          // Show re-roll watermark (doubles require re-roll)
-          setOpeningRollDice({ whiteDie, blackDie, winner: null }) // null winner indicates re-roll needed
-          // Don't update XGID - keep player as 0 (OPEN state) until re-roll
-          return
-        }
-        
-        // Subsequent opening roll (re-roll after doubles): roll normally
+        // Opening roll: roll one white die and one black die
         const whiteDie = Math.floor(Math.random() * 6) + 1
         const blackDie = Math.floor(Math.random() * 6) + 1
         
-        // If dice are equal again, show re-roll watermark but don't update XGID yet
+        // If dice are equal, show re-roll watermark but don't update XGID yet
         if (whiteDie === blackDie) {
           setOpeningRollDice({ whiteDie, blackDie, winner: null }) // null winner indicates re-roll needed
           // Don't update XGID - keep player as 0 (OPEN state)
@@ -4801,11 +4807,28 @@ export default function BackgammonBoard({
               <div>
                 <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legal Moves:</h4>
                 <div className="max-h-32 overflow-y-auto">
-                  {aiDebug.legalMoves && aiDebug.legalMoves.map((move, i) => (
-                    <code key={i} className="block p-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono text-gray-900 dark:text-gray-100 mb-1">
-                      {move.description}
-                    </code>
-                  ))}
+                  {aiDebug.legalMoves && aiDebug.legalMoves.map((move, i) => {
+                    // Format move with current player's perspective (convert absolute to relative)
+                    const boardState = parseXGID(effectiveXGID || xgid)
+                    const currentPlayer = boardState?.player !== undefined ? boardState.player : 1
+                    let formattedMove = move.description || ''
+                    
+                    // If moves array is available, format with current player's perspective
+                    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
+                      try {
+                        formattedMove = formatMove({ moves: move.moves }, currentPlayer)
+                      } catch (error) {
+                        console.warn('Error formatting move:', error, move)
+                        formattedMove = move.description || ''
+                      }
+                    }
+                    
+                    return (
+                      <code key={i} className="block p-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono text-gray-900 dark:text-gray-100 mb-1">
+                        {formattedMove}
+                      </code>
+                    )
+                  })}
                 </div>
               </div>
             </div>

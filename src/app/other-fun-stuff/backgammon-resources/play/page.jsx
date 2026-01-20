@@ -9,7 +9,7 @@ import { parseXGID } from '../opening-moves/utils/xgidParser'
 import { applyMove } from '../opening-moves/utils/moveApplier'
 import { formatMove } from '@/utils/moveFormatter'
 
-export default function BoardEditorPage() {
+export default function PlayPage() {
   const { user } = useAuth()
   
   // Starting position XGID (xg1: checker positions, xg2: cubeValue, xg3: cubeOwner, xg4: player, xg5: dice, xg6-xg10: match play values)
@@ -833,6 +833,8 @@ export default function BoardEditorPage() {
                       setUsedDice([]) // Clear used dice tracking
                       setTurnStartXGID(STARTING_XGID) // Reset turn start tracking
                       handleClearEngineAnalysis() // Clear engine analysis when starting new game
+                      // Increment resetKey to force BackgammonBoard to reset moveNumber and openingRollDice
+                      setResetKey(prev => prev + 1)
                       // Note: STARTING_XGID already has player=0 (OPEN) and dice=00 (cleared)
                     }}
                     className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
@@ -850,17 +852,13 @@ export default function BoardEditorPage() {
                       <button
                         onClick={handleEngineAnalysis}
                         disabled={isAnalyzing || editingMode !== 'play' || needsToRoll}
-                        className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-3 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        title="Suggest Move"
                       >
                         {isAnalyzing ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Analyzing...
-                          </>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
-                          <>
-                            💡 Suggest Move
-                          </>
+                          <span className="text-xl">💡</span>
                         )}
                       </button>
                     )

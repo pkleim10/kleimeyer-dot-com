@@ -26,7 +26,7 @@ const getNavigationContext = (pathname) => {
   if (pathname.startsWith('/other-fun-stuff/medication')) return { app: 'otherFunStuff', section: 'medication', page: 'medication' }
   if (pathname.startsWith('/other-fun-stuff/magic-playlists')) return { app: 'otherFunStuff', section: 'magic-playlists', page: 'magic-playlists' }
   if (pathname.startsWith('/other-fun-stuff/backgammon-resources/opening-moves')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'opening-moves' }
-  if (pathname.startsWith('/other-fun-stuff/backgammon-resources/board-editor')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'board-editor' }
+  if (pathname.startsWith('/other-fun-stuff/backgammon-resources/play')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'play' }
   if (pathname.startsWith('/other-fun-stuff/backgammon-resources')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'backgammon-resources' }
   if (pathname.startsWith('/recipe')) {
     if (pathname === '/recipe') return { app: 'recipes', section: 'home', page: 'recipes-home' }
@@ -132,8 +132,8 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         breadcrumbs.push({ name: 'Backgammon Resources', href: '/other-fun-stuff/backgammon-resources', current: context.page === 'backgammon-resources' })
         if (context.page === 'opening-moves') {
           breadcrumbs.push({ name: 'Opening Moves Quiz', href: '/other-fun-stuff/backgammon-resources/opening-moves', current: true })
-        } else if (context.page === 'board-editor') {
-          breadcrumbs.push({ name: 'Play Backgammon', href: '/other-fun-stuff/backgammon-resources/board-editor', current: true })
+        } else if (context.page === 'play') {
+          breadcrumbs.push({ name: 'Play Backgammon', href: '/other-fun-stuff/backgammon-resources/play', current: true })
         }
       }
       break
