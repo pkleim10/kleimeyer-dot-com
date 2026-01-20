@@ -3114,12 +3114,6 @@ export default function BackgammonBoard({
   const isClickInDiceArea = (x, y) => {
     if (!isEditable) return false
     
-    // Check if dice are currently hidden (would be "00")
-    const currentXGID = editableXGID || effectiveXGID || xgid
-    if (!currentXGID) return false
-    const boardState = parseXGID(currentXGID)
-    if (boardState.dice && boardState.dice !== "00") return false // Dice already shown
-    
     // Dice area: right quadrant, centered vertically
     const diceY = topBorderWidth + innerHeight / 2
     const dieSize = BAR_WIDTH * 0.8
@@ -3825,7 +3819,7 @@ export default function BackgammonBoard({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     
-    // Check if click is in dice area (empty area to roll dice)
+    // Check if click is in dice area (to roll dice or clear dice)
     if (isClickInDiceArea(x, y)) {
       e.preventDefault()
       e.stopPropagation()
@@ -3835,6 +3829,35 @@ export default function BackgammonBoard({
       
       const currentBoardState = parseXGID(currentXGID)
       
+      // If dice are already shown, clear them (set to "00")
+      if (currentBoardState.dice && currentBoardState.dice !== "00") {
+        const parts = currentXGID.split(':')
+        parts[4] = '00' // Clear dice
+        
+        // Ensure all parts exist
+        while (parts.length < 10) {
+          if (parts.length === 9) {
+            parts.push('10')
+          } else {
+            parts.push('0')
+          }
+        }
+        
+        const newXGID = parts.join(':')
+        setEditableXGID(newXGID)
+        
+        // Clear opening roll dice state if it exists
+        if (openingRollDice) {
+          setOpeningRollDice(null)
+        }
+        
+        if (onChange) {
+          onChange(newXGID)
+        }
+        return
+      }
+      
+      // Dice are "00" - roll dice
       // Handle opening roll (player === 0)
       if (currentBoardState.player === 0) {
         // Opening roll: roll one white die and one black die
@@ -3880,9 +3903,14 @@ export default function BackgammonBoard({
           onChange(newXGID)
         }
       } else {
-        // Normal roll
+        // Normal roll (after opening roll) - roll two dice for current player
         const newXGID = rollRandomDice(currentXGID)
         setEditableXGID(newXGID)
+        
+        // Clear opening roll dice state if it exists (shouldn't happen, but just in case)
+        if (openingRollDice) {
+          setOpeningRollDice(null)
+        }
         
         if (onChange) {
           onChange(newXGID)
@@ -4107,7 +4135,8 @@ export default function BackgammonBoard({
       : (pointIndex % 2 === 1)
     const isGrey = activeDirection === 1 ? !baseIsGrey : baseIsGrey
     
-    const pointNumber = finalEffectivePlayer === 1 
+    // When player is OPEN (0), use WHITE numbering
+    const pointNumber = (finalEffectivePlayer === 1 || finalEffectivePlayer === 0)
       ? getPointNumberWhite(quadrantIndex, pointIndex)
       : getPointNumberBlack(quadrantIndex, pointIndex)
     
@@ -4172,6 +4201,42 @@ export default function BackgammonBoard({
     const needsToRoll = !diceToCheck
     const actionText = needsToRoll ? 'to roll' : 'to play'
     infoText = `${playerName} ${actionText}`
+  }
+  
+  // Handler to cycle through players in EDIT mode
+  const handleInfoBarClick = () => {
+    // Only work in EDIT mode (not PLAY mode)
+    if (effectiveEditingMode === 'play') return
+    if (!isEditable) return
+    
+    const currentXGID = editableXGID || effectiveXGID || xgid
+    if (!currentXGID) return
+    
+    // Get current player
+    const currentPlayer = boardState.player
+    
+    // Cycle through players: WHITE (1) > BLACK (-1) > OPEN (0) > WHITE (1)...
+    let nextPlayer
+    if (currentPlayer === 1) {
+      nextPlayer = -1 // WHITE -> BLACK
+    } else if (currentPlayer === -1) {
+      nextPlayer = 0 // BLACK -> OPEN
+    } else {
+      nextPlayer = 1 // OPEN -> WHITE
+    }
+    
+    // Update XGID: change player (xg4) and reset dice to "00" (xg5)
+    const parts = currentXGID.split(':')
+    if (parts.length >= 5) {
+      parts[3] = String(nextPlayer) // xg4 = player
+      parts[4] = '00' // xg5 = dice (reset to "to roll")
+      const newXGID = parts.join(':')
+      
+      setEditableXGID(newXGID)
+      if (onChange) {
+        onChange(newXGID)
+      }
+    }
   }
   
   // Generate modified XGID string that reflects current effective values
@@ -4834,8 +4899,11 @@ export default function BackgammonBoard({
           backgroundColor: '#4b5563', // dark grey
           color: '#ffffff', // white font
           width: `${BOARD_WIDTH}px`,
-          maxWidth: '100%'
+          maxWidth: '100%',
+          cursor: (isEditable && effectiveEditingMode !== 'play') ? 'pointer' : 'default'
         }}
+        onClick={handleInfoBarClick}
+        title={isEditable && effectiveEditingMode !== 'play' ? 'Click to cycle through players (WHITE > BLACK > OPEN)' : ''}
       >
         <span className="text-lg font-semibold">{infoText}</span>
       </div>
