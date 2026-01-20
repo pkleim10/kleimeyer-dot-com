@@ -923,10 +923,12 @@ export default function PlayPage() {
             : helper.id === 'cube' ? cubeLabelRef
             : xgidLabelRef
           
-          // For cube helper, find button via selector
+          // For cube and xgid helpers, find button via selector
           let buttonElement = helper.buttonRef?.current
           if (helper.id === 'cube' && !buttonElement) {
             buttonElement = document.getElementById('doubling-cube-reference')
+          } else if (helper.id === 'xgid' && !buttonElement) {
+            buttonElement = document.getElementById('xgid-input')
           }
           
           if (labelRef?.current && buttonElement) {
@@ -1203,7 +1205,7 @@ export default function PlayPage() {
         } else if (helper.id === 'cube' && !buttonElement) {
           buttonElement = document.getElementById('doubling-cube-reference')
         } else if (helper.id === 'xgid' && !buttonElement) {
-          buttonElement = document.getElementById('xgid-input-container')
+          buttonElement = document.getElementById('xgid-input')
         }
         
         if (buttonElement && labelRef?.current) {
@@ -1307,7 +1309,10 @@ export default function PlayPage() {
                 }
                 
                 const targetButtonCenterY = targetRect.top + targetRect.height / 2
-                const horizontalEndX = targetRect.left + targetRect.width / 2
+                // For info helper, point to right edge; for others, point to center
+                const horizontalEndX = helper.id === 'info'
+                  ? targetRect.right
+                  : targetRect.left + targetRect.width / 2
                 // Store coordinates relative to initial overlay position
                 initialArrowCoordsRef.current = {
                   labelLeft: labelLeft - overlayRect.left, // Label left relative to overlay
@@ -1398,7 +1403,10 @@ export default function PlayPage() {
                 }
                 
                 const targetButtonCenterY = targetRect.top + targetRect.height / 2
-                const horizontalEndX = targetRect.left + targetRect.width / 2
+                // For xgid and cube helpers, point to left edge; for others, point to center
+                const horizontalEndX = (helper.id === 'xgid' || helper.id === 'cube')
+                  ? targetRect.left 
+                  : targetRect.left + targetRect.width / 2
                 // Store coordinates relative to initial overlay position
                 initialArrowCoordsRef.current = {
                   labelRight: (labelLeft + labelRect.width) - overlayRect.left, // Label right edge relative to overlay
@@ -1498,7 +1506,7 @@ export default function PlayPage() {
       const cubeButton = document.getElementById('doubling-cube-reference')
       if (!cubeButton) return null
     } else if (helper.id === 'xgid') {
-      const xgidButton = document.getElementById('xgid-input-container')
+      const xgidButton = document.getElementById('xgid-input')
       if (!xgidButton) return null
     } else if (!helper.buttonRef?.current) {
       return null
