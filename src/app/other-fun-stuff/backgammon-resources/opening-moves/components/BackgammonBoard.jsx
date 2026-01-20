@@ -929,23 +929,63 @@ export default function BackgammonBoard({
     // Check if dice are used (in play mode)
     // Count occurrences of each die value in usedDice
     const usedDice = (effectiveEditingMode === 'play' && turnState && turnState.usedDice) ? turnState.usedDice : []
-    let die1Used, die2Used
+    
+    // Define grey colors for highlighting
+    const lightGrey = '#CCCCCC'
+    const darkGrey = '#888888'
+    const lightGreyPip = '#888888'
+    const darkGreyPip = '#666666'
+    
+    let die1Fill, die2Fill, die1PipFill, die2PipFill
+    
     if (die1 === die2) {
-      // Doubles: allow 4 moves, so grey dice progressively for visual feedback
+      // Doubles: progressive greying pattern
+      // 1st move: 1 die light grey
+      // 2nd move: 2 dice light grey
+      // 3rd move: 1 die dark grey, 1 die light grey
+      // 4th move: turn over, dice removed
       const totalUsedCount = usedDice.filter(d => d === die1).length
-      die1Used = totalUsedCount >= 1 // Grey first die after 1 use
-      die2Used = totalUsedCount >= 2 // Grey second die after 2 uses (both stay greyed for moves 3-4)
+      
+      if (totalUsedCount === 0) {
+        // No moves yet
+        die1Fill = baseDieFill1
+        die2Fill = baseDieFill2
+        die1PipFill = basePipFill1
+        die2PipFill = basePipFill2
+      } else if (totalUsedCount === 1) {
+        // 1st move: 1 die light grey
+        die1Fill = lightGrey
+        die2Fill = baseDieFill2
+        die1PipFill = lightGreyPip
+        die2PipFill = basePipFill2
+      } else if (totalUsedCount === 2) {
+        // 2nd move: both dice light grey
+        die1Fill = lightGrey
+        die2Fill = lightGrey
+        die1PipFill = lightGreyPip
+        die2PipFill = lightGreyPip
+      } else if (totalUsedCount === 3) {
+        // 3rd move: 1 die dark grey, 1 die light grey
+        die1Fill = darkGrey
+        die2Fill = lightGrey
+        die1PipFill = darkGreyPip
+        die2PipFill = lightGreyPip
+      } else {
+        // 4th move or more: both dark grey (shouldn't happen as turn ends, but just in case)
+        die1Fill = darkGrey
+        die2Fill = darkGrey
+        die1PipFill = darkGreyPip
+        die2PipFill = darkGreyPip
+      }
     } else {
       // Different values - check each independently
-      die1Used = usedDice.filter(d => d === die1).length >= 1
-      die2Used = usedDice.filter(d => d === die2).length >= 1
+      const die1Used = usedDice.filter(d => d === die1).length >= 1
+      const die2Used = usedDice.filter(d => d === die2).length >= 1
+      die1Fill = die1Used ? darkGrey : baseDieFill1
+      die2Fill = die2Used ? darkGrey : baseDieFill2
+      die1PipFill = die1Used ? darkGreyPip : basePipFill1
+      die2PipFill = die2Used ? darkGreyPip : basePipFill2
     }
-    
-    // Grey out used dice
-    const die1Fill = die1Used ? '#888888' : baseDieFill1
-    const die2Fill = die2Used ? '#888888' : baseDieFill2
-    const die1PipFill = die1Used ? '#666666' : basePipFill1
-    const die2PipFill = die2Used ? '#666666' : basePipFill2
     
     const diceElements = []
     
