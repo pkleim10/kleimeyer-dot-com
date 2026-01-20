@@ -3018,7 +3018,8 @@ export default function BackgammonBoard({
       }
     }
     
-    // Check if over trays
+    // Check trays BEFORE points to prevent jitter when dragging near tray edges
+    // Trays take precedence when mouse is in tray area
     if (activeShowTrays) {
       const trayX = activeDirection === 0 
         ? BOARD_WIDTH - rightBorderWidth + (rightBorderWidth - trayWidth) / 2
@@ -3026,21 +3027,22 @@ export default function BackgammonBoard({
       const trayLeft = trayX
       const trayRight = trayX + trayWidth
       
-      if (x >= trayLeft && x <= trayRight) {
-        const topTrayY = topBorderWidth + (quadrantHeight - trayHeight) / 2
-        const topTrayBottom = topTrayY + trayHeight
-        const bottomTrayY = topBorderWidth + quadrantHeight + (quadrantHeight - trayHeight) / 2
-        const bottomTrayBottom = bottomTrayY + trayHeight
-        
-        if (y >= topTrayY && y <= topTrayBottom) {
-          return -1 // Black tray
-        } else if (y >= bottomTrayY && y <= bottomTrayBottom) {
-          return -2 // White tray
-        }
+      // Check top tray (black) - use same combined boundary check pattern as points
+      const topTrayY = topBorderWidth + (quadrantHeight - trayHeight) / 2
+      const topTrayBottom = topTrayY + trayHeight
+      if (x >= trayLeft && x <= trayRight && y >= topTrayY && y <= topTrayBottom) {
+        return -1 // Black tray
+      }
+      
+      // Check bottom tray (white) - use same combined boundary check pattern as points
+      const bottomTrayY = topBorderWidth + quadrantHeight + (quadrantHeight - trayHeight) / 2
+      const bottomTrayBottom = bottomTrayY + trayHeight
+      if (x >= trayLeft && x <= trayRight && y >= bottomTrayY && y <= bottomTrayBottom) {
+        return -2 // White tray
       }
     }
     
-    // Check points
+    // Check points after trays (points only detected if not in tray area)
     for (let pointNum = 1; pointNum <= 24; pointNum++) {
       const pos = getPointPosition(pointNum)
       if (!pos) continue
@@ -3153,6 +3155,7 @@ export default function BackgammonBoard({
     if (!svg) return
     
     const rect = svg.getBoundingClientRect()
+    // Always use the mouse position directly - checker will be centered on cursor
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     
@@ -3404,14 +3407,19 @@ export default function BackgammonBoard({
       // Update screen position (always, even if outside SVG)
       setDragScreenPosition({ x: e.clientX, y: e.clientY })
       
-      // Update SVG-relative position and detect drop zone only if mouse is over SVG
+      // Checker position is independent of drop zone detection
+      // Always update SVG-relative position when mouse is over SVG
       if (e.clientX >= rect.left && e.clientX <= rect.right && 
           e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        // Update drag position immediately for smooth tracking - always use exact mouse position
         setDragPosition({ x, y })
+        // Calculate drop point for highlighting only (doesn't affect checker position)
         const dropPoint = getPointFromCoordinates(x, y)
         setDragOverPoint(dropPoint)
       } else {
-        // Clear drop zone highlight when outside SVG, but keep last SVG position
+        // Clear dragPosition when outside SVG so outside-SVG checker renders correctly
+        // Clear drop zone highlight when outside SVG
+        setDragPosition({ x: 0, y: 0 })
         setDragOverPoint(null)
       }
     }
@@ -4348,7 +4356,8 @@ export default function BackgammonBoard({
   return (
     <div id="component-backgammon-board" className="flex flex-col items-center w-full relative">
       {/* Dragged checker preview - rendered outside SVG when mouse leaves board */}
-      {isEditable && draggedChecker && dragOverPoint === null && (
+      {/* Only render outside SVG when dragPosition is invalid (mouse outside SVG) */}
+      {isEditable && draggedChecker && dragPosition.x === 0 && dragPosition.y === 0 && (
         <div
           style={{
             position: 'fixed',
@@ -4782,8 +4791,9 @@ export default function BackgammonBoard({
               </g>
             )}
             
-            {/* Dragged checker preview - rendered in SVG when over board */}
-            {dragOverPoint !== null && (
+            {/* Dragged checker preview - rendered in SVG when mouse is over board */}
+            {/* Checker position is independent of dragOverPoint - always render when dragPosition is valid */}
+            {dragPosition.x > 0 && dragPosition.y > 0 && (
               <g>
                 <circle
                   cx={dragPosition.x}
