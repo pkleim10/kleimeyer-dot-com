@@ -3882,8 +3882,13 @@ export default function BackgammonBoard({
       
       const currentBoardState = parseXGID(currentXGID)
       
-      // If dice are already shown, clear them (set to "00")
+      // If dice are already shown, clear them (set to "00") - but not in PLAY mode
       if (currentBoardState.dice && currentBoardState.dice !== "00") {
+        // In PLAY mode, don't clear dice when clicking on them - they should stay rolled
+        if (effectiveEditingMode === 'play') {
+          return
+        }
+        
         const parts = currentXGID.split(':')
         parts[4] = '00' // Clear dice
         

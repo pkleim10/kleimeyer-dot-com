@@ -453,10 +453,18 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
   } else {
     // Regular moves: exact match required (distance = die)
     matchesDie = diceValues.some(die => die === distance)
+    
+    // If direct move doesn't match, check for collapsed move path
+    if (!matchesDie && from >= 1 && from <= 24 && to >= 1 && to <= 24) {
+      const collapsedPath = findCollapsedMovePath(from, to, owner, boardState, diceValues, currentPlayer)
+      if (collapsedPath !== null && collapsedPath.length > 0) {
+        matchesDie = true // Collapsed move path found
+      }
+    }
   }
 
   if (!matchesDie) {
-    return false // Move distance doesn't match any die
+    return false // Move distance doesn't match any die and no collapsed path found
   }
 
   // For multi-checker moves in play mode with doubles, validate enough matching dice are available
@@ -536,4 +544,124 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
   }
 
   return true
+}
+
+/**
+ * Find a collapsed move path from one point to another using available dice
+ * Returns an array of moves [{from, to, dieUsed}, ...] if a path exists, or null if not found
+ * @param {number} from - Source point (relative coordinates)
+ * @param {number} to - Destination point (relative coordinates)
+ * @param {string} owner - 'black' | 'white'
+ * @param {Object} boardState - Current board state
+ * @param {number[]} availableDice - Array of available dice values
+ * @param {number} currentPlayer - Current player (-1 for black, 1 for white)
+ * @param {number} maxDepth - Maximum recursion depth (default: 4 for doubles)
+ * @param {number} depth - Current recursion depth
+ * @returns {Array|null} - Array of moves if path found, null otherwise
+ */
+export function findCollapsedMovePath(from, to, owner, boardState, availableDice, currentPlayer, maxDepth = 4, depth = 0) {
+  // Prevent infinite recursion
+  if (depth >= maxDepth) {
+    return null
+  }
+
+  // Calculate direct distance
+  const distance = calculateMoveDistance(from, to, owner)
+  
+  // Check if direct move is possible
+  if (distance !== null && distance > 0) {
+    // Check if distance matches an available die
+    const matchingDieIndex = availableDice.indexOf(distance)
+    if (matchingDieIndex !== -1) {
+      // Direct move is possible - validate it
+      const toAbsolute = relativeToAbsolute(to, currentPlayer)
+      const toIndex = toAbsolute - 1
+      const toPointData = boardState.points[toIndex]
+      
+      // Can move if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
+      if (toPointData.count === 0 ||
+          toPointData.owner === owner ||
+          (toPointData.count === 1 && toPointData.owner !== owner)) {
+        return [{ from, to, dieUsed: distance }]
+      }
+    }
+  }
+
+  // Direct move not possible - try intermediate points
+  // For a move from higher to lower points (relative coordinates), try all intermediate points
+  if (from >= 1 && from <= 24 && to >= 1 && to <= 24 && from > to) {
+    // Try each intermediate point
+    for (let intermediate = from - 1; intermediate >= to; intermediate--) {
+      // Try each available die
+      for (let i = 0; i < availableDice.length; i++) {
+        const die = availableDice[i]
+        const intermediateTo = from - die
+        
+        // Check if this die can move from 'from' to 'intermediateTo'
+        if (intermediateTo === intermediate && intermediateTo >= 1 && intermediateTo <= 24) {
+          // Validate intermediate move
+          const intermediateAbsolute = relativeToAbsolute(intermediateTo, currentPlayer)
+          const intermediateIndex = intermediateAbsolute - 1
+          const intermediatePointData = boardState.points[intermediateIndex]
+          
+          // Can move if point is empty, has own checkers, or has exactly 1 opponent checker (blot)
+          if (intermediatePointData.count === 0 ||
+              intermediatePointData.owner === owner ||
+              (intermediatePointData.count === 1 && intermediatePointData.owner !== owner)) {
+            // Create a temporary board state after this move
+            const tempBoardState = JSON.parse(JSON.stringify(boardState))
+            const fromAbsolute = relativeToAbsolute(from, currentPlayer)
+            const fromIndex = fromAbsolute - 1
+            const fromPointData = tempBoardState.points[fromIndex]
+            
+            // Apply intermediate move to temp board state
+            fromPointData.count -= 1
+            if (fromPointData.count === 0) {
+              fromPointData.owner = null
+            }
+            
+            // Get intermediate point data from temp board state
+            const tempIntermediatePointData = tempBoardState.points[intermediateIndex]
+            
+            // Handle hitting opponent blot
+            if (tempIntermediatePointData.count === 1 && tempIntermediatePointData.owner !== owner) {
+              if (tempIntermediatePointData.owner === 'black') {
+                tempBoardState.blackBar++
+              } else {
+                tempBoardState.whiteBar++
+              }
+            }
+            
+            // Add checker to intermediate point
+            if (tempIntermediatePointData.count === 0) {
+              tempIntermediatePointData.owner = owner
+            }
+            tempIntermediatePointData.count += 1
+            
+            // Remove used die and recursively find path from intermediate to destination
+            const remainingDice = [...availableDice]
+            remainingDice.splice(i, 1)
+            
+            const remainingPath = findCollapsedMovePath(
+              intermediateTo,
+              to,
+              owner,
+              tempBoardState,
+              remainingDice,
+              currentPlayer,
+              maxDepth,
+              depth + 1
+            )
+            
+            if (remainingPath !== null) {
+              // Found a path - return first move + remaining path
+              return [{ from, to: intermediateTo, dieUsed: die }, ...remainingPath]
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null
 }
