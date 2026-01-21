@@ -74,7 +74,7 @@ export default function BackgammonResourcesPage() {
                   Play Backgammon
                 </h2>
                 <p className="text-gray-700 dark:text-gray-300">
-                  Play backgammon with an AI engine. Edit board positions, analyze moves, and practice your game.
+                  Play backgammon with our HAM analytic engine. Edit board positions, analyze moves, and practice your game.
                 </p>
               </Link>
             </div>
