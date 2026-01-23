@@ -13,7 +13,10 @@ const HEURISTIC_WEIGHTS = {
   pointsMade: 0.4, // Positive for development
   pipGain: 0.2,    // Positive for efficiency
   homeBoard: 0.1,  // Positive for home board strength
-  primeLength: 0.15 // Positive for blocking
+  primeLength: 0.15, // Positive for blocking
+  builderCoverage: 0.10, // Positive for outer board coverage
+  stackPenalty: -0.08, // Negative penalty for excessive stacking
+  opponentBlotCount: 0.08 // Positive for opponent vulnerabilities
 }
 
 /**
@@ -22,49 +25,256 @@ const HEURISTIC_WEIGHTS = {
 function evaluateMoveHeuristically(boardState, move, playerOwner) {
   const analysis = buildVerifiedMoveAnalysis(boardState, move, playerOwner)
 
-  let score = 0
-  score += analysis.blots.count * HEURISTIC_WEIGHTS.blots
-  score += analysis.hits.count * HEURISTIC_WEIGHTS.hits
-  score += analysis.pointsMade.newlyMade.length * HEURISTIC_WEIGHTS.pointsMade
-  score += analysis.pips.gain * HEURISTIC_WEIGHTS.pipGain
+  const blotsScore = analysis.blots.combinedWeightedRisk * -0.25
+  const hitsScore = analysis.hits.count * HEURISTIC_WEIGHTS.hits
+  const pointsMadeScore = analysis.pointsMade.newlyMade.length * HEURISTIC_WEIGHTS.pointsMade
+  const pipGainScore = analysis.pips.gain * HEURISTIC_WEIGHTS.pipGain
 
-  // Simple home board strength: count checkers in home board
+  // Simple home board strength: count checkers in home board AFTER move
   const homeBoardStart = playerOwner === 'white' ? 1 : 19
   const homeBoardEnd = playerOwner === 'white' ? 6 : 24
-  const homeBoardCheckers = countCheckersInRange(boardState, playerOwner, homeBoardStart, homeBoardEnd)
-  score += homeBoardCheckers * HEURISTIC_WEIGHTS.homeBoard
+  const homeBoardCheckers = countCheckersInRange(analysis.finalState, playerOwner, homeBoardStart, homeBoardEnd)
+  const homeBoardScore = homeBoardCheckers * HEURISTIC_WEIGHTS.homeBoard
 
-  // Simple prime potential: check for 6-point prime
-  const primeLength = checkPrimeLength(boardState, playerOwner)
-  score += primeLength * HEURISTIC_WEIGHTS.primeLength
+  // Simple prime potential: check for 6-point prime AFTER move
+  const primeLength = checkPrimeLength(analysis.finalState, playerOwner)
+  const primeScore = primeLength * HEURISTIC_WEIGHTS.primeLength
 
-  return score
+  // Builder coverage bonus: checkers on outer points (8-11)
+  const outerBuilders = countBuildersOnOuter(analysis.finalState, playerOwner)
+  const builderRaw = outerBuilders * 0.03
+  const builderCoverageScore = HEURISTIC_WEIGHTS.builderCoverage * builderRaw
+
+  // Stack penalty: penalizes excessive stacking (4+ checkers on one point)
+  const maxStack = getMaxStackSize(analysis.finalState, playerOwner)
+  const stackRaw = maxStack > 3 ? -(maxStack - 3) * 0.04 : 0  // penalty starts at 4+
+  const stackPenaltyScore = HEURISTIC_WEIGHTS.stackPenalty * stackRaw
+
+  // Opponent blot count: rewards opponent vulnerabilities for hitting
+  const opponentBlots = countOpponentBlots(analysis.finalState, playerOwner)
+  const opponentBlotScore = opponentBlots * HEURISTIC_WEIGHTS.opponentBlotCount
+
+  const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore
+
+  // Debug logging for 13/6 move
+  const moveDesc = move.description || (move.moves ? move.moves.map(m => `${m.from}/${m.to}`).join(' ') : `${move.from}/${move.to}`)
+  if (moveDesc.includes('13/') && moveDesc.includes('6')) {
+    console.log(`\n[DEBUG] Detailed factor breakdown for move: ${moveDesc}`)
+    console.log(`  Points Made: ${analysis.pointsMade.newlyMade.length} × ${HEURISTIC_WEIGHTS.pointsMade} = ${pointsMadeScore}`)
+    console.log(`  Pip Gain: ${analysis.pips.gain} × ${HEURISTIC_WEIGHTS.pipGain} = ${pipGainScore}`)
+    console.log(`  Home Board: ${homeBoardCheckers} × ${HEURISTIC_WEIGHTS.homeBoard} = ${homeBoardScore}`)
+    console.log(`  Prime Length: ${primeLength} × ${HEURISTIC_WEIGHTS.primeLength} = ${primeScore}`)
+    console.log(`  Builder Coverage: ${outerBuilders} × 0.03 × ${HEURISTIC_WEIGHTS.builderCoverage} = ${builderCoverageScore}`)
+    console.log(`  Stack Penalty: max(${maxStack}) → ${stackRaw} × ${HEURISTIC_WEIGHTS.stackPenalty} = ${stackPenaltyScore}`)
+    console.log(`  Opponent Blot Count: ${opponentBlots} × ${HEURISTIC_WEIGHTS.opponentBlotCount} = ${opponentBlotScore}`)
+    console.log(`  Blots: ${analysis.blots.count} × ${HEURISTIC_WEIGHTS.blots} = ${blotsScore}`)
+    console.log(`  Hits: ${analysis.hits.count} × ${HEURISTIC_WEIGHTS.hits} = ${hitsScore}`)
+    console.log(`  TOTAL SCORE: ${totalScore}`)
+    console.log('')
+  }
+
+  return {
+    score: totalScore,
+    breakdown: {
+      blots: { count: analysis.blots.count, score: blotsScore },
+      hits: { count: analysis.hits.count, score: hitsScore },
+      pointsMade: { count: analysis.pointsMade.newlyMade.length, score: pointsMadeScore },
+      pipGain: { value: analysis.pips.gain, score: pipGainScore },
+      homeBoard: { checkers: homeBoardCheckers, score: homeBoardScore },
+      primeLength: { value: primeLength, score: primeScore },
+      builderCoverage: { builders: outerBuilders, rawBonus: builderRaw, score: builderCoverageScore },
+      stackPenalty: { maxStack, rawPenalty: stackRaw, score: stackPenaltyScore },
+      opponentBlotCount: { count: opponentBlots, score: opponentBlotScore }
+    }
+  }
+}
+
+/**
+ * Convert board state to array format for fast move generation
+ * Array format: [player_checkers, opponent_checkers] for indices 0-25
+ * Index 0: white bar, Index 25: black bar, Indices 1-24: points 1-24
+ */
+function boardToArray(boardState, playerOwner) {
+  const board = new Array(26).fill(null).map(() => [0, 0])
+
+  // Bars
+  board[0][0] = boardState.whiteBar  // White checkers on white bar
+  board[25][1] = boardState.blackBar // Black checkers on black bar
+
+  // Points 1-24
+  for (let point = 1; point <= 24; point++) {
+    const pointData = boardState.points[point - 1]
+    const arrayIndex = point
+
+    if (pointData.owner === 'white') {
+      board[arrayIndex][0] = pointData.count  // Player checkers (white)
+    } else if (pointData.owner === 'black') {
+      board[arrayIndex][1] = pointData.count  // Opponent checkers (black)
+    }
+    // Empty points remain [0, 0]
+  }
+
+  return board
+}
+
+/**
+ * Check if a move is valid in array format
+ */
+function isValidMove(board, fromPoint, dieValue, playerIndex) {
+  // Must have at least one checker on the point
+  if (board[fromPoint][playerIndex] === 0) return false
+
+  // Calculate target point based on player direction
+  let toPoint
+  if (playerIndex === 0) { // White player - moves toward lower numbers
+    toPoint = fromPoint - dieValue
+  } else { // Black player - moves toward higher numbers
+    toPoint = fromPoint + dieValue
+  }
+
+  // Can't move beyond the board boundaries (no bearing off in simplified version)
+  if (toPoint < 1 || toPoint > 24) return false
+
+  // Cannot land on points with 2+ opponent checkers (made point)
+  const targetOpponent = board[toPoint][1 - playerIndex]
+  return targetOpponent < 2  // Can hit single checker, cannot land on made point
+}
+
+/**
+ * Apply a move to the board array
+ */
+function applyMove(board, fromPoint, toPoint, playerIndex) {
+  // Remove checker from source
+  board[fromPoint][playerIndex]--
+
+  // Add checker to target
+  board[toPoint][playerIndex]++
+
+  // Handle hits - remove single opponent checker
+  const opponentIndex = 1 - playerIndex
+  if (board[toPoint][opponentIndex] === 1) {
+    board[toPoint][opponentIndex] = 0
+    // In full backgammon, hit checkers go to bar, but simplified for Monte Carlo
+  }
+}
+
+/**
+ * Generate a single random legal move using fast array-based algorithm
+ */
+function getRandomLegalMove(boardState, turnState) {
+  const playerOwner = turnState.currentPlayer
+  const playerIndex = playerOwner === 'white' ? 0 : 1
+
+  // Convert to array representation
+  const board = boardToArray(boardState, playerOwner)
+
+  // Handle doubles by expanding dice
+  const expandedDice = []
+  const diceCounts = {}
+  for (const die of turnState.dice) {
+    diceCounts[die] = (diceCounts[die] || 0) + 1
+  }
+
+  for (const [dieValue, count] of Object.entries(diceCounts)) {
+    const numDice = count
+    // If we have 2 of the same value, it's a double - use 4 dice
+    const diceToAdd = numDice === 2 ? 4 : numDice
+    for (let i = 0; i < diceToAdd; i++) {
+      expandedDice.push(parseInt(dieValue))
+    }
+  }
+
+  // Apply moves for each die
+  const moves = []
+  for (const dieValue of expandedDice) {
+    let moveFound = false
+    let attempts = 0
+
+    while (!moveFound && attempts < 20) { // Prevent infinite loops
+      // Pick random point and increment for adjacent checking
+      const point = Math.floor(Math.random() * 26)
+      const inc = Math.floor(Math.random() * 2)
+
+      // Calculate target based on player direction
+      let toPoint
+      if (playerIndex === 0) { // White
+        toPoint = point - dieValue
+      } else { // Black
+        toPoint = point + dieValue
+      }
+
+      // Try primary point
+      if (point >= 0 && point <= 25 && isValidMove(board, point, dieValue, playerIndex)) {
+        applyMove(board, point, toPoint, playerIndex)
+        moves.push({ from: point, to: toPoint, die: dieValue })
+        moveFound = true
+        break
+      }
+
+      // Try adjacent points
+      const altPoints = []
+      if (inc === 0 && point > 0) altPoints.push(point - 1)
+      if (inc === 1 && point < 25) altPoints.push(point + 1)
+
+      for (const altPoint of altPoints) {
+        let altToPoint
+        if (playerIndex === 0) { // White
+          altToPoint = altPoint - dieValue
+        } else { // Black
+          altToPoint = altPoint + dieValue
+        }
+
+        if (isValidMove(board, altPoint, dieValue, playerIndex)) {
+          applyMove(board, altPoint, altToPoint, playerIndex)
+          moves.push({ from: altPoint, to: altToPoint, die: dieValue })
+          moveFound = true
+          break
+        }
+      }
+
+      attempts++
+    }
+
+    if (!moveFound) {
+      // Fallback: systematic search if random fails
+      for (let point = 0; point < 26 && !moveFound; point++) {
+        let toPoint
+        if (playerIndex === 0) { // White
+          toPoint = point - dieValue
+        } else { // Black
+          toPoint = point + dieValue
+        }
+
+        if (isValidMove(board, point, dieValue, playerIndex)) {
+          applyMove(board, point, toPoint, playerIndex)
+          moves.push({ from: point, to: toPoint, die: dieValue })
+          moveFound = true
+        }
+      }
+    }
+  }
+
+  // Return a single move object compatible with existing code
+  // For simplicity, return the first move (since Monte Carlo just needs one valid move)
+  if (moves.length > 0) {
+    const move = moves[0]
+    return {
+      moves: [move], // Wrap in moves array for compatibility
+      description: `${move.from}/${move.to}`,
+      totalPips: move.die
+    }
+  }
+
+  // No moves found (shouldn't happen in valid positions)
+  return null
 }
 
 /**
  * Run Monte Carlo simulations for move evaluation
  */
-function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 3) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:46',message:'runMonteCarlo entry',data:{numSimulations,playerOwner},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
+function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20) {
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
-  
-  // Cache for getLegalMoves calls to avoid redundant calculations within this simulation batch
-  const legalMovesCache = new Map()
-  
-  const getCachedLegalMoves = (boardState, turnState) => {
-    // Create a simple cache key from board state and turn state
-    const boardKey = boardState.points.map(p => `${p.count}-${p.owner || 'null'}`).join(',')
-    const cacheKey = `${boardKey}-${boardState.whiteBar}-${boardState.blackBar}-${turnState.currentPlayer}-${turnState.dice.join(',')}`
-    if (legalMovesCache.has(cacheKey)) {
-      return legalMovesCache.get(cacheKey)
-    }
-    const moves = getLegalMoves(boardState, turnState)
-    legalMovesCache.set(cacheKey, moves)
-    return moves
-  }
 
   for (let i = 0; i < numSimulations; i++) {
     // Apply the move combination to get new board state
@@ -77,23 +287,15 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
     // Simulate random playout until game end or max moves
     let currentPlayer = opponentOwner
     let movesMade = 0
-    const maxMoves = 10 // Reduced from 20 to 10 for faster simulations
+    const maxMoves = 20 // Increased to 20 for deeper, more accurate simulations
 
     while (!isGameOver(currentBoard) && movesMade < maxMoves) {
       const randomDice = getRandomDice()
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:64',message:'runMonteCarlo calling getLegalMoves',data:{simulation:i,movesMade,currentPlayer,randomDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      const legalMoves = getCachedLegalMoves(currentBoard, { currentPlayer, dice: randomDice })
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:64',message:'runMonteCarlo getLegalMoves returned',data:{simulation:i,movesMade,legalMovesLength:legalMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      if (legalMoves.length === 0) {
+      const randomMove = getRandomLegalMove(currentBoard, { currentPlayer, dice: randomDice })
+
+      if (!randomMove) {
         break
       }
-
-      // Randomly select a move
-      const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)]
       const randomMoves = randomMove.moves || [randomMove]
       for (const move of randomMoves) {
         currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, currentPlayer)
@@ -102,44 +304,53 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
       movesMade++
     }
 
-    // Check if playerOwner won or has advantage
-    const winner = getWinner(currentBoard)
-    if (winner === playerOwner) {
-      wins++
-    } else if (winner === null) {
-      // Game not finished, check pip count advantage
-      const pipCounts = calculatePipCounts(currentBoard)
-      const playerPip = playerOwner === 'white' ? pipCounts.white : pipCounts.black
-      const opponentPip = playerOwner === 'white' ? pipCounts.black : pipCounts.white
-      if (playerPip < opponentPip) wins += 0.5 // Partial win for pip advantage
-    }
+    // Evaluate final position using comprehensive heuristic analysis
+    const positionEval = evaluatePosition(currentBoard, playerOwner)
+    const opponentEval = evaluatePosition(currentBoard, playerOwner === 'white' ? 'black' : 'white')
+
+    // Award points based on relative position strength
+    // Scale from -1 to +1 based on position difference
+    const positionDiff = positionEval.score - opponentEval.score
+    const normalizedScore = Math.max(-1, Math.min(1, positionDiff / 2)) // Clamp and scale
+
+    // Convert to win points: -1 = 0 points, 0 = 0.5 points, +1 = 1 point
+    wins += (normalizedScore + 1) / 2
   }
 
-  return wins / numSimulations
+  // Log combined input parameters and results
+  const moveDescription = moveCombination.description || (moveCombination.moves ? moveCombination.moves.map(m => `${m.from}/${m.to}`).join(' ') : `${moveCombination.from}/${moveCombination.to}`)
+  const winRate = wins / numSimulations
+  console.log('[MonteCarlo]', {
+    playerOwner,
+    numSimulations,
+    moveDescription,
+    boardStateSummary: {
+      whiteBar: boardState.whiteBar,
+      blackBar: boardState.blackBar,
+      dice: boardState.dice
+    },
+    wins,
+    winRate
+  })
+
+  return winRate
 }
 
 /**
- * Hybrid evaluation combining heuristic and MC
+ * Hybrid evaluation combining heuristic and MC with configurable weights
  */
-function evaluateMoveHybrid(boardState, move, playerOwner) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:98',message:'evaluateMoveHybrid entry',data:{moveDescription:move.description||'single move',playerOwner},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-  const heuristicScore = evaluateMoveHeuristically(boardState, move, playerOwner)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:100',message:'Before runMonteCarlo',data:{heuristicScore},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-  const mcScore = runMonteCarlo(boardState, move, playerOwner)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:100',message:'After runMonteCarlo',data:{mcScore},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
+function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.6, mcWeight = 0.4) {
+  const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
+  const heuristicScore = heuristicResult.score
+  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
 
   // Combine scores (weighted average)
-  const hybridScore = 0.6 * heuristicScore + 0.4 * mcScore
+  const hybridScore = heuristicWeight * heuristicScore + mcWeight * mcScore
 
   return {
     move,
     heuristicScore,
+    heuristicBreakdown: heuristicResult.breakdown,
     mcScore,
     hybridScore
   }
@@ -148,8 +359,28 @@ function evaluateMoveHybrid(boardState, move, playerOwner) {
 /**
  * Analyze moves using hybrid engine
  */
-function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
-  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner))
+function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.6, mcWeight = 0.4) {
+  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight))
+
+  // Log all heuristic scores with detailed breakdowns
+  console.log('[HeuristicEngine] All move scores:')
+  evaluations.forEach((evaluation, idx) => {
+    const breakdown = evaluation.heuristicBreakdown || {}
+    console.log(`  ${idx + 1}. ${evaluation.move.description}:`)
+    if (breakdown.blots) {
+      console.log(`     Heuristic: ${evaluation.heuristicScore.toFixed(3)}`, {
+        blots: `${breakdown.blots.count} (${breakdown.blots.score.toFixed(3)})`,
+        hits: `${breakdown.hits.count} (${breakdown.hits.score.toFixed(3)})`,
+        pointsMade: `${breakdown.pointsMade.count} (${breakdown.pointsMade.score.toFixed(3)})`,
+        pipGain: `${breakdown.pipGain.value} (${breakdown.pipGain.score.toFixed(3)})`,
+        homeBoard: `${breakdown.homeBoard.checkers} (${breakdown.homeBoard.score.toFixed(3)})`,
+        primeLength: `${breakdown.primeLength.value} (${breakdown.primeLength.score.toFixed(3)})`
+      })
+    } else {
+      console.log(`     Heuristic: ${evaluation.heuristicScore.toFixed(3)} (breakdown not available)`)
+    }
+    console.log(`     MC: ${evaluation.mcScore.toFixed(3)}, Hybrid: ${evaluation.hybridScore.toFixed(3)}`)
+  })
 
   // Sort by hybrid score descending
   evaluations.sort((a, b) => b.hybridScore - a.hybridScore)
@@ -218,6 +449,15 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
       return false
     })
 
+    // Log winning move
+    console.log('[MonteCarlo] Winning move:', {
+      moveDescription: bestMove.description,
+      formattedMove,
+      hybridScore: evaluations[0].hybridScore.toFixed(3),
+      heuristicScore: evaluations[0].heuristicScore.toFixed(3),
+      mcScore: evaluations[0].mcScore.toFixed(3)
+    })
+
     return {
       bestMoveIndex: bestMoveIndex >= 0 ? bestMoveIndex : 0, // Use found index or fallback to 0
       reasoning,
@@ -225,7 +465,8 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner) {
       factorScores: evaluations.map((evaluation, idx) => ({
         moveNumber: idx + 1,
         moveDescription: formatMove(evaluation.move, currentPlayer),
-        scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`
+        scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`,
+        breakdown: evaluation.heuristicBreakdown // Include detailed breakdown
       })),
       bestMove: bestMove // Keep reference to actual best move
     }
@@ -478,7 +719,7 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxMoves = 5, debug = false, usedDice = [] } = await request.json()
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], heuristicWeight = 0.6, mcWeight = 0.4 } = await request.json()
 
       // Validate input
       if (!xgid) {
@@ -489,7 +730,7 @@ export async function POST(request) {
       }
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:341',message:'Before parseXGID',data:{xgid:xgid.substring(0,50),player,difficulty,maxMoves,usedDiceLength:usedDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:341',message:'Before parseXGID',data:{xgid:xgid.substring(0,50),player,difficulty,maxTopMoves,usedDiceLength:usedDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
 
       // Parse position and generate legal moves
@@ -513,7 +754,7 @@ export async function POST(request) {
       const allLegalMoves = getLegalMoves(boardState, turnState)
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.slice(0,20).map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
 
       // Collect debug information
@@ -535,21 +776,91 @@ export async function POST(request) {
         })
       }
 
-      // Get top legal moves for engine analysis
-      const topMoves = selectTopLegalMoves(allLegalMoves, maxMoves)
+      // Evaluate ALL legal moves heuristically and log scores
+      const playerOwner = player === 1 ? 'white' : 'black'
+      console.log('[HeuristicEngine] All legal moves heuristic scores:')
+      const allHeuristicEvaluations = allLegalMoves.map(move => {
+        const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
+        return {
+          move,
+          heuristicScore: heuristicResult.score,
+          breakdown: heuristicResult.breakdown
+        }
+      })
+      
+      // Sort by heuristic score descending for display
+      allHeuristicEvaluations.sort((a, b) => b.heuristicScore - a.heuristicScore)
+      
+      allHeuristicEvaluations.forEach((heuristicEval, idx) => {
+        const breakdown = heuristicEval.breakdown || {}
+        console.log(`  ${idx + 1}. ${heuristicEval.move.description}:`)
+        if (breakdown.blots !== undefined) {
+          console.log(`     Heuristic: ${heuristicEval.heuristicScore.toFixed(3)}`, {
+            blots: `${breakdown.blots.count} (${breakdown.blots.score.toFixed(3)})`,
+            hits: `${breakdown.hits.count} (${breakdown.hits.score.toFixed(3)})`,
+            pointsMade: `${breakdown.pointsMade.count} (${breakdown.pointsMade.score.toFixed(3)})`,
+            pipGain: `${breakdown.pipGain.value} (${breakdown.pipGain.score.toFixed(3)})`,
+            homeBoard: `${breakdown.homeBoard.checkers} (${breakdown.homeBoard.score.toFixed(3)})`,
+            primeLength: `${breakdown.primeLength.value} (${breakdown.primeLength.score.toFixed(3)})`,
+            builderCoverage: `${breakdown.builderCoverage.builders} (${breakdown.builderCoverage.score.toFixed(3)})`,
+            stackPenalty: `${breakdown.stackPenalty.maxStack} (${breakdown.stackPenalty.score.toFixed(3)})`,
+            opponentBlotCount: `${breakdown.opponentBlotCount.count} (${breakdown.opponentBlotCount.score.toFixed(3)})`
+          })
+        } else {
+          console.log(`     Heuristic: ${heuristicEval.heuristicScore.toFixed(3)} (breakdown not available)`)
+        }
+      })
+
+      // Select top moves based on heuristic scores (not pip-based sorting)
+      const topMoves = allHeuristicEvaluations
+        .slice(0, Math.min(maxTopMoves, allHeuristicEvaluations.length))
+        .map(heuristicEval => heuristicEval.move)
+      
+      console.log('[MoveSelection] Selected moves for Monte Carlo (based on heuristic scores):', topMoves.map((m, idx) => {
+        const heuristicEval = allHeuristicEvaluations.find(e => e.move.description === m.description)
+        return {
+          rank: idx + 1,
+          description: m.description,
+          heuristicScore: heuristicEval?.heuristicScore.toFixed(3) || 'N/A',
+          totalPips: m.totalPips,
+          movesCount: m.moves?.length || 1
+        }
+      }))
+
+      // Log original pip-based ranking for comparison
+      console.log('[MoveSelection] Original pip-based ranking:', allLegalMoves.map((m, idx) => ({
+        rank: idx + 1,
+        description: m.description,
+        totalPips: m.totalPips,
+        movesCount: m.moves?.length || 1
+      })))
+      // Check if "13/7 8/7" was selected based on heuristic ranking
+      const targetHeuristicEval = allHeuristicEvaluations.find(e => e.move.description === '13/7 8/7')
+      if (targetHeuristicEval) {
+        const heuristicRank = allHeuristicEvaluations.indexOf(targetHeuristicEval) + 1
+        const isSelected = topMoves.some(m => m.description === '13/7 8/7')
+        console.log('[MoveSelection] "13/7 8/7" heuristic rank:', heuristicRank, 'out of', allHeuristicEvaluations.length, '- heuristic score:', targetHeuristicEval.heuristicScore.toFixed(3))
+        if (isSelected) {
+          console.log('[MoveSelection] "13/7 8/7" SELECTED for Monte Carlo evaluation (heuristic rank', heuristicRank, '<= maxTopMoves', maxTopMoves, ')')
+        } else {
+          console.log('[MoveSelection] WARNING: "13/7 8/7" was NOT selected (heuristic rank', heuristicRank, '> maxTopMoves', maxTopMoves, ')')
+        }
+      } else {
+        console.log('[MoveSelection] WARNING: "13/7 8/7" not found in legal moves list')
+      }
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:373',message:'Top moves selected',data:{topMovesLength:topMoves.length,topMoves:topMoves.map(m=>({movesLength:m.moves?m.moves.length:1,description:m.description,totalPips:m.totalPips,moves:m.moves?m.moves.map(mv=>({from:mv.from,to:mv.to,die:mv.die})):null})),topSingleMoves:topMoves.filter(m=>(m.moves?.length||1)===1).length,topMultiMoves:topMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
 
       // Get hybrid engine analysis
-      const playerOwner = player === 1 ? 'white' : 'black'
+      // playerOwner already defined above
       
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'Before analyzeMovesWithHybridEngine',data:{playerOwner,topMovesLength:topMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
-      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner)
+      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, numSimulations, heuristicWeight, mcWeight)
       
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'After analyzeMovesWithHybridEngine',data:{hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
@@ -569,6 +880,16 @@ export async function POST(request) {
       // Include debug info if requested
       if (debugInfo) {
         result.debug = debugInfo
+      }
+
+      // Add comprehensive performance info
+      result.performance = {
+        totalElapsedMs: Date.now() - startTime,
+        parameters: {
+          maxTopMoves: maxTopMoves,
+          maxMoves: 20, // MC simulation depth (each sim runs max 20 moves)
+          numSimulations: numSimulations // Monte Carlo simulations per move
+        }
       }
 
       return Response.json(result)
@@ -973,6 +1294,7 @@ function buildVerifiedMoveAnalysis(boardState, moveCombination, playerOwner) {
 
   return {
     moveDescription: moveCombination.description || formatMove(moveCombination),
+    finalState: finalState,
     blots: {
       count: blots.length,
       positions: blots,
@@ -1014,6 +1336,38 @@ function countCheckersInRange(boardState, owner, startPoint, endPoint) {
   return count
 }
 
+function countBuildersOnOuter(boardState, playerOwner) {
+  let count = 0
+  for (let p = 8; p <= 11; p++) {
+    const pointData = boardState.points[p - 1]
+    if (pointData && pointData.owner === playerOwner && pointData.count >= 1) {
+      count += pointData.count
+    }
+  }
+  return count
+}
+
+function getMaxStackSize(boardState, playerOwner) {
+  let max = 0
+  for (const point of Object.values(boardState.points || {})) {
+    if (point.owner === playerOwner) {
+      max = Math.max(max, point.count || 0)
+    }
+  }
+  return max
+}
+
+function countOpponentBlots(boardState, playerOwner) {
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  let count = 0
+  for (const point of Object.values(boardState.points || {})) {
+    if (point.owner === opponentOwner && point.count === 1) {
+      count++
+    }
+  }
+  return count
+}
+
 function hasContact(boardState) {
   const whiteInUpper = countCheckersInRange(boardState, 'white', 13, 24) > 0
   const blackInLower = countCheckersInRange(boardState, 'black', 1, 12) > 0
@@ -1034,6 +1388,136 @@ function checkPrimeLength(boardState, playerOwner) {
     }
   }
   return maxPrime
+}
+
+// ============================================================================
+// POSITION EVALUATION - Comprehensive heuristic position assessment
+// ============================================================================
+
+/**
+ * Position evaluation weights for overall board state assessment
+ */
+const POSITION_WEIGHTS = {
+  pipAdvantage: 0.25,      // Race advantage
+  blotSafety: 0.2,         // Penalty for vulnerability
+  madePoints: 0.15,        // Control and blocking
+  primeStrength: 0.12,     // Blocking potential
+  homeBoardStrength: 0.1,   // Bear-off readiness
+  anchorStrength: 0.08,     // Back game potential
+  contactAdvantage: 0.1    // Tactical position strength
+}
+
+/**
+ * Evaluate overall position quality for a player
+ * Returns a score where positive values indicate advantage
+ */
+function evaluatePosition(boardState, playerOwner) {
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  
+  // 1. Pip count advantage (race evaluation)
+  const pipCounts = calculatePipCounts(boardState)
+  const playerPips = playerOwner === 'white' ? pipCounts.white : pipCounts.black
+  const opponentPips = playerOwner === 'white' ? pipCounts.black : pipCounts.white
+  const pipDiff = opponentPips - playerPips // Positive = advantage
+  // Normalize: typical game has ~150-200 pips, so divide by 162 for reasonable scale
+  const pipAdvantageScore = (pipDiff / 162) * POSITION_WEIGHTS.pipAdvantage
+  
+  // 2. Blot safety assessment
+  const blots = identifyBlots(boardState, playerOwner)
+  const opponentPositions = identifyOpponentPositions(boardState, playerOwner)
+  const playerMadePoints = getMadePoints(boardState, playerOwner)
+  
+  let totalBlotRisk = 0
+  for (const blotPoint of blots) {
+    const risk = calculateBlotRisk(blotPoint, opponentPositions, playerMadePoints, playerOwner)
+    totalBlotRisk += risk.weightedRisk
+  }
+  // Average risk per blot, normalized
+  const avgBlotRisk = blots.length > 0 ? totalBlotRisk / blots.length : 0
+  const blotSafetyScore = avgBlotRisk * blots.length * POSITION_WEIGHTS.blotSafety
+  
+  // 3. Made points strength
+  const madePointsCount = playerMadePoints.length
+  // Bonus for key points (bar-points, 5-point, etc.)
+  const keyPoints = playerOwner === 'white' ? [5, 7] : [18, 20]
+  let keyPointsBonus = 0
+  for (const point of keyPoints) {
+    if (playerMadePoints.includes(point)) {
+      keyPointsBonus += 0.5
+    }
+  }
+  const madePointsScore = (madePointsCount + keyPointsBonus) * POSITION_WEIGHTS.madePoints
+  
+  // 4. Prime strength
+  const primeLength = checkPrimeLength(boardState, playerOwner)
+  // Bonus for longer primes (exponential scaling)
+  const primeStrength = primeLength >= 4 ? primeLength * 1.5 : primeLength
+  const primeScore = primeStrength * POSITION_WEIGHTS.primeStrength
+  
+  // 5. Home board strength
+  const homeBoardStart = playerOwner === 'white' ? 1 : 19
+  const homeBoardEnd = playerOwner === 'white' ? 6 : 24
+  const homeBoardCheckers = countCheckersInRange(boardState, playerOwner, homeBoardStart, homeBoardEnd)
+  const homeBoardMadePoints = playerMadePoints.filter(p => p >= homeBoardStart && p <= homeBoardEnd).length
+  // Stronger home board = better bear-off position
+  const homeBoardScore = (homeBoardCheckers * 0.1 + homeBoardMadePoints * 0.5) * POSITION_WEIGHTS.homeBoardStrength
+  
+  // 6. Anchor strength (back game potential)
+  const opponentHomeStart = playerOwner === 'white' ? 19 : 1
+  const opponentHomeEnd = playerOwner === 'white' ? 24 : 6
+  const anchors = []
+  for (let point = opponentHomeStart; point <= opponentHomeEnd; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === playerOwner && pointData.count >= 2) {
+      anchors.push(point)
+    }
+  }
+  // Anchors in opponent's home board are valuable
+  const anchorScore = anchors.length * POSITION_WEIGHTS.anchorStrength
+  
+  // 7. Contact advantage (tactical position)
+  const inContact = hasContact(boardState)
+  let contactScore = 0
+  if (inContact) {
+    // Advantage if you have more made points and fewer blots
+    const opponentBlots = identifyBlots(boardState, opponentOwner)
+    const opponentMadePoints = getMadePoints(boardState, opponentOwner)
+    const madePointsDiff = madePointsCount - opponentMadePoints.length
+    const blotDiff = opponentBlots.length - blots.length
+    contactScore = (madePointsDiff * 0.3 + blotDiff * 0.2) * POSITION_WEIGHTS.contactAdvantage
+  }
+  
+  // Calculate total position score
+  const totalScore = pipAdvantageScore + blotSafetyScore + madePointsScore + 
+                     primeScore + homeBoardScore + anchorScore + contactScore
+  
+  return {
+    score: totalScore,
+    breakdown: {
+      pipAdvantage: { diff: pipDiff, score: pipAdvantageScore },
+      blotSafety: { blots: blots.length, avgRisk: avgBlotRisk, score: blotSafetyScore },
+      madePoints: { count: madePointsCount, keyPointsBonus, score: madePointsScore },
+      primeStrength: { length: primeLength, score: primeScore },
+      homeBoard: { checkers: homeBoardCheckers, madePoints: homeBoardMadePoints, score: homeBoardScore },
+      anchors: { count: anchors.length, positions: anchors, score: anchorScore },
+      contact: { inContact, score: contactScore }
+    }
+  }
+}
+
+/**
+ * Evaluate position difference between two board states
+ * Useful for comparing positions before/after moves
+ */
+function evaluatePositionDifference(beforeState, afterState, playerOwner) {
+  const beforeEval = evaluatePosition(beforeState, playerOwner)
+  const afterEval = evaluatePosition(afterState, playerOwner)
+  
+  return {
+    scoreDiff: afterEval.score - beforeEval.score,
+    before: beforeEval,
+    after: afterEval
+  }
 }
 
 

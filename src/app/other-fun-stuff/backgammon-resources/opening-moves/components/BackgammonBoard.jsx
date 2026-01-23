@@ -2035,7 +2035,7 @@ export default function BackgammonBoard({
     return 'Invalid move format'
   }
 
-  const applyAIMove = (move) => {
+  const applyAIMove = async (move) => {
     console.log('[applyAIMove] Called with move:', move)
     if (!move) {
       console.warn('[applyAIMove] No move provided')
@@ -2520,9 +2520,9 @@ export default function BackgammonBoard({
         allDiceUsed: newUsedDice.length >= currentTurnState.dice.length
       })
 
-      // Check if turn is complete (all dice used OR all checkers borne off)
+      // Check if turn is complete (all dice used OR all checkers borne off OR no remaining legal moves)
       const allDiceUsed = newUsedDice.length >= currentTurnState.dice.length
-      
+
       // Check if all checkers are borne off (end of game)
       const updatedBoardState = parseXGID(updatedXGID)
       const playerBarCount = moveOwner === 'white' ? updatedBoardState.whiteBar : updatedBoardState.blackBar
@@ -2538,13 +2538,55 @@ export default function BackgammonBoard({
         }
       }
 
+      // Check if there are any remaining legal moves with unused dice
+      let noRemainingLegalMoves = false
+      if (!allDiceUsed) {
+        // Get remaining dice
+        const remainingDice = currentTurnState.dice.filter(die => !newUsedDice.includes(die))
+        console.log('[applyAIMove] Checking remaining legal moves:', {
+          remainingDice,
+          newUsedDice,
+          allDice: currentTurnState.dice
+        })
+
+        // Call engine to check for legal moves with remaining dice
+        try {
+          const response = await fetch('/api/backgammon-engine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              xgid: updatedXGID,
+              player: currentPlayer,
+              usedDice: newUsedDice,
+              maxTopMoves: 1, // Just check if any moves exist
+              numSimulations: 1
+            })
+          })
+
+          if (response.ok) {
+            const result = await response.json()
+            noRemainingLegalMoves = !result.move // No move means no legal moves available
+            console.log('[applyAIMove] Remaining moves check:', {
+              remainingDice,
+              hasMove: !!result.move,
+              reasoning: result.reasoning,
+              noRemainingLegalMoves
+            })
+          } else {
+            console.warn('[applyAIMove] Failed to check remaining moves:', response.status)
+          }
+        } catch (error) {
+          console.warn('[applyAIMove] Error checking remaining moves:', error)
+        }
+      }
+
       // Check if player has won (all 15 checkers borne off)
       if (hasPlayerWon(updatedBoardState, moveOwner)) {
         setWinner(moveOwner)
       }
 
-      if (allDiceUsed || allCheckersBorneOff) {
-        console.log('[applyAIMove] Turn complete - switching player', { allDiceUsed, allCheckersBorneOff })
+      if (allDiceUsed || allCheckersBorneOff || noRemainingLegalMoves) {
+        console.log('[applyAIMove] Turn complete - switching player', { allDiceUsed, allCheckersBorneOff, noRemainingLegalMoves })
         // End turn - switch to next player and clear dice
 
         // Increment move number after opening turn completes
@@ -2630,7 +2672,7 @@ export default function BackgammonBoard({
       if (aiAnalysis && aiAnalysis.move) {
         console.log('[useEffect applyMoveTrigger] Calling applyAIMove')
         lastAppliedTriggerRef.current = applyMoveTrigger
-        applyAIMove(aiAnalysis.move)
+        applyAIMoveAsync(aiAnalysis.move)
       } else {
         console.warn('[useEffect applyMoveTrigger] Cannot apply move - no aiAnalysis or move:', {
           hasAiAnalysis: !!aiAnalysis,
@@ -2639,6 +2681,15 @@ export default function BackgammonBoard({
       }
     }
   }, [applyMoveTrigger]) // Only depend on applyMoveTrigger to avoid re-running when aiAnalysis changes
+
+  // Helper function to apply AI move asynchronously
+  const applyAIMoveAsync = async (move) => {
+    try {
+      await applyAIMove(move)
+    } catch (error) {
+      console.error('[applyAIMoveAsync] Error applying move:', error)
+    }
+  }
   
   // ========== EDITABLE MODE UTILITY FUNCTIONS ==========
   

@@ -238,6 +238,7 @@ function getLegalMoves(boardState, turnState) {
   const barCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
   const mustEnterFromBar = barCount > 0 || (turnState.mustEnterFromBar === true)
 
+
   const getPlayerPoints = state => {
     const points = []
     // Check bar count from the CURRENT state (not the original boardState)
@@ -301,6 +302,34 @@ function getLegalMoves(boardState, turnState) {
     }
     
     return null
+  }
+
+  // If must enter from bar, generate only bar entry moves
+  if (mustEnterFromBar) {
+    for (const die of availableDice) {
+      const barMove = canEnterFromBar(boardState, die)
+      if (barMove) {
+        moveCombinations.push({
+          moves: [barMove],
+          description: `bar/${barMove.to}`,
+          totalPips: die
+        })
+      }
+    }
+    // Try to use both dice if possible
+    if (availableDice.length >= 2) {
+      const [die1, die2] = availableDice
+      const move1 = canEnterFromBar(boardState, die1)
+      const move2 = canEnterFromBar(boardState, die2)
+      if (move1 && move2) {
+        moveCombinations.push({
+          moves: [move1, move2],
+          description: `bar/${move1.to} bar/${move2.to}`,
+          totalPips: die1 + die2
+        })
+      }
+    }
+    return moveCombinations
   }
 
   const buildMove = (state, fromPoint, die) => {
