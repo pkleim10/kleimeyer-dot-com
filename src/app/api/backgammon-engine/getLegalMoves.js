@@ -590,26 +590,10 @@ function getLegalMoves(boardState, turnState) {
   }
 
   const buildKey = moves => {
-    if (moves.length === 1) {
-      return `single:${moves[0].from}/${moves[0].to}`
-    }
-    if (moves.length === 2) {
-      const [m1, m2] = moves
-      const sameChecker = m2.from === m1.to
-      if (sameChecker && m1.hitBlot) {
-        return `seq:${m1.from}/${m1.to}>${m2.to}`
-      }
-      if (sameChecker) {
-        return `single:${m1.from}/${m2.to}`
-      }
-      const [first, second] = orderPair(m1, m2)
-      const a = `${first.from}/${first.to}`
-      const b = `${second.from}/${second.to}`
-      return `pair:${a}|${b}`
-    }
-    // For 3+ moves, create a key based on the sequence
+    // Create a unique key based on the exact move sequence
+    // Don't collapse sequences - keep all legal move combinations
     const keyParts = moves.map(m => `${m.from}/${m.to}`)
-    return `multi:${keyParts.join('>')}`
+    return keyParts.join('>')
   }
 
   // Track total combinations generated to prevent explosion

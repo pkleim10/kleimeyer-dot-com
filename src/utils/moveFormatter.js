@@ -99,37 +99,9 @@ function formatMoveCombination(moveCombination, player = null) {
     return bFrom - aFrom
   })
   
-  // Collapse sequences first (same checker moving: e.g., "8/6 6/5" -> "8/5")
-  const formattedParts = []
-  let i = 0
-  while (i < convertedMoves.length) {
-    // If this move hits a blot, add it separately (hitting stops the sequence)
-    if (convertedMoves[i].hitBlot) {
-      formattedParts.push(convertedMoves[i].moveStr)
-      i++
-      continue
-    }
-    
-    // Try to form a sequence starting from this move
-    let sequenceStart = convertedMoves[i].moveStr.split('/')[0]
-    let sequenceEnd = convertedMoves[i].moveStr.split('/')[1].replace('*', '')
-    let sequenceHitBlot = convertedMoves[i].hitBlot
-    let j = i + 1
-    
-    // Check if this is part of a sequence (same checker moving)
-    while (j < convertedMoves.length && 
-           convertedMoves[j].moveStr.split('/')[0] === sequenceEnd && 
-           !convertedMoves[j].hitBlot) {
-      sequenceEnd = convertedMoves[j].moveStr.split('/')[1].replace('*', '')
-      sequenceHitBlot = sequenceHitBlot || convertedMoves[j].hitBlot
-      j++
-    }
-    
-    // Add collapsed move (or single move if not a sequence)
-    const asterisk = sequenceHitBlot ? '*' : ''
-    formattedParts.push(`${sequenceStart}/${sequenceEnd}${asterisk}`)
-    i = j // Move to next non-sequence move
-  }
+  // Don't collapse sequences - show each move individually for clarity
+  // This ensures that different move paths are clearly distinguishable
+  const formattedParts = convertedMoves.map(move => move.moveStr)
   
   // Group identical moves
   const moveGroups = new Map()

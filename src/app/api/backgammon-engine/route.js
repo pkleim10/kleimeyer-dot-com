@@ -749,16 +749,6 @@ export async function POST(request) {
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
 
-      // Collect debug information
-      const debugInfo = debug ? {
-        xgid,
-        legalMoves: allLegalMoves.map(move => ({
-          description: formatMove(move),
-          moves: move.moves, // Include moves array for relative coordinate conversion
-          totalPips: move.totalPips || 0
-        }))
-      } : null
-
       if (allLegalMoves.length === 0) {
         return Response.json({
           move: null,
@@ -779,6 +769,21 @@ export async function POST(request) {
           breakdown: heuristicResult.breakdown
         }
       })
+
+      // Collect debug information
+      const debugInfo = debug ? {
+        xgid,
+        legalMoves: allLegalMoves.map(move => ({
+          description: formatMove(move),
+          moves: move.moves, // Include moves array for relative coordinate conversion
+          totalPips: move.totalPips || 0
+        })),
+        allMoves: allHeuristicEvaluations.map(heuristicEval => ({
+          description: heuristicEval.move.description,
+          heuristicScore: heuristicEval.heuristicScore,
+          breakdown: heuristicEval.breakdown
+        }))
+      } : null
       
       // Sort by heuristic score descending for display
       allHeuristicEvaluations.sort((a, b) => b.heuristicScore - a.heuristicScore)
@@ -803,9 +808,68 @@ export async function POST(request) {
         }
       })
 
-      // Select top moves based on heuristic scores (not pip-based sorting)
-      const topMoves = allHeuristicEvaluations
-        .slice(0, Math.min(maxTopMoves, allHeuristicEvaluations.length))
+      // Deduplicate moves that lead to identical final positions
+      // Group moves by their final board state, keeping only the best-scoring move per unique position
+      const positionGroups = new Map()
+
+      for (const heuristicEval of allHeuristicEvaluations) {
+        const finalState = calculateFinalBoardState(boardState, heuristicEval.move.moves || [heuristicEval.move], playerOwner)
+        // Create a simple hash of the final board state (focusing on key differences)
+        const positionKey = `${finalState.points.map(p => `${p.owner || 'e'}:${p.count}`).join('|')}|${finalState.whiteBar}|${finalState.blackBar}`
+
+        if (!positionGroups.has(positionKey)) {
+          positionGroups.set(positionKey, [])
+        }
+        positionGroups.get(positionKey).push({
+          heuristicEval,
+          finalState,
+          positionKey
+        })
+
+      }
+
+      // For each position group, keep only one representative move
+      // Choose the one with highest heuristic score, or first one if tied
+      const deduplicatedEvaluations = []
+      for (const movesForPosition of positionGroups.values()) {
+        if (movesForPosition.length > 0) {
+          // Sort by heuristic score descending, then take the first one (stable sort)
+          movesForPosition.sort((a, b) => b.heuristicEval.heuristicScore - a.heuristicEval.heuristicScore)
+          deduplicatedEvaluations.push(movesForPosition[0].heuristicEval)
+
+          // Debug: show when we're deduplicating
+          if (movesForPosition.length > 1 && debug) {
+            console.log(`[Deduplication] Position with ${movesForPosition.length} equivalent moves:`)
+            movesForPosition.forEach((entry, idx) => {
+              const marker = idx === 0 ? ' ← KEPT' : ' ← DROPPED'
+              console.log(`  ${entry.heuristicEval.move.description} (${entry.heuristicEval.heuristicScore.toFixed(3)})${marker}`)
+            })
+          }
+        }
+      }
+
+      // Sort the deduplicated list by heuristic score
+      deduplicatedEvaluations.sort((a, b) => b.heuristicScore - a.heuristicScore)
+
+      console.log(`[MoveDeduplication] Found ${positionGroups.size} unique positions from ${allHeuristicEvaluations.length} moves`)
+      console.log(`[MoveDeduplication] Reduced to ${deduplicatedEvaluations.length} deduplicated moves`)
+
+      // Debug: show position group statistics
+      if (debug) {
+        console.log('[MoveDeduplication] Position group details:')
+        let totalDuplicates = 0
+        for (const [positionKey, movesForPosition] of positionGroups.entries()) {
+          if (movesForPosition.length > 1) {
+            totalDuplicates += movesForPosition.length - 1
+            console.log(`  Group with ${movesForPosition.length} moves: ${movesForPosition[0].heuristicEval.move.description} etc.`)
+          }
+        }
+        console.log(`  Total duplicate moves removed: ${totalDuplicates}`)
+      }
+
+      // Select top moves based on heuristic scores from deduplicated list
+      const topMoves = deduplicatedEvaluations
+        .slice(0, Math.min(maxTopMoves, deduplicatedEvaluations.length))
         .map(heuristicEval => heuristicEval.move)
       
       console.log('[MoveSelection] Selected moves for Monte Carlo (based on heuristic scores):', topMoves.map((m, idx) => {
