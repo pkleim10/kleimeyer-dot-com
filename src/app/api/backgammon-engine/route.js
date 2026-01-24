@@ -9,7 +9,7 @@ import { hasPlayerWon } from '../../other-fun-stuff/backgammon-resources/opening
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
-  blots: -0.5,     // Negative for safety
+  blots: -0.25,    // Negative for safety (matches actual calculation)
   hits: 0.3,       // Positive for aggression
   pointsMade: 0.4, // Positive for development
   pipGain: 0.2,    // Positive for efficiency
@@ -43,7 +43,7 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
 
   // Builder coverage bonus: checkers on outer points (8-11)
   const outerBuilders = countBuildersOnOuter(analysis.finalState, playerOwner)
-  const builderRaw = outerBuilders * 0.03
+  const builderRaw = outerBuilders * 0.04
   const builderCoverageScore = HEURISTIC_WEIGHTS.builderCoverage * builderRaw
 
   // Stack penalty: penalizes excessive stacking (4+ checkers on one point)

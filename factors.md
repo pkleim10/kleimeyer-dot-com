@@ -3,7 +3,7 @@
 ## Overview
 The backgammon engine uses a 6-factor heuristic evaluation system to score moves. Each factor has a specific weight and represents a different strategic aspect of the game.
 
-## Factor Weights (Sum = 1.00)
+## Factor Weights (Sum ≈ 1.08)
 - **Weighted Blot Risk**: -0.25 (negative for safety)
 - **Hits**: 0.3 (positive for aggression)
 - **Points Made**: 0.4 (positive for development)
@@ -101,17 +101,17 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 ### 7. Builder Coverage (0.10)
 **Purpose**: Rewards checkers positioned on outer board points (8-11) for board control.
 
-**Calculation**: `countBuildersOnOuter(finalState, playerOwner) * 0.03 * 0.10`
+**Calculation**: `countBuildersOnOuter(finalState, playerOwner) * 0.04 * 0.10`
 
 **Data Source**: `countBuildersOnOuter(analysis.finalState, playerOwner)`.
 
 **Logic**:
 - Counts all checkers owned by player on points 8-11 (outer board)
-- Each checker provides 0.03 raw bonus, weighted by 0.10
+- Each checker provides 0.04 raw bonus, weighted by 0.10
 - Encourages maintaining presence in strategic outer board positions
-- Range: 0 to ~0.30 (10+ checkers on outer board)
+- Range: 0 to ~0.40 (10+ checkers on outer board)
 
-**Example**: 3 checkers on outer board = 0.009 score, 5 checkers = 0.015 score
+**Example**: 3 checkers on outer board = 0.012 score, 5 checkers = 0.020 score
 
 ### 8. Stack Penalty (-0.08)
 **Purpose**: Penalizes excessive stacking of checkers on single points.
@@ -153,7 +153,7 @@ totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoard
 - **Pip Gain**: 7 × 0.2 = 1.4
 - **Home Board**: 6 × 0.1 = 0.6
 - **Prime Length**: 1 × 0.15 = 0.15
-- **Builder Coverage**: 0 × 0.03 × 0.10 = 0.0
+- **Builder Coverage**: 0 × 0.04 × 0.10 = 0.0
 - **Stack Penalty**: max(2) → 0 × -0.08 = 0.0
 - **Opponent Blot Count**: 0 × 0.08 = 0.0
 - **Weighted Blot Risk**: 0 × -0.25 = 0.0
