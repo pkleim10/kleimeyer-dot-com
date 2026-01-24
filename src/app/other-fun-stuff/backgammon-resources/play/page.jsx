@@ -55,6 +55,7 @@ export default function PlayPage() {
     }
     return 'intermediate'
   })
+  const [showSimulationResults, setShowSimulationResults] = useState(false) // Toggle for simulation results
 
   // Get engine move analysis
   const handleEngineAnalysis = async () => {
@@ -1786,6 +1787,26 @@ export default function PlayPage() {
                     </>
                   )}
                   
+                  {/* Show Simulation Results Toggle */}
+                  {engineAnalysis && engineAnalysis.move && (
+                    <>
+                      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                      <button
+                        onClick={() => setShowSimulationResults(!showSimulationResults)}
+                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                          showSimulationResults
+                            ? 'bg-blue-500 text-white shadow-sm'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                        }`}
+                        title="Show simulation results"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+
                   {/* Help Button */}
                   <button
                     onClick={() => setShowHelpOverlay(!showHelpOverlay)}
@@ -1913,6 +1934,80 @@ export default function PlayPage() {
                   </p>
                 )}
               </div>
+
+              {/* Simulation Results */}
+              {showSimulationResults && engineAnalysis && engineDebug && (
+                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4">
+                    Simulation Results
+                  </h3>
+
+                  <div className="space-y-4">
+                    {/* Suggested Move */}
+                    <div>
+                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Suggested Move</h4>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border">
+                        <div className="flex items-center gap-4">
+                          <span className="text-lg font-mono text-gray-900 dark:text-white">
+                            {engineAnalysis.move ? formatMoveForToolbar(engineAnalysis.move) : 'N/A'}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-sm font-medium ${
+                            engineAnalysis.confidence >= 0.8 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                            engineAnalysis.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                            'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          }`}>
+                            {engineAnalysis.confidence ? `${(engineAnalysis.confidence * 100).toFixed(0)}%` : 'N/A'} confidence
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Deduplicated HE Scores */}
+                    <div>
+                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Deduplicated HE Scores</h4>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border max-h-60 overflow-y-auto">
+                        <div className="space-y-1">
+                          {engineDebug.allMoves?.slice(0, 10).map((move, idx) => (
+                            <div key={idx} className="flex justify-between text-sm font-mono">
+                              <span className="text-gray-700 dark:text-gray-300">{move.description}</span>
+                              <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                                {move.heuristicScore?.toFixed(3) || 'N/A'}
+                              </span>
+                            </div>
+                          )) || <span className="text-gray-500">No HE scores available</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* MC and Hybrid Scores */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">MC Score</h4>
+                        <div className="bg-white dark:bg-slate-800 rounded p-3 border">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                              {engineAnalysis.mcScore || 'N/A'}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Monte Carlo Score</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Hybrid Score</h4>
+                        <div className="bg-white dark:bg-slate-800 rounded p-3 border">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                              {engineAnalysis.hybridScore || 'N/A'}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Combined HE + MC</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
                 <Link

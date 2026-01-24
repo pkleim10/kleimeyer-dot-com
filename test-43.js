@@ -1,4 +1,4 @@
-// Test script for opening move 43
+"// Test script for opening move 43
 // Using built-in fetch (Node.js 18+)
 
 async function testOpeningMove43() {
