@@ -758,10 +758,50 @@ export async function POST(request) {
         })
       }
 
-      // Evaluate ALL legal moves heuristically and log scores
+      // Step 1: Deduplicate moves that lead to identical final positions (BEFORE HE calculation)
       const playerOwner = player === 1 ? 'white' : 'black'
-      console.log('[HeuristicEngine] All legal moves heuristic scores:')
-      const allHeuristicEvaluations = allLegalMoves.map(move => {
+      const positionGroups = new Map()
+
+      for (const move of allLegalMoves) {
+        const finalState = calculateFinalBoardState(boardState, move.moves || [move], playerOwner)
+        // Create a simple hash of the final board state (focusing on key differences)
+        const positionKey = `${finalState.points.map(p => `${p.owner || 'e'}:${p.count}`).join('|')}|${finalState.whiteBar}|${finalState.blackBar}`
+
+        if (!positionGroups.has(positionKey)) {
+          positionGroups.set(positionKey, [])
+        }
+        positionGroups.get(positionKey).push(move)
+      }
+
+      // Keep one representative move per unique final position
+      const deduplicatedMoves = []
+      for (const movesForPosition of positionGroups.values()) {
+        if (movesForPosition.length > 0) {
+          // For now, just take the first move per position group
+          // (We'll evaluate all and pick the best after HE calculation)
+          deduplicatedMoves.push(movesForPosition[0])
+        }
+      }
+
+      console.log(`[MoveDeduplication] Found ${positionGroups.size} unique positions from ${allLegalMoves.length} moves`)
+      console.log(`[MoveDeduplication] Reduced to ${deduplicatedMoves.length} deduplicated moves before HE calculation`)
+
+      // Debug: show deduplication stats from first step
+      if (debug) {
+        console.log('[MoveDeduplication] Position group details:')
+        let totalDuplicates = 0
+        for (const [positionKey, movesForPosition] of positionGroups.entries()) {
+          if (movesForPosition.length > 1) {
+            totalDuplicates += movesForPosition.length - 1
+            console.log(`  Group with ${movesForPosition.length} moves: ${movesForPosition.map(m => formatMove(m)).join(', ')}`)
+          }
+        }
+        console.log(`  Total duplicate moves removed before HE: ${totalDuplicates}`)
+      }
+
+      // Step 2: Calculate HE scores only on deduplicated moves
+      console.log('[HeuristicEngine] Calculating heuristic scores for deduplicated moves:')
+      const allHeuristicEvaluations = deduplicatedMoves.map(move => {
         const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
         return {
           move,
@@ -776,6 +816,11 @@ export async function POST(request) {
         legalMoves: allLegalMoves.map(move => ({
           description: formatMove(move),
           moves: move.moves, // Include moves array for relative coordinate conversion
+          totalPips: move.totalPips || 0
+        })),
+        deduplicatedMoves: deduplicatedMoves.map(move => ({
+          description: formatMove(move),
+          moves: move.moves,
           totalPips: move.totalPips || 0
         })),
         allMoves: allHeuristicEvaluations.map(heuristicEval => ({
@@ -808,68 +853,9 @@ export async function POST(request) {
         }
       })
 
-      // Deduplicate moves that lead to identical final positions
-      // Group moves by their final board state, keeping only the best-scoring move per unique position
-      const positionGroups = new Map()
-
-      for (const heuristicEval of allHeuristicEvaluations) {
-        const finalState = calculateFinalBoardState(boardState, heuristicEval.move.moves || [heuristicEval.move], playerOwner)
-        // Create a simple hash of the final board state (focusing on key differences)
-        const positionKey = `${finalState.points.map(p => `${p.owner || 'e'}:${p.count}`).join('|')}|${finalState.whiteBar}|${finalState.blackBar}`
-
-        if (!positionGroups.has(positionKey)) {
-          positionGroups.set(positionKey, [])
-        }
-        positionGroups.get(positionKey).push({
-          heuristicEval,
-          finalState,
-          positionKey
-        })
-
-      }
-
-      // For each position group, keep only one representative move
-      // Choose the one with highest heuristic score, or first one if tied
-      const deduplicatedEvaluations = []
-      for (const movesForPosition of positionGroups.values()) {
-        if (movesForPosition.length > 0) {
-          // Sort by heuristic score descending, then take the first one (stable sort)
-          movesForPosition.sort((a, b) => b.heuristicEval.heuristicScore - a.heuristicEval.heuristicScore)
-          deduplicatedEvaluations.push(movesForPosition[0].heuristicEval)
-
-          // Debug: show when we're deduplicating
-          if (movesForPosition.length > 1 && debug) {
-            console.log(`[Deduplication] Position with ${movesForPosition.length} equivalent moves:`)
-            movesForPosition.forEach((entry, idx) => {
-              const marker = idx === 0 ? ' ← KEPT' : ' ← DROPPED'
-              console.log(`  ${entry.heuristicEval.move.description} (${entry.heuristicEval.heuristicScore.toFixed(3)})${marker}`)
-            })
-          }
-        }
-      }
-
-      // Sort the deduplicated list by heuristic score
-      deduplicatedEvaluations.sort((a, b) => b.heuristicScore - a.heuristicScore)
-
-      console.log(`[MoveDeduplication] Found ${positionGroups.size} unique positions from ${allHeuristicEvaluations.length} moves`)
-      console.log(`[MoveDeduplication] Reduced to ${deduplicatedEvaluations.length} deduplicated moves`)
-
-      // Debug: show position group statistics
-      if (debug) {
-        console.log('[MoveDeduplication] Position group details:')
-        let totalDuplicates = 0
-        for (const [positionKey, movesForPosition] of positionGroups.entries()) {
-          if (movesForPosition.length > 1) {
-            totalDuplicates += movesForPosition.length - 1
-            console.log(`  Group with ${movesForPosition.length} moves: ${movesForPosition[0].heuristicEval.move.description} etc.`)
-          }
-        }
-        console.log(`  Total duplicate moves removed: ${totalDuplicates}`)
-      }
-
-      // Select top moves based on heuristic scores from deduplicated list
-      const topMoves = deduplicatedEvaluations
-        .slice(0, Math.min(maxTopMoves, deduplicatedEvaluations.length))
+      // Select top moves based on heuristic scores (moves are already deduplicated)
+      const topMoves = allHeuristicEvaluations
+        .slice(0, Math.min(maxTopMoves, allHeuristicEvaluations.length))
         .map(heuristicEval => heuristicEval.move)
       
       console.log('[MoveSelection] Selected moves for Monte Carlo (based on heuristic scores):', topMoves.map((m, idx) => {
