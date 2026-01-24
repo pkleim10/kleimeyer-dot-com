@@ -5,6 +5,7 @@
 
 import { getLegalMoves } from './getLegalMoves'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
+import { hasPlayerWon } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
@@ -55,23 +56,6 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
   const opponentBlotScore = opponentBlots * HEURISTIC_WEIGHTS.opponentBlotCount
 
   const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore
-
-  // Debug logging for 13/6 move
-  const moveDesc = move.description || (move.moves ? move.moves.map(m => `${m.from}/${m.to}`).join(' ') : `${move.from}/${move.to}`)
-  if (moveDesc.includes('13/') && moveDesc.includes('6')) {
-    console.log(`\n[DEBUG] Detailed factor breakdown for move: ${moveDesc}`)
-    console.log(`  Points Made: ${analysis.pointsMade.newlyMade.length} × ${HEURISTIC_WEIGHTS.pointsMade} = ${pointsMadeScore}`)
-    console.log(`  Pip Gain: ${analysis.pips.gain} × ${HEURISTIC_WEIGHTS.pipGain} = ${pipGainScore}`)
-    console.log(`  Home Board: ${homeBoardCheckers} × ${HEURISTIC_WEIGHTS.homeBoard} = ${homeBoardScore}`)
-    console.log(`  Prime Length: ${primeLength} × ${HEURISTIC_WEIGHTS.primeLength} = ${primeScore}`)
-    console.log(`  Builder Coverage: ${outerBuilders} × 0.03 × ${HEURISTIC_WEIGHTS.builderCoverage} = ${builderCoverageScore}`)
-    console.log(`  Stack Penalty: max(${maxStack}) → ${stackRaw} × ${HEURISTIC_WEIGHTS.stackPenalty} = ${stackPenaltyScore}`)
-    console.log(`  Opponent Blot Count: ${opponentBlots} × ${HEURISTIC_WEIGHTS.opponentBlotCount} = ${opponentBlotScore}`)
-    console.log(`  Blots: ${analysis.blots.count} × ${HEURISTIC_WEIGHTS.blots} = ${blotsScore}`)
-    console.log(`  Hits: ${analysis.hits.count} × ${HEURISTIC_WEIGHTS.hits} = ${hitsScore}`)
-    console.log(`  TOTAL SCORE: ${totalScore}`)
-    console.log('')
-  }
 
   return {
     score: totalScore,
@@ -304,17 +288,24 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
       movesMade++
     }
 
-    // Evaluate final position using comprehensive heuristic analysis
-    const positionEval = evaluatePosition(currentBoard, playerOwner)
-    const opponentEval = evaluatePosition(currentBoard, playerOwner === 'white' ? 'black' : 'white')
+    // Check if game ended with a winner
+    const winner = getWinner(currentBoard)
+    if (winner) {
+      // Game ended - award full win (1.0) or loss (0.0)
+      wins += (winner === playerOwner) ? 1.0 : 0.0
+    } else {
+      // Game still in progress - evaluate final position
+      const positionEval = evaluatePosition(currentBoard, playerOwner)
+      const opponentEval = evaluatePosition(currentBoard, playerOwner === 'white' ? 'black' : 'white')
 
-    // Award points based on relative position strength
-    // Scale from -1 to +1 based on position difference
-    const positionDiff = positionEval.score - opponentEval.score
-    const normalizedScore = Math.max(-1, Math.min(1, positionDiff / 2)) // Clamp and scale
+      // Award points based on relative position strength
+      // Scale from -1 to +1 based on position difference
+      const positionDiff = positionEval.score - opponentEval.score
+      const normalizedScore = Math.max(-1, Math.min(1, positionDiff / 2)) // Clamp and scale
 
-    // Convert to win points: -1 = 0 points, 0 = 0.5 points, +1 = 1 point
-    wins += (normalizedScore + 1) / 2
+      // Convert to win points: -1 = 0 points, 0 = 0.5 points, +1 = 1 point
+      wins += (normalizedScore + 1) / 2
+    }
   }
 
   // Log combined input parameters and results
@@ -582,12 +573,13 @@ function getRandomDice() {
 }
 
 function isGameOver(boardState) {
-  // For simplicity in MC, never consider game over - just simulate a few moves
-  return false
+  // Check if either player has won (borne off all checkers)
+  return hasPlayerWon(boardState, 'white') || hasPlayerWon(boardState, 'black')
 }
 
 function getWinner(boardState) {
-  // For simplicity, return null - no winner in short simulations
+  if (hasPlayerWon(boardState, 'white')) return 'white'
+  if (hasPlayerWon(boardState, 'black')) return 'black'
   return null
 }
 
@@ -1259,6 +1251,17 @@ function checkForHit(beforeState, move, playerOwner) {
 function buildVerifiedMoveAnalysis(boardState, moveCombination, playerOwner) {
   const moves = moveCombination.moves || [moveCombination]
   const finalState = calculateFinalBoardState(boardState, moves, playerOwner)
+
+  // Calculate hits during move sequence (only factor that depends on sequence)
+  const hits = []
+  let tempState = boardState
+  for (const move of moves) {
+    const hit = checkForHit(tempState, move, playerOwner)
+    if (hit) hits.push(hit)
+    tempState = applyMoveToBoardForAnalysis(tempState, move, playerOwner)
+  }
+
+  // ALL other analysis is strictly final-state based to ensure normalization
   const blots = identifyBlots(finalState, playerOwner)
   const opponentPositions = identifyOpponentPositions(finalState, playerOwner)
   const playerMadePoints = getMadePoints(finalState, playerOwner)
@@ -1272,14 +1275,6 @@ function buildVerifiedMoveAnalysis(boardState, moveCombination, playerOwner) {
   const pipGain = playerOwner === 'white'
     ? beforePips.white - afterPips.white
     : beforePips.black - afterPips.black
-
-  const hits = []
-  let tempState = boardState
-  for (const move of moves) {
-    const hit = checkForHit(tempState, move, playerOwner)
-    if (hit) hits.push(hit)
-    tempState = applyMoveToBoardForAnalysis(tempState, move, playerOwner)
-  }
 
   let combinedRisk = 0
   let combinedWeightedRisk = 0

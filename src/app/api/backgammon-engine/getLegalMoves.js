@@ -961,20 +961,21 @@ function getLegalMoves(boardState, turnState) {
   }
   
   const playerPoints = getPlayerPoints(boardState)
+
   if (playerPoints.length === 0) return moveCombinations
 
-  const sortedDice = [...availableDice].sort((a, b) => b - a)
-  const [bigDie] = sortedDice
-
-  for (const point of playerPoints) {
-    const move = buildMove(boardState, point, bigDie)
-    if (move) {
-      moveCombinations.push({
-        moves: [move],
-        description: `${point}/${move.to}`,
-        totalPips: bigDie
-      })
-      return moveCombinations
+  // Try each available die for single moves (important for bearing off)
+  for (const die of availableDice) {
+    for (const point of playerPoints) {
+      const move = buildMove(boardState, point, die)
+      if (move) {
+        moveCombinations.push({
+          moves: [move],
+          description: `${point}/${move.to}`,
+          totalPips: die
+        })
+        return moveCombinations
+      }
     }
   }
 
