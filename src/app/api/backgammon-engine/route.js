@@ -17,7 +17,8 @@ const HEURISTIC_WEIGHTS = {
   primeLength: 0.15, // Positive for blocking
   builderCoverage: 0.35, // Positive for outer board coverage (increased)
   stackPenalty: -0.08, // Negative penalty for excessive stacking
-  opponentBlotCount: 0.08 // Positive for opponent vulnerabilities
+  opponentBlotCount: 0.08, // Positive for opponent vulnerabilities
+  highRollBonus: 0.06 // Positive for high pip gain and deep runs
 }
 
 /**
@@ -82,7 +83,7 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
     highRollBonus += 0.03;  // reward deep anchor advancement
   }
 
-  const highRollScore = 0.06 * highRollBonus;
+  const highRollScore = HEURISTIC_WEIGHTS.highRollBonus * highRollBonus;
 
   const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore + highRollScore
 
