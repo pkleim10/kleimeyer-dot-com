@@ -34,7 +34,7 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
 
   for (const pt of analysis.pointsMade.newlyMade || []) {
     if (pt === 5 || pt === 4) {
-      pointQualityBonus += 0.8;          // golden points bonus
+      pointQualityBonus += 1.0;          // golden points bonus
     } else if (pt === 7 || pt === 3) {   // bar-point + 3-point
       pointQualityBonus += 0.25;
     } else {
