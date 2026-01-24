@@ -2012,32 +2012,6 @@ export default function PlayPage() {
                       </div>
                     </div>
 
-                    {/* MC and Hybrid Scores */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">MC Score</h4>
-                        <div className="bg-white dark:bg-slate-800 rounded p-3 border">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                              {engineAnalysis.mcScore || 'N/A'}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Monte Carlo Score</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Hybrid Score</h4>
-                        <div className="bg-white dark:bg-slate-800 rounded p-3 border">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                              {engineAnalysis.hybridScore || 'N/A'}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Combined HE + MC</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
