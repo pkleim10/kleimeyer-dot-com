@@ -21,8 +21,8 @@ async function testOpeningMove65() {
         player: 1,
         maxTopMoves: 6,   // Match play page default
         numSimulations: 1000,  // Full MC simulation with 1000 rollouts per move
-        heuristicWeight: 0.6,  // 60% heuristic
-        mcWeight: 0.4,        // 40% Monte Carlo (default)
+        heuristicWeight: 0.35, // 35% heuristic
+        mcWeight: 0.65,       // 65% Monte Carlo
         debug: true
       }),
     });

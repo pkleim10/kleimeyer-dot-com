@@ -361,7 +361,7 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
 /**
  * Hybrid evaluation combining heuristic and MC with configurable weights
  */
-function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.6, mcWeight = 0.4) {
+function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65) {
   const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
   const heuristicScore = heuristicResult.score
   const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
@@ -381,7 +381,7 @@ function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, 
 /**
  * Analyze moves using hybrid engine
  */
-function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.6, mcWeight = 0.4) {
+function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65) {
   const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight))
 
   // Log all heuristic scores with detailed breakdowns
@@ -770,7 +770,7 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.6, mcWeight = 0.4 } = await request.json()
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.35, mcWeight = 0.65 } = await request.json()
 
       // Validate input
       if (!xgid) {
