@@ -404,10 +404,23 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
     console.log(`     MC: ${evaluation.mcScore.toFixed(3)}, Hybrid: ${evaluation.hybridScore.toFixed(3)}`)
   })
 
-  // Sort by hybrid score descending
-  evaluations.sort((a, b) => b.hybridScore - a.hybridScore)
+  // NEW LOGIC: Select winner from top 4 MC performers based on highest hybrid score
+  // Step 1: Sort by MC score to find top 4 tactical performers
+  const mcSorted = [...evaluations].sort((a, b) => b.mcScore - a.mcScore)
+  const top4MC = mcSorted.slice(0, 4)
 
-    const bestEvaluation = evaluations[0]
+  console.log(`[HybridSelection] Top 4 MC performers:`)
+  top4MC.forEach((evaluation, idx) => {
+    console.log(`  ${idx + 1}. ${evaluation.move.description}: MC=${evaluation.mcScore.toFixed(3)}, Hybrid=${evaluation.hybridScore.toFixed(3)}`)
+  })
+
+  // Step 2: From top 4 MC moves, pick the one with highest hybrid score
+  const bestEvaluation = top4MC.reduce((best, current) =>
+    current.hybridScore > best.hybridScore ? current : best
+  )
+
+  console.log(`[HybridSelection] Selected winner: ${bestEvaluation.move.description}`)
+  console.log(`  MC Score: ${bestEvaluation.mcScore.toFixed(3)}, Hybrid Score: ${bestEvaluation.hybridScore.toFixed(3)}`)
     const bestMove = bestEvaluation.move
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:143',message:'analyzeMovesWithHybridEngine bestMove BEFORE check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
