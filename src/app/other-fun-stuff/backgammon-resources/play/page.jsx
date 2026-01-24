@@ -1962,20 +1962,53 @@ export default function PlayPage() {
                       </div>
                     </div>
 
-                    {/* Deduplicated HE Scores */}
+                    {/* Move Scores Table */}
                     <div>
-                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Deduplicated HE Scores</h4>
-                      <div className="bg-white dark:bg-slate-800 rounded p-3 border max-h-60 overflow-y-auto">
-                        <div className="space-y-1">
-                          {engineDebug.allMoves?.slice(0, 10).map((move, idx) => (
-                            <div key={idx} className="flex justify-between text-sm font-mono">
-                              <span className="text-gray-700 dark:text-gray-300">{move.description}</span>
-                              <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                                {move.heuristicScore?.toFixed(3) || 'N/A'}
-                              </span>
-                            </div>
-                          )) || <span className="text-gray-500">No HE scores available</span>}
-                        </div>
+                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Move Scores</h4>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border overflow-x-auto">
+                        <table className="w-full text-sm font-mono">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-600">
+                              <th className="text-left py-2 px-2 text-gray-700 dark:text-gray-300 font-semibold">Move</th>
+                              <th className="text-right py-2 px-2 text-blue-600 dark:text-blue-400 font-semibold">HE</th>
+                              <th className="text-right py-2 px-2 text-green-600 dark:text-green-400 font-semibold">MC</th>
+                              <th className="text-right py-2 px-2 text-purple-600 dark:text-purple-400 font-semibold">Hybrid</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {engineAnalysis.factorScores?.slice(0, 10).map((factorScore, idx) => {
+                              // Parse the scores string: "Heuristic: 2.105 | MC: .506 | Total: 1.48"
+                              const scoresMatch = factorScore.scores?.match(/Heuristic:\s*([\d.-]+).*MC:\s*([\d.-]+).*Total:\s*([\d.-]+)/)
+                              const heScore = scoresMatch ? parseFloat(scoresMatch[1]) : null
+                              const mcScore = scoresMatch ? parseFloat(scoresMatch[2]) : null
+                              const hybridScore = scoresMatch ? parseFloat(scoresMatch[3]) : null
+
+                              return (
+                                <tr key={idx} className={`border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                                  <td className="py-2 px-2 text-gray-900 dark:text-white">
+                                    {factorScore.moveDescription}
+                                    {idx === 0 && <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-semibold">★</span>}
+                                  </td>
+                                  <td className="py-2 px-2 text-right text-blue-600 dark:text-blue-400 font-semibold">
+                                    {heScore !== null ? heScore.toFixed(3) : 'N/A'}
+                                  </td>
+                                  <td className="py-2 px-2 text-right text-green-600 dark:text-green-400 font-semibold">
+                                    {mcScore !== null ? mcScore.toFixed(3) : 'N/A'}
+                                  </td>
+                                  <td className="py-2 px-2 text-right text-purple-600 dark:text-purple-400 font-semibold">
+                                    {hybridScore !== null ? hybridScore.toFixed(3) : 'N/A'}
+                                  </td>
+                                </tr>
+                              )
+                            }) || (
+                              <tr>
+                                <td colSpan="4" className="py-4 px-2 text-center text-gray-500">
+                                  No move scores available
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
 
