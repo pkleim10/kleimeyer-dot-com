@@ -722,7 +722,7 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], heuristicWeight = 0.6, mcWeight = 0.4 } = await request.json()
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.6, mcWeight = 0.4 } = await request.json()
 
       // Validate input
       if (!xgid) {
