@@ -3,14 +3,14 @@
 ## Overview
 The backgammon engine uses a 6-factor heuristic evaluation system to score moves. Each factor has a specific weight and represents a different strategic aspect of the game.
 
-## Factor Weights (Sum ≈ 0.98)
+## Factor Weights (Sum ≈ 1.23)
 - **Weighted Blot Risk**: -0.25 (negative for safety)
 - **Hits**: 0.3 (positive for aggression)
 - **Points Made**: 0.3 (positive for development)
 - **Pip Gain**: 0.2 (positive for efficiency)
 - **Home Board**: 0.1 (positive for home board strength)
 - **Prime Length**: 0.15 (positive for blocking)
-- **Builder Coverage**: 0.10 (positive for outer board control)
+- **Builder Coverage**: 0.35 (positive for outer board control)
 
 ## Factor Details
 
@@ -98,20 +98,21 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 
 **Example**: 2-point prime = 0.3 score
 
-### 7. Builder Coverage (0.10)
-**Purpose**: Rewards checkers positioned on outer board points (8-11) for board control.
+### 7. Builder Coverage (0.35)
+**Purpose**: Rewards strategic positioning on outer board points with differentiated values.
 
-**Calculation**: `countBuildersOnOuter(finalState, playerOwner) * 0.04 * 0.10`
+**Calculation**: `calculateBuilderCoverage(finalState, playerOwner) * 0.35`
 
-**Data Source**: `countBuildersOnOuter(analysis.finalState, playerOwner)`.
+**Data Source**: `calculateBuilderCoverage(analysis.finalState, playerOwner)`.
 
 **Logic**:
-- Counts all checkers owned by player on points 8-11 (outer board)
-- Each checker provides 0.04 raw bonus, weighted by 0.10
-- Encourages maintaining presence in strategic outer board positions
-- Range: 0 to ~0.40 (10+ checkers on outer board)
+- **Points 9-11**: +1.0 for single checker, +0.5 for multiple checkers
+- **Point 8**: +0.5 for single checker only, 0 for multiple checkers
+- Rewards vulnerable (single) checkers more than safe stacks
+- Differentiates between prime outer points (9-11) and strategic point 8
+- Range: 0 to ~3.5 (optimal single checkers on all 4 points)
 
-**Example**: 3 checkers on outer board = 0.012 score, 5 checkers = 0.020 score
+**Example**: Single checkers on points 8,9,10,11 = 0.5 + 1.0 + 1.0 + 1.0 = 3.5 bonus → 1.225 score
 
 ### 8. Stack Penalty (-0.08)
 **Purpose**: Penalizes excessive stacking of checkers on single points.

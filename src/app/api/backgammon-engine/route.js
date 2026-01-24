@@ -15,7 +15,7 @@ const HEURISTIC_WEIGHTS = {
   pipGain: 0.2,    // Positive for efficiency
   homeBoard: 0.1,  // Positive for home board strength
   primeLength: 0.15, // Positive for blocking
-  builderCoverage: 0.10, // Positive for outer board coverage
+  builderCoverage: 0.35, // Positive for outer board coverage (increased)
   stackPenalty: -0.08, // Negative penalty for excessive stacking
   opponentBlotCount: 0.08 // Positive for opponent vulnerabilities
 }
@@ -41,10 +41,9 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
   const primeLength = checkPrimeLength(analysis.finalState, playerOwner)
   const primeScore = primeLength * HEURISTIC_WEIGHTS.primeLength
 
-  // Builder coverage bonus: checkers on outer points (8-11)
-  const outerBuilders = countBuildersOnOuter(analysis.finalState, playerOwner)
-  const builderRaw = outerBuilders * 0.04
-  const builderCoverageScore = HEURISTIC_WEIGHTS.builderCoverage * builderRaw
+  // Builder coverage bonus: strategic outer board positioning
+  const builderBonus = calculateBuilderCoverage(analysis.finalState, playerOwner)
+  const builderCoverageScore = HEURISTIC_WEIGHTS.builderCoverage * builderBonus
 
   // Stack penalty: penalizes excessive stacking (4+ checkers on one point)
   const maxStack = getMaxStackSize(analysis.finalState, playerOwner)
@@ -66,7 +65,7 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
       pipGain: { value: analysis.pips.gain, score: pipGainScore },
       homeBoard: { checkers: homeBoardCheckers, score: homeBoardScore },
       primeLength: { value: primeLength, score: primeScore },
-      builderCoverage: { builders: outerBuilders, rawBonus: builderRaw, score: builderCoverageScore },
+      builderCoverage: { bonus: builderBonus, score: builderCoverageScore },
       stackPenalty: { maxStack, rawPenalty: stackRaw, score: stackPenaltyScore },
       opponentBlotCount: { count: opponentBlots, score: opponentBlotScore }
     }
@@ -844,7 +843,7 @@ export async function POST(request) {
             pipGain: `${breakdown.pipGain.value} (${breakdown.pipGain.score.toFixed(3)})`,
             homeBoard: `${breakdown.homeBoard.checkers} (${breakdown.homeBoard.score.toFixed(3)})`,
             primeLength: `${breakdown.primeLength.value} (${breakdown.primeLength.score.toFixed(3)})`,
-            builderCoverage: `${breakdown.builderCoverage.builders} (${breakdown.builderCoverage.score.toFixed(3)})`,
+            builderCoverage: `${breakdown.builderCoverage.bonus.toFixed(1)} (${breakdown.builderCoverage.score.toFixed(3)})`,
             stackPenalty: `${breakdown.stackPenalty.maxStack} (${breakdown.stackPenalty.score.toFixed(3)})`,
             opponentBlotCount: `${breakdown.opponentBlotCount.count} (${breakdown.opponentBlotCount.score.toFixed(3)})`
           })
@@ -1381,15 +1380,24 @@ function countCheckersInRange(boardState, owner, startPoint, endPoint) {
   return count
 }
 
-function countBuildersOnOuter(boardState, playerOwner) {
-  let count = 0
-  for (let p = 8; p <= 11; p++) {
+function calculateBuilderCoverage(boardState, playerOwner) {
+  let totalBonus = 0
+
+  // Points 9-11: +1 for single checker, +0.5 for multiple checkers
+  for (let p = 9; p <= 11; p++) {
     const pointData = boardState.points[p - 1]
     if (pointData && pointData.owner === playerOwner && pointData.count >= 1) {
-      count += pointData.count
+      totalBonus += (pointData.count === 1) ? 1.0 : 0.5
     }
   }
-  return count
+
+  // Point 8: +0.5 for single checker only, 0 for multiple
+  const point8Data = boardState.points[7] // point 8 is index 7
+  if (point8Data && point8Data.owner === playerOwner && point8Data.count === 1) {
+    totalBonus += 0.5
+  }
+
+  return totalBonus
 }
 
 function getMaxStackSize(boardState, playerOwner) {
