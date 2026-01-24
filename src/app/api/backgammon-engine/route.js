@@ -28,7 +28,22 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
 
   const blotsScore = analysis.blots.combinedWeightedRisk * -0.25
   const hitsScore = analysis.hits.count * HEURISTIC_WEIGHTS.hits
-  const pointsMadeScore = analysis.pointsMade.newlyMade.length * HEURISTIC_WEIGHTS.pointsMade
+  // Enhanced Points Made scoring with quality bonuses
+  let basePoints = analysis.pointsMade.newlyMade.length || 0;
+  let pointQualityBonus = 0;
+
+  for (const pt of analysis.pointsMade.newlyMade || []) {
+    if (pt === 5 || pt === 4) {
+      pointQualityBonus += 0.5;          // golden points bonus
+    } else if (pt === 7 || pt === 3) {   // bar-point + 3-point
+      pointQualityBonus += 0.25;
+    } else {
+      pointQualityBonus += 0.1;          // other points
+    }
+  }
+
+  const pointsRaw = basePoints + pointQualityBonus;
+  const pointsMadeScore = pointsRaw * 0.3;  // 0.3 weighting (HEURISTIC_WEIGHTS.pointsMade)
   const pipGainScore = analysis.pips.gain * HEURISTIC_WEIGHTS.pipGain
 
   // Simple home board strength: count checkers in home board AFTER move
