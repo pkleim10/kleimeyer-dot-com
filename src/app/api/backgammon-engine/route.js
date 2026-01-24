@@ -452,6 +452,9 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
       bestMoveIndex: bestMoveIndex >= 0 ? bestMoveIndex : 0, // Use found index or fallback to 0
       reasoning,
       confidence: 0.9, // High confidence for deterministic evaluation
+      hybridScore: evaluations[0].hybridScore.toFixed(3),
+      heuristicScore: evaluations[0].heuristicScore.toFixed(3),
+      mcScore: evaluations[0].mcScore.toFixed(3),
       factorScores: evaluations.map((evaluation, idx) => ({
         moveNumber: idx + 1,
         moveDescription: formatMove(evaluation.move, currentPlayer),

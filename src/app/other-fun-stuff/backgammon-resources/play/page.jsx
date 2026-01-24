@@ -91,6 +91,7 @@ export default function PlayPage() {
         setEngineDebug(result.debug)
       }
 
+      console.log('Engine analysis result:', result) // Debug logging
       setEngineAnalysis(result)
       // Automatically show ghost checkers when a move is suggested
       if (result.move) {
@@ -1986,9 +1987,12 @@ export default function PlayPage() {
                         <div className="bg-white dark:bg-slate-800 rounded p-3 border">
                           <div className="text-center">
                             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                              {engineAnalysis.mcScore || 'N/A'}
+                              {engineAnalysis.mcScore !== undefined ? engineAnalysis.mcScore : 'N/A'}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">Monte Carlo Score</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Type: {typeof engineAnalysis.mcScore}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1998,9 +2002,12 @@ export default function PlayPage() {
                         <div className="bg-white dark:bg-slate-800 rounded p-3 border">
                           <div className="text-center">
                             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                              {engineAnalysis.hybridScore || 'N/A'}
+                              {engineAnalysis.hybridScore !== undefined ? engineAnalysis.hybridScore : 'N/A'}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">Combined HE + MC</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Type: {typeof engineAnalysis.hybridScore}
+                            </div>
                           </div>
                         </div>
                       </div>
