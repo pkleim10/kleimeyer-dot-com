@@ -1985,8 +1985,8 @@ export default function PlayPage() {
 
                               return (
                                 <tr key={idx} className={`border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-                                  <td className="py-2 px-2 text-gray-900 dark:text-white">
-                                    {factorScore.moveDescription}
+                                  <td className="py-2 px-2 text-gray-900 dark:text-white font-mono">
+                                    {factorScore.normalizedMoveDescription || factorScore.moveDescription}
                                     {idx === 0 && <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-semibold">★</span>}
                                   </td>
                                   <td className="py-2 px-2 text-right text-blue-600 dark:text-blue-400 font-semibold">
