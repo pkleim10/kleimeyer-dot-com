@@ -69,7 +69,22 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
   const opponentBlots = countOpponentBlots(analysis.finalState, playerOwner)
   const opponentBlotScore = opponentBlots * HEURISTIC_WEIGHTS.opponentBlotCount
 
-  const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore
+  // High Roll Bonus: rewards high pip gain and deep runs for race lead and flexibility
+  let highRollBonus = 0;
+
+  // Bonus for high pip gain
+  if (analysis.pips.gain >= 6) {
+    highRollBonus += (analysis.pips.gain - 5) * 0.02;  // +0.02 per pip above 5
+  }
+
+  // Extra bonus for deep run (24 to 18 or lower)
+  if (analysis.moveDescription.includes('24/') && analysis.pips.gain >= 8) {
+    highRollBonus += 0.03;  // reward deep anchor advancement
+  }
+
+  const highRollScore = 0.06 * highRollBonus;
+
+  const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore + highRollScore
 
   return {
     score: totalScore,
@@ -82,7 +97,8 @@ function evaluateMoveHeuristically(boardState, move, playerOwner) {
       primeLength: { value: primeLength, score: primeScore },
       builderCoverage: { bonus: builderBonus, score: builderCoverageScore },
       stackPenalty: { maxStack, rawPenalty: stackRaw, score: stackPenaltyScore },
-      opponentBlotCount: { count: opponentBlots, score: opponentBlotScore }
+      opponentBlotCount: { count: opponentBlots, score: opponentBlotScore },
+      highRollBonus: { rawBonus: highRollBonus, score: highRollScore }
     }
   }
 }
@@ -874,7 +890,8 @@ export async function POST(request) {
             primeLength: `${breakdown.primeLength.value} (${breakdown.primeLength.score.toFixed(3)})`,
             builderCoverage: `${breakdown.builderCoverage.bonus.toFixed(1)} (${breakdown.builderCoverage.score.toFixed(3)})`,
             stackPenalty: `${breakdown.stackPenalty.maxStack} (${breakdown.stackPenalty.score.toFixed(3)})`,
-            opponentBlotCount: `${breakdown.opponentBlotCount.count} (${breakdown.opponentBlotCount.score.toFixed(3)})`
+            opponentBlotCount: `${breakdown.opponentBlotCount.count} (${breakdown.opponentBlotCount.score.toFixed(3)})`,
+            highRollBonus: `${breakdown.highRollBonus.rawBonus.toFixed(2)} (${breakdown.highRollBonus.score.toFixed(3)})`
           })
         } else {
           console.log(`     Heuristic: ${heuristicEval.heuristicScore.toFixed(3)} (breakdown not available)`)
