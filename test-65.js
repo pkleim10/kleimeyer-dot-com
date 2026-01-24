@@ -19,8 +19,10 @@ async function testOpeningMove65() {
       body: JSON.stringify({
         xgid,
         player: 1,
-        maxTopMoves: 10,  // Include all legal moves for MC analysis
+        maxTopMoves: 6,   // Match play page default
         numSimulations: 1000,  // Full MC simulation with 1000 rollouts per move
+        heuristicWeight: 0.6,  // 60% heuristic
+        mcWeight: 0.4,        // 40% Monte Carlo (default)
         debug: true
       }),
     });
@@ -38,6 +40,20 @@ async function testOpeningMove65() {
     console.log(`\n=== RESULTS (took ${elapsed}s) ===`);
     console.log('Move:', result.move?.description || 'N/A');
     console.log('Confidence:', result.confidence || 'N/A');
+
+    // Show debug info if available
+    if (result.debug) {
+      console.log(`\n=== DETAILED ANALYSIS ===`);
+      console.log(`Total legal moves generated: ${result.debug.allMoves?.length || 'N/A'}`);
+      console.log(`Moves after deduplication: ${result.debug.deduplicatedMoves?.length || 'N/A'}`);
+
+      if (result.debug.allMoves) {
+        console.log(`\nTop heuristic moves:`);
+        result.debug.allMoves.forEach((move, idx) => {
+          console.log(`  ${idx + 1}. ${move.description} (HE: ${move.heuristicScore?.toFixed(3)})`);
+        });
+      }
+    }
 
     if (result.performance) {
       console.log(`\n=== PERFORMANCE ===`);
