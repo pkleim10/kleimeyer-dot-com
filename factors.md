@@ -1,16 +1,19 @@
-# Current 6-Factor Heuristic System
+# Current 10-Factor Heuristic System
 
 ## Overview
-The backgammon engine uses a 6-factor heuristic evaluation system to score moves. Each factor has a specific weight and represents a different strategic aspect of the game.
+The backgammon engine uses a 10-factor heuristic evaluation system to score moves. Each factor has a specific weight and represents a different strategic aspect of the game. The system combines position evaluation with move quality assessment.
 
-## Factor Weights (Sum ≈ 1.23)
-- **Weighted Blot Risk**: -0.25 (negative for safety)
+## Factor Weights (Sum = 1.87)
+- **Blots**: -0.25 (negative for safety)
 - **Hits**: 0.3 (positive for aggression)
-- **Points Made**: 0.3 (positive for development)
+- **Points Made**: 0.3 (positive for development with quality bonuses)
 - **Pip Gain**: 0.2 (positive for efficiency)
 - **Home Board**: 0.1 (positive for home board strength)
 - **Prime Length**: 0.15 (positive for blocking)
 - **Builder Coverage**: 0.35 (positive for outer board control)
+- **Stack Penalty**: -0.08 (negative for over-concentration)
+- **Opponent Blot Count**: 0.08 (positive for hitting opportunities)
+- **High Roll Bonus**: 0.06 (positive for race advancement on high rolls)
 
 ## Factor Details
 
@@ -42,19 +45,27 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 
 **Example**: Move hitting 1 blot = 0.3 score
 
-### 3. Points Made (0.4)
-**Purpose**: Rewards creating new made points (2+ checkers).
+### 3. Points Made (0.3)
+**Purpose**: Rewards creating new made points with strategic quality bonuses.
 
-**Calculation**: `analysis.pointsMade.newlyMade.length * 0.3`
+**Calculation**: Enhanced scoring with quality bonuses, then multiplied by 0.3 weight.
 
-**Data Source**: `identifyPointsMade(boardState, finalState, playerOwner)`.
+**Data Source**: `identifyPointsMade(boardState, finalState, playerOwner)` with quality analysis.
 
 **Logic**:
-- Compares board state before vs after move
-- Counts points that change from <2 checkers to ≥2 checkers
-- Range: 0 to 1.2 (for multiple new points)
+- Base score: 1.0 point for each newly made point (≥2 checkers)
+- Quality bonuses added based on point strategic value:
+  - **Golden points (4,5)**: +1.0 bonus (maximum strategic value)
+  - **3-point & bar-point (3,7)**: +0.25 bonus (strong blocking positions)
+  - **Other points**: +0.1 bonus (standard defensive value)
+- Formula: `pointsRaw = (newPoints × 1.0) + qualityBonuses`
+- Final score: `pointsRaw × 0.3`
+- Range: 0 to ~1.8 (multiple high-value points)
 
-**Example**: Move creating 1 new made point = 0.3 score
+**Examples**:
+- Point on 5 (golden): (1.0 + 1.0) × 0.3 = **+0.6** score
+- Point on 7 (3-point): (1.0 + 0.25) × 0.3 = **+0.375** score
+- Point on 12 (regular): (1.0 + 0.1) × 0.3 = **+0.33** score
 
 ### 4. Pip Gain (0.2)
 **Purpose**: Rewards efficiency in pip reduction (race progress).
@@ -112,7 +123,55 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 - Differentiates between prime outer points (9-11) and strategic point 8
 - Range: 0 to ~3.5 (optimal single checkers on all 4 points)
 
-**Example**: Single checkers on points 8,9,10,11 = 0.5 + 1.0 + 1.0 + 1.0 = 3.5 bonus → 1.225 score
+**Example**: Single checkers on points 8,9,10,11 = 0.5 + 1.0 + 1.0 + 1.0 = 3.5 bonus × 0.35 = **1.225** score
+
+### 8. Stack Penalty (-0.08)
+**Purpose**: Penalizes excessive stacking of checkers on single points.
+
+**Calculation**: `getMaxStackSize(finalState, playerOwner) > 3 ? -(maxStack - 3) * 0.04 * -0.08 : 0`
+
+**Data Source**: `getMaxStackSize(analysis.finalState, playerOwner)`.
+
+**Logic**:
+- Finds the maximum number of checkers on any single point owned by player
+- Penalty starts at 4+ checkers per point (-0.04 per additional checker beyond 3)
+- Weighted by -0.08 to discourage over-concentration of pieces
+- Range: 0 to -0.16 (8+ checkers on one point)
+
+**Example**: 5 checkers on one point = -(5-3) × 0.04 × -0.08 = **-0.0032** score
+
+### 9. Opponent Blot Count (0.08)
+**Purpose**: Rewards opponent checkers positioned as blots (single checkers on points).
+
+**Calculation**: `countOpponentBlots(finalState, playerOwner) * 0.08`
+
+**Data Source**: `countOpponentBlots(analysis.finalState, playerOwner)`.
+
+**Logic**:
+- Counts opponent checkers that are alone on their points (vulnerable to hits)
+- Each opponent blot provides 0.08 bonus as a hitting opportunity
+- Encourages aggressive play when opponent has vulnerabilities
+- Range: 0 to ~0.64 (8+ opponent blots)
+
+**Example**: 3 opponent blots = 3 × 0.08 = **0.24** score
+
+### 10. High Roll Bonus (0.06)
+**Purpose**: Rewards high pip gain and deep runs for race leadership on high rolls.
+
+**Calculation**: High roll bonus calculation × 0.06 weight.
+
+**Data Source**: Move analysis in `evaluateMoveHeuristically()`.
+
+**Logic**:
+- **High pip gain**: +0.02 per pip above 5 (for ≥6 pip gains)
+- **Deep runs**: +0.03 bonus for moves from 24 to 18+ with ≥8 pip gain
+- Formula: `highRollBonus = pipBonus + deepRunBonus`
+- Final score: `highRollBonus × 0.06`
+- Range: 0 to ~0.02 (very high pip gains with deep runs)
+
+**Examples**:
+- 8 pip gain: (8-5) × 0.02 = 0.06 → 0.06 × 0.06 = **+0.0036** score
+- Deep run (24→16, 8 pips): 0.06 + 0.03 = 0.09 → 0.09 × 0.06 = **+0.0054** score
 
 ### 8. Stack Penalty (-0.08)
 **Purpose**: Penalizes excessive stacking of checkers on single points.
@@ -146,23 +205,31 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 
 ## Total Score Calculation
 ```javascript
-totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore
+totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore +
+             homeBoardScore + primeScore + builderCoverageScore +
+             stackPenaltyScore + opponentBlotScore + highRollScore
 ```
 
-## Example: "13/6" Opening Move (6-1 dice)
-- **Points Made**: 0 × 0.3 = 0.0
+## Example: "13/10 13/9" Opening Move (4-3 dice)
+- **Blots**: 0 × -0.25 = 0.0
+- **Hits**: 0 × 0.3 = 0.0
+- **Points Made**: 2 points × enhanced scoring × 0.3 = 0.99
 - **Pip Gain**: 7 × 0.2 = 1.4
-- **Home Board**: 6 × 0.1 = 0.6
+- **Home Board**: 2 × 0.1 = 0.2
 - **Prime Length**: 1 × 0.15 = 0.15
-- **Builder Coverage**: 0 × 0.04 × 0.10 = 0.0
+- **Builder Coverage**: 0 × 0.35 = 0.0
 - **Stack Penalty**: max(2) → 0 × -0.08 = 0.0
 - **Opponent Blot Count**: 0 × 0.08 = 0.0
-- **Weighted Blot Risk**: 0 × -0.25 = 0.0
-- **Hits**: 0 × 0.3 = 0.0
-- **TOTAL**: 2.15
+- **High Roll Bonus**: 0 × 0.06 = 0.0
+- **TOTAL**: ~3.09
+
+*Note: Points Made score assumes one regular point + one 3-point (3×0.3 + 0.25×0.3 = 0.99)*
 
 ## Key Characteristics
-- **Simple but effective**: Focuses on core backgammon principles
-- **Move-based evaluation**: Factors reflect immediate move impact
-- **Strategic balance**: Weights reflect relative importance
+- **Comprehensive evaluation**: 10 factors covering all major strategic aspects
+- **Quality-aware scoring**: Points Made includes strategic value bonuses
+- **Tactical integration**: High Roll Bonus for race situations
+- **Risk management**: Stack penalties prevent over-concentration
+- **Opponent awareness**: Blot counting encourages tactical opportunities
+- **Strategic balance**: Weights reflect relative importance (sum = 1.87)
 - **Normalized scale**: Scores are comparable across different positions
