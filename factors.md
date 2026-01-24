@@ -3,10 +3,10 @@
 ## Overview
 The backgammon engine uses a 6-factor heuristic evaluation system to score moves. Each factor has a specific weight and represents a different strategic aspect of the game.
 
-## Factor Weights (Sum ≈ 1.08)
+## Factor Weights (Sum ≈ 0.98)
 - **Weighted Blot Risk**: -0.25 (negative for safety)
 - **Hits**: 0.3 (positive for aggression)
-- **Points Made**: 0.4 (positive for development)
+- **Points Made**: 0.3 (positive for development)
 - **Pip Gain**: 0.2 (positive for efficiency)
 - **Home Board**: 0.1 (positive for home board strength)
 - **Prime Length**: 0.15 (positive for blocking)
@@ -45,16 +45,16 @@ The backgammon engine uses a 6-factor heuristic evaluation system to score moves
 ### 3. Points Made (0.4)
 **Purpose**: Rewards creating new made points (2+ checkers).
 
-**Calculation**: `analysis.pointsMade.newlyMade.length * 0.4`
+**Calculation**: `analysis.pointsMade.newlyMade.length * 0.3`
 
 **Data Source**: `identifyPointsMade(boardState, finalState, playerOwner)`.
 
 **Logic**:
 - Compares board state before vs after move
 - Counts points that change from <2 checkers to ≥2 checkers
-- Range: 0 to 1.6 (for multiple new points)
+- Range: 0 to 1.2 (for multiple new points)
 
-**Example**: Move creating 1 new made point = 0.4 score
+**Example**: Move creating 1 new made point = 0.3 score
 
 ### 4. Pip Gain (0.2)
 **Purpose**: Rewards efficiency in pip reduction (race progress).
@@ -149,7 +149,7 @@ totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoard
 ```
 
 ## Example: "13/6" Opening Move (6-1 dice)
-- **Points Made**: 0 × 0.4 = 0.0
+- **Points Made**: 0 × 0.3 = 0.0
 - **Pip Gain**: 7 × 0.2 = 1.4
 - **Home Board**: 6 × 0.1 = 0.6
 - **Prime Length**: 1 × 0.15 = 0.15

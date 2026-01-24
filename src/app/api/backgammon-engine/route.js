@@ -11,7 +11,7 @@ import { hasPlayerWon } from '../../other-fun-stuff/backgammon-resources/opening
 const HEURISTIC_WEIGHTS = {
   blots: -0.25,    // Negative for safety (matches actual calculation)
   hits: 0.3,       // Positive for aggression
-  pointsMade: 0.4, // Positive for development
+  pointsMade: 0.3, // Positive for development (reduced from 0.4)
   pipGain: 0.2,    // Positive for efficiency
   homeBoard: 0.1,  // Positive for home board strength
   primeLength: 0.15, // Positive for blocking
