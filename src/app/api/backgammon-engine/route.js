@@ -469,7 +469,7 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
  * Validate hybrid suggestion and return move combination
  */
 function validateAndReturnMove(hybridAnalysis, moves) {
-  const { bestMoveIndex, reasoning, confidence, factorScores, bestMove } = hybridAnalysis
+  const { bestMoveIndex, reasoning, confidence, factorScores, bestMove, hybridScore, heuristicScore, mcScore } = hybridAnalysis
 
   // Prefer using bestMove directly if available (most reliable)
   if (bestMove) {
@@ -516,6 +516,9 @@ function validateAndReturnMove(hybridAnalysis, moves) {
       reasoning: reasoning,
       confidence: confidence,
       factorScores: factorScores,
+      hybridScore: hybridScore,
+      heuristicScore: heuristicScore,
+      mcScore: mcScore,
       source: 'hybrid'
     }
   }
@@ -553,6 +556,9 @@ function validateAndReturnMove(hybridAnalysis, moves) {
       reasoning: reasoning,
       confidence: confidence,
       factorScores: factorScores,
+      hybridScore: hybridScore,
+      heuristicScore: heuristicScore,
+      mcScore: mcScore,
       source: 'hybrid'
     }
   }
@@ -563,6 +569,9 @@ function validateAndReturnMove(hybridAnalysis, moves) {
     reasoning: "Hybrid evaluation failed, using first move",
     confidence: 0.3,
     factorScores: null,
+    hybridScore: null,
+    heuristicScore: null,
+    mcScore: null,
     source: 'fallback'
   }
 }
