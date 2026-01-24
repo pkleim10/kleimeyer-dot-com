@@ -64,7 +64,7 @@ function formatSingleMove(move, player = null) {
  * @param {number|null} player - Player (1 for white, -1 for black, null for absolute)
  * @returns {string} Formatted move string like "5/off 4/off(3)" or "bar/22 8/4"
  */
-function formatMoveCombination(moveCombination, player = null) {
+function formatMoveCombination(moveCombination, player = null, options = {}) {
   if (!moveCombination || !moveCombination.moves || moveCombination.moves.length === 0) {
     return moveCombination?.description || 'No move'
   }
@@ -99,9 +99,53 @@ function formatMoveCombination(moveCombination, player = null) {
     return bFrom - aFrom
   })
   
-  // Don't collapse sequences - show each move individually for clarity
-  // This ensures that different move paths are clearly distinguishable
-  const formattedParts = convertedMoves.map(move => move.moveStr)
+  // Handle sequence collapsing based on options
+  let formattedParts
+  if (options.collapseSequences) {
+    // Collapse sequences where possible (e.g., 13/11 11/10 -> 13/10)
+    // This creates more readable, normalized move notation
+    const collapsedMoves = []
+    let currentChain = null
+
+    for (const move of convertedMoves) {
+      const parts = move.moveStr.split('/')
+      if (parts.length !== 2) {
+        // Not a standard move format, add as-is
+        if (currentChain) {
+          collapsedMoves.push(currentChain.from + '/' + currentChain.to + (currentChain.hitBlot ? '*' : ''))
+          currentChain = null
+        }
+        collapsedMoves.push(move.moveStr)
+        continue
+      }
+
+      const from = parts[0]
+      const to = parts[1].replace(/\*$/, '') // Remove hit asterisk for comparison
+
+      if (!currentChain) {
+        currentChain = { from: from, to: to, hitBlot: move.hitBlot }
+      } else if (currentChain.to === from) {
+        // This move continues the chain
+        currentChain.to = to
+        if (move.hitBlot) currentChain.hitBlot = true
+      } else {
+        // Chain breaks, add current chain and start new one
+        collapsedMoves.push(currentChain.from + '/' + currentChain.to + (currentChain.hitBlot ? '*' : ''))
+        currentChain = { from: from, to: to, hitBlot: move.hitBlot }
+      }
+    }
+
+    // Add final chain if exists
+    if (currentChain) {
+      collapsedMoves.push(currentChain.from + '/' + currentChain.to + (currentChain.hitBlot ? '*' : ''))
+    }
+
+    formattedParts = collapsedMoves
+  } else {
+    // Don't collapse sequences - show each move individually for clarity
+    // This ensures that different move paths are clearly distinguishable
+    formattedParts = convertedMoves.map(move => move.moveStr)
+  }
   
   // Group identical moves
   const moveGroups = new Map()
@@ -165,14 +209,14 @@ function sortMoves(a, b) {
  * @param {number|null} player - Player (1 for white, -1 for black, null for absolute)
  * @returns {string} Formatted move string
  */
-function formatMove(move, player = null) {
+function formatMove(move, player = null, options = {}) {
   if (!move) return 'No move'
-  
+
   // If it's a combination (has moves array), format as combination
   if (move.moves && Array.isArray(move.moves)) {
-    return formatMoveCombination(move, player)
+    return formatMoveCombination(move, player, options)
   }
-  
+
   // Otherwise, format as single move
   return formatSingleMove(move, player)
 }
