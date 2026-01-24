@@ -513,12 +513,9 @@ export default function PlayPage() {
   // Format move for display in suggestion toolbar - use centralized formatter
   const formatMoveForToolbar = (move) => {
     if (!move) return ''
-    
-    const boardState = parseXGID(boardXGID)
-    const currentPlayer = boardState?.player !== undefined ? boardState.player : 1
-    
-    // Use centralized formatter
-    return formatMove(move, currentPlayer)
+
+    // Use normalized form with collapsed sequences for display
+    return formatMove(move, null, { collapseSequences: true })
   }
 
   // Show suggested move with ghost checkers and arrows
@@ -1986,7 +1983,18 @@ export default function PlayPage() {
                               return (
                                 <tr key={idx} className={`border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                                   <td className="py-2 px-2 text-gray-900 dark:text-white font-mono">
-                                    {factorScore.normalizedMoveDescription || factorScore.moveDescription}
+                                    {(() => {
+                                      const normalized = factorScore.normalizedMoveDescription
+                                      const raw = factorScore.rawMoveDescription
+
+                                      // If normalized and raw are different, show: COLLAPSED (RAW)
+                                      // If they're the same, show: RAW
+                                      if (normalized && raw && normalized !== raw) {
+                                        return `${normalized} (${raw})`
+                                      } else {
+                                        return raw || normalized || factorScore.moveDescription
+                                      }
+                                    })()}
                                     {idx === 0 && <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-semibold">★</span>}
                                   </td>
                                   <td className="py-2 px-2 text-right text-blue-600 dark:text-blue-400 font-semibold">
