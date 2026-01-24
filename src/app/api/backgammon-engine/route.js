@@ -497,6 +497,7 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
       bestMoveIndex: bestMoveIndex >= 0 ? bestMoveIndex : 0, // Use found index or fallback to 0
       reasoning,
       confidence: 0.9, // High confidence for deterministic evaluation
+      evaluations, // Include all evaluations with HE, MC, and hybrid scores
       hybridScore: evaluations[0].hybridScore.toFixed(3),
       heuristicScore: evaluations[0].heuristicScore.toFixed(3),
       mcScore: evaluations[0].mcScore.toFixed(3),
@@ -868,25 +869,7 @@ export async function POST(request) {
         }
       })
 
-      // Collect debug information
-      const debugInfo = debug ? {
-        xgid,
-        legalMoves: allLegalMoves.map(move => ({
-          description: formatMove(move),
-          moves: move.moves, // Include moves array for relative coordinate conversion
-          totalPips: move.totalPips || 0
-        })),
-        deduplicatedMoves: deduplicatedMoves.map(move => ({
-          description: formatMove(move),
-          moves: move.moves,
-          totalPips: move.totalPips || 0
-        })),
-        allMoves: allHeuristicEvaluations.map(heuristicEval => ({
-          description: heuristicEval.move.description,
-          heuristicScore: heuristicEval.heuristicScore,
-          breakdown: heuristicEval.breakdown
-        }))
-      } : null
+      // Debug info will be created after hybrid analysis
       
       // Sort by heuristic score descending for display
       allHeuristicEvaluations.sort((a, b) => {
@@ -966,10 +949,32 @@ export async function POST(request) {
       // #endregion
       
       const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, numSimulations, heuristicWeight, mcWeight)
-      
+
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'After analyzeMovesWithHybridEngine',data:{hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
+
+      // Collect debug information (after hybrid analysis for complete scores)
+      const debugInfo = debug ? {
+        xgid,
+        legalMoves: allLegalMoves.map(move => ({
+          description: formatMove(move),
+          moves: move.moves, // Include moves array for relative coordinate conversion
+          totalPips: move.totalPips || 0
+        })),
+        deduplicatedMoves: deduplicatedMoves.map(move => ({
+          description: formatMove(move),
+          moves: move.moves,
+          totalPips: move.totalPips || 0
+        })),
+        allMoves: hybridAnalysis.evaluations?.map(evaluation => ({
+          description: evaluation.move.description,
+          heuristicScore: evaluation.heuristicScore,
+          mcScore: evaluation.mcScore,
+          hybridScore: evaluation.hybridScore,
+          breakdown: evaluation.heuristicBreakdown
+        })) || []
+      } : null
 
       // Validate and return best hybrid suggestion
       const result = validateAndReturnMove(hybridAnalysis, topMoves)

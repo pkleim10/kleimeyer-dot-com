@@ -37,22 +37,39 @@ async function testOpeningMove65() {
     const result = await response.json();
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`\n=== RESULTS (took ${elapsed}s) ===`);
-    console.log('Move:', result.move?.description || 'N/A');
-    console.log('Confidence:', result.confidence || 'N/A');
 
-    // Show debug info if available
-    if (result.debug) {
-      console.log(`\n=== DETAILED ANALYSIS ===`);
+    // Show all analyzed moves with their scores
+    if (result.debug && result.debug.allMoves) {
+      console.log(`\n=== ALL ANALYZED MOVES (took ${elapsed}s) ===`);
       console.log(`Total legal moves generated: ${result.debug.allMoves?.length || 'N/A'}`);
       console.log(`Moves after deduplication: ${result.debug.deduplicatedMoves?.length || 'N/A'}`);
+      console.log(`Moves analyzed with MC: ${result.debug.allMoves.length}`);
+      console.log('');
 
-      if (result.debug.allMoves) {
-        console.log(`\nTop heuristic moves:`);
-        result.debug.allMoves.forEach((move, idx) => {
-          console.log(`  ${idx + 1}. ${move.description} (HE: ${move.heuristicScore?.toFixed(3)})`);
-        });
-      }
+      // Table header
+      console.log('Rank | Move          | HE Score | MC Score | Hybrid Score');
+      console.log('-----|---------------|----------|----------|-------------');
+
+      result.debug.allMoves.forEach((move, idx) => {
+        const rank = (idx + 1).toString().padStart(4);
+        const moveDesc = move.description.padEnd(15);
+        const heScore = move.heuristicScore?.toFixed(3).padStart(8) || 'N/A    ';
+        const mcScore = move.mcScore?.toFixed(3).padStart(8) || 'N/A    ';
+        const hybridScore = move.hybridScore?.toFixed(3).padStart(11) || 'N/A       ';
+        const selected = move.description === result.move?.description ? ' ← SELECTED' : '';
+
+        console.log(`${rank} | ${moveDesc}| ${heScore} | ${mcScore} | ${hybridScore}${selected}`);
+      });
+
+      console.log('');
+      console.log('=== FINAL SELECTION ===');
+      console.log(`Selected: ${result.move?.description || 'N/A'}`);
+      console.log(`Confidence: ${result.confidence || 'N/A'}`);
+    } else {
+      console.log(`\n=== RESULTS (took ${elapsed}s) ===`);
+      console.log('Move:', result.move?.description || 'N/A');
+      console.log('Confidence:', result.confidence || 'N/A');
+      console.log('(Debug info not available)');
     }
 
     if (result.performance) {
