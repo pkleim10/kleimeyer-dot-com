@@ -173,36 +173,6 @@ The backgammon engine uses a 10-factor heuristic evaluation system to score move
 - 8 pip gain: (8-5) × 0.02 = 0.06 → 0.06 × 0.06 = **+0.0036** score
 - Deep run (24→16, 8 pips): 0.06 + 0.03 = 0.09 → 0.09 × 0.06 = **+0.0054** score
 
-### 8. Stack Penalty (-0.08)
-**Purpose**: Penalizes excessive stacking of checkers on single points.
-
-**Calculation**: `getMaxStackSize(finalState, playerOwner) > 3 ? -(maxStack - 3) * 0.04 * -0.08 : 0`
-
-**Data Source**: `getMaxStackSize(analysis.finalState, playerOwner)`.
-
-**Logic**:
-- Finds the maximum number of checkers on any single point owned by player
-- Penalty starts at 4+ checkers per point (-0.04 per additional checker beyond 3)
-- Weighted by -0.08 to discourage over-concentration of pieces
-- Range: 0 to -0.16 (8+ checkers on one point)
-
-**Example**: 5 checkers on one point = -0.0032 score
-
-### 9. Opponent Blot Count (0.08)
-**Purpose**: Rewards opponent checkers positioned as blots (single checkers on points).
-
-**Calculation**: `countOpponentBlots(finalState, playerOwner) * 0.08`
-
-**Data Source**: `countOpponentBlots(analysis.finalState, playerOwner)`.
-
-**Logic**:
-- Counts opponent checkers that are alone on their points (vulnerable to hits)
-- Each opponent blot provides 0.08 bonus as a hitting opportunity
-- Encourages aggressive play when opponent has vulnerabilities
-- Range: 0 to ~0.64 (8+ opponent blots)
-
-**Example**: 3 opponent blots = 0.24 score
-
 ## Total Score Calculation
 ```javascript
 totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore +
