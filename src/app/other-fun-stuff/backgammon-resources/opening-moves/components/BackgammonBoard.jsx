@@ -4802,11 +4802,11 @@ export default function BackgammonBoard({
                     min="1"
                     max="100"
                     value={dialogSettings.maxMoves}
-                    onChange={(e) => handleSettingsChange('maxMoves', parseInt(e.target.value) || 20)}
+                    onChange={(e) => handleSettingsChange('maxMoves', parseInt(e.target.value) || 40)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Maximum moves in each Monte Carlo simulation (default: 20)
+                    Maximum moves in each Monte Carlo simulation (default: 40)
                   </p>
                 </div>
 

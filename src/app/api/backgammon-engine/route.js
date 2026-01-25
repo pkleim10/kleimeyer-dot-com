@@ -287,7 +287,7 @@ function getRandomLegalMove(boardState, turnState) {
 /**
  * Run Monte Carlo simulations for move evaluation
  */
-function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20) {
+function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20, maxMoves = 40) {
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
   let totalSims = 0 // Counter for actual simulations run
@@ -304,7 +304,7 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
     // Simulate random playout until game end or max moves
     let currentPlayer = opponentOwner
     let movesMade = 0
-    const maxMoves = 20 // Increased to 20 for deeper, more accurate simulations
+    // maxMoves is now a parameter (default 40)
 
     while (!isGameOver(currentBoard) && movesMade < maxMoves) {
       const randomDice = getRandomDice()
@@ -365,10 +365,10 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
 /**
  * Hybrid evaluation combining heuristic and MC with configurable weights
  */
-function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65) {
+function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40) {
   const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
   const heuristicScore = heuristicResult.score
-  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
+  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations, maxMoves)
 
   // Normalize HE score to 0-1 range to match MC score range
   // HE typically ranges from ~0.5 (bad) to ~2.5 (good)
@@ -391,8 +391,8 @@ function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, 
 /**
  * Analyze moves using hybrid engine
  */
-function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65) {
-  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight))
+function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40) {
+  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight, maxMoves))
 
   // Log all heuristic scores with detailed breakdowns
   console.log('[HeuristicEngine] All move scores:')
@@ -792,7 +792,7 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.35, mcWeight = 0.65 } = await request.json()
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40 } = await request.json()
 
       // Validate input
       if (!xgid) {
@@ -970,7 +970,7 @@ export async function POST(request) {
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'Before analyzeMovesWithHybridEngine',data:{playerOwner,topMovesLength:topMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
-      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, numSimulations, heuristicWeight, mcWeight)
+      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, numSimulations, heuristicWeight, mcWeight, maxMoves)
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'After analyzeMovesWithHybridEngine',data:{hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
@@ -1019,7 +1019,7 @@ export async function POST(request) {
         totalElapsedMs: Date.now() - startTime,
         parameters: {
           maxTopMoves: maxTopMoves,
-          maxMoves: 20, // MC simulation depth (each sim runs max 20 moves)
+          maxMoves: maxMoves, // MC simulation depth (each sim runs max N moves)
           numSimulations: numSimulations // Monte Carlo simulations per move
         }
       }

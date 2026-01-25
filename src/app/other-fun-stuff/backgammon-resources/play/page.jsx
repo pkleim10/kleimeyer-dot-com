@@ -61,9 +61,9 @@ export default function PlayPage() {
   // Simulation parameters (configurable by user)
   const [maxMoves, setMaxMoves] = useState(() => {
     if (typeof window !== 'undefined') {
-      return parseInt(localStorage.getItem('backgammonMaxMoves')) || 20
+      return parseInt(localStorage.getItem('backgammonMaxMoves')) || 40
     }
-    return 20
+    return 40
   })
   const [maxTopMoves, setMaxTopMoves] = useState(() => {
     if (typeof window !== 'undefined') {
