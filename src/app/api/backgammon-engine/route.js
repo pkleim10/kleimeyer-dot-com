@@ -370,8 +370,14 @@ function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, 
   const heuristicScore = heuristicResult.score
   const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
 
-  // Combine scores (weighted average)
-  const hybridScore = heuristicWeight * heuristicScore + mcWeight * mcScore
+  // Normalize HE score to 0-1 range to match MC score range
+  // HE typically ranges from ~0.5 (bad) to ~2.5 (good)
+  const HE_MIN = 0.5
+  const HE_MAX = 2.5
+  const normalizedHE = Math.max(0, Math.min(1, (heuristicScore - HE_MIN) / (HE_MAX - HE_MIN)))
+
+  // Combine normalized scores (weighted average)
+  const hybridScore = (normalizedHE * heuristicWeight) + (mcScore * mcWeight)
 
   return {
     move,
