@@ -2042,9 +2042,19 @@ export default function PlayPage() {
                               const mcScore = scoresMatch ? parseFloat(scoresMatch[2]) : null
                               const hybridScore = scoresMatch ? parseFloat(scoresMatch[3]) : null
 
+                              // Highlight moves that made the MC cutoff
+                              const rowClass = factorScore.madeMCCutoff
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+                                : 'border-gray-100 dark:border-gray-700'
+
+                              // Make winning move bold
+                              const textClass = factorScore.isWinner
+                                ? 'font-bold text-gray-900 dark:text-white'
+                                : 'text-gray-900 dark:text-white'
+
                               return (
-                                <tr key={idx} className={`border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-                                  <td className="py-2 px-2 text-gray-900 dark:text-white font-mono">
+                                <tr key={idx} className={`border-b ${rowClass}`}>
+                                  <td className={`py-2 px-2 font-mono ${textClass}`}>
                                     {(() => {
                                       const normalized = factorScore.normalizedMoveDescription
                                       const raw = factorScore.rawMoveDescription
@@ -2057,15 +2067,15 @@ export default function PlayPage() {
                                         return raw || normalized || factorScore.moveDescription
                                       }
                                     })()}
-                                    {idx === 0 && <span className="ml-2 text-xs text-blue-600 dark:text-blue-400 font-semibold">★</span>}
+                                    {factorScore.isWinner && <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-bold">✓</span>}
                                   </td>
-                                  <td className="py-2 px-2 text-right text-blue-600 dark:text-blue-400 font-semibold">
+                                  <td className={`py-2 px-2 text-right text-blue-600 dark:text-blue-400 font-semibold ${factorScore.isWinner ? 'font-bold' : ''}`}>
                                     {heScore !== null ? heScore.toFixed(3) : 'N/A'}
                                   </td>
-                                  <td className="py-2 px-2 text-right text-green-600 dark:text-green-400 font-semibold">
+                                  <td className={`py-2 px-2 text-right text-green-600 dark:text-green-400 font-semibold ${factorScore.isWinner ? 'font-bold' : ''}`}>
                                     {mcScore !== null ? mcScore.toFixed(3) : 'N/A'}
                                   </td>
-                                  <td className="py-2 px-2 text-right text-purple-600 dark:text-purple-400 font-semibold">
+                                  <td className={`py-2 px-2 text-right text-purple-600 dark:text-purple-400 font-semibold ${factorScore.isWinner ? 'font-bold' : ''}`}>
                                     {hybridScore !== null ? hybridScore.toFixed(3) : 'N/A'}
                                   </td>
                                 </tr>

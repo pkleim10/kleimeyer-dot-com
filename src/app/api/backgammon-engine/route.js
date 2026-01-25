@@ -504,14 +504,23 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
       hybridScore: evaluations[0].hybridScore.toFixed(3),
       heuristicScore: evaluations[0].heuristicScore.toFixed(3),
       mcScore: evaluations[0].mcScore.toFixed(3),
-      factorScores: evaluations.map((evaluation, idx) => ({
-        moveNumber: idx + 1,
-        moveDescription: formatMove(evaluation.move, currentPlayer), // Raw form for code use
-        normalizedMoveDescription: formatMove(evaluation.move, currentPlayer, { collapseSequences: true }), // Collapsed form for display
-        rawMoveDescription: formatMove(evaluation.move, currentPlayer), // Raw absolute coordinates for display
-        scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`,
-        breakdown: evaluation.heuristicBreakdown // Include detailed breakdown
-      })),
+      factorScores: evaluations.map((evaluation, idx) => {
+        // Check if this move was in the top MC performers
+        const madeMCCutoff = topMCPerformers.some(tmcp => tmcp.move.description === evaluation.move.description)
+        // Check if this is the winning move
+        const isWinner = bestEvaluation.move.description === evaluation.move.description
+
+        return {
+          moveNumber: idx + 1,
+          moveDescription: formatMove(evaluation.move, currentPlayer), // Raw form for code use
+          normalizedMoveDescription: formatMove(evaluation.move, currentPlayer, { collapseSequences: true }), // Collapsed form for display
+          rawMoveDescription: formatMove(evaluation.move, currentPlayer), // Raw absolute coordinates for display
+          scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`,
+          madeMCCutoff, // Whether this move made the MC cutoff
+          isWinner, // Whether this is the winning move
+          breakdown: evaluation.heuristicBreakdown // Include detailed breakdown
+        }
+      }),
       bestMove: bestMove // Keep reference to actual best move
     }
 }
