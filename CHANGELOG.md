@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.0] - 2026-01-25
+
+### Added
+- Implement selective winner selection from top 4 MC performers: Changed move selection logic: first identify top 4 MC performers
+- Add highRollBonus weight to HEURISTIC_WEIGHTS constant: Moved hardcoded 0.06 weight to HEURISTIC_WEIGHTS.highRollBonus
+- Add High Roll Bonus factor to heuristic evaluation: New factor with 0.06 weight for high pip gain (≥6) and deep runs
+- Implement dual move display system for play page: Raw moves in code: Always use full sequences like '13/11 11/10'
+- Implement sequence collapsing for normalized move display: Add collapseSequences option to formatMoveCombination and formatMove functions
+- Add simulation results toggle to play backgammon page: Add toggle button (OFF by default) to show/hide simulation results
+- Add deduplication of moves leading to identical final positions: Prevents wasteful Monte Carlo simulations on equivalent moves
+- Enhance backgammon engine with bar entry fix and configurable scoring: Fix bar entry bug: checkers on bar now properly prioritized over board moves
+- Add collapsed move path functionality and update text: Add findCollapsedMovePath function to validate multi-step moves
+- Add help overlay helpers 7-9 and improve styling: Add helper 7 for info bar (right side, horizontal arrow)
+- Add clickable info bar to cycle players in EDIT mode and improve dice area interaction: Info bar cycles through WHITE > BLACK > OPEN players in EDIT mode
+- Combine button bars and add Reset functionality: Merge two button bars into one wider bar with all buttons
+- Implement opening roll feature for backgammon: Add support for xg4=0 (OPEN state) in XGID parser and validation
+- Add end-of-game detection and win message overlay: Add hasPlayerWon utility function to check if all 15 checkers are borne off
+- HAM heuristic and MC engine improvements: Rename backgammon-ai to backgammon-engine throughout codebase
+- Implement hybrid heuristic + MC engine for backgammon AI: Remove LLM dependency and xAI API calls
+
+### Changed
+- Change HE/MC weighting from 60/40 to 35/65: Heuristic weight: 0.6 → 0.35 (35%)
+- Enhance Points Made factor with quality-based scoring: Each newly made point gets base score of 1.0
+- Update HEURISTIC_WEIGHTS for clarity and adjust Builder Coverage: Change blots weight from -0.5 to -0.25 to match actual calculation
+- Optimize hybrid simulation process: deduplicate before HE calculation: Reorder process: Generate → Deduplicate → HE scores → MC selection
+- Update arrow endpoints and remove close button from help overlay: Update helpers 1-4 to point to button edges instead of centers
+- Update arrow endpoints for helpers 7, 8, and 9: Helper 7 (info bar): arrow points to right edge instead of center
+- Improve move display and ghost checker normalization: Add Show/Clear button toggle: Clear button changes to Show when clicked, allowing users to restore ghost checkers
+
+### Fixed
+- Correct jspdf version string - remove invalid backtick
+- Fix debug info timing issue - move debugInfo creation after hybrid analysis: debugInfo was trying to access hybridAnalysis before it was declared
+- Fix heuristic evaluation sorting issue: Root cause: Intermittent race condition in Array.sort()
+- Regenerate factors.md with complete 10-factor system documentation: Updated to reflect all 10 current heuristic factors
+- Increase golden points bonus to 1.0 in Points Made factor: Points 4 and 5 now get +1.0 bonus (maximum value)
+- Increase golden points bonus from 0.5 to 0.8 in Points Made factor: Points 4 and 5 now get +0.8 bonus instead of +0.5
+- Display moves in normalized absolute coordinates in simulation results table: Add normalizedMoveDescription field to API factorScores (absolute coords)
+- Replace HE scores list with formatted table showing HE, MC, and Hybrid scores per move: Display top 10 moves in tabular format with Move | HE | MC | Hybrid columns
+- Increase numSimulations from 20 to 1000 for more accurate MC evaluation: Each move analysis now runs 1000 Monte Carlo simulations (50x more than before)
+- Fix MC/Hybrid score display - include score fields in API response: Add mcScore, hybridScore, heuristicScore to validateAndReturnMove function
+- Debug MC/Hybrid score display issues: Add console logging to see what API returns
+- Redesign Builder Coverage factor with strategic differentiation: Points 9-11: +1.0 for single checker, +0.5 for stacks
+- Reduce Points Made weight from 0.4 to 0.3: Decrease emphasis on creating new made points
+- Fix heuristic normalization bug: ensure position-based evaluation: Reorder buildVerifiedMoveAnalysis to calculate hits during move sequence
+- Restore collapsed move functionality and fix dice click regression: Add findCollapsedMovePath function to gameLogic.js (was missing from previous commit)
+- Fix drag and drop jitter near trays by separating checker positioning from drop zone detection
+- Fix dice highlighting for doubles rolls with progressive greying pattern
+- Fix bearing off logic and coordinate conversion issues: Fix bearing off validation: only allow exact match (point N with die N)
+- PLAY: Start | Suggest Move | Move Notation | Apply | Clear | Reset]
+- Fix bear-off move application and coordinate conversion: Fix bear-off coordinate conversion: convert to === 0 or 25 to -1 or -2 for updateXGIDForMove
+- Fix manual move dice tracking by preventing component remount on every move: Changed BackgammonBoard key prop to only depend on showGhosts instead of boardXGID
+- Fix flicker when clicking Show button for ghost moves: Add key prop to BackgammonBoard that changes when switching between ghost/normal modes
+- Fix ghost checker display for suggested moves: Fix ghost checkers showing correctly for collapsed sequences (e.g., 13/8 from 13/10 10/8)
+
+### Removed
+- Remove duplicate factor sections 8 and 9 from factors.md: Eliminated duplicate Stack Penalty and Opponent Blot Count sections
+- Remove redundant MC Score and Hybrid Score boxes below the move scores table: The table now shows all HE, MC, and Hybrid scores for all moves
+
 ## [1.34.0] - 2026-01-19
 
 ### Changed
