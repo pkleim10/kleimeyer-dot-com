@@ -9,16 +9,16 @@ import { hasPlayerWon } from '../../other-fun-stuff/backgammon-resources/opening
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
-  blots: -0.21,    // Negative for safety (matches actual calculation)
-  hits: 0.25,       // Positive for aggression
-  pointsMade: 0.25, // Positive for development (reduced from 0.4)
-  pipGain: 0.17,    // Positive for efficiency
-  homeBoard: 0.08,  // Positive for home board strength
+  blots: -0.22,    // Negative for safety (matches actual calculation)
+  hits: 0.24,       // Positive for aggression
+  pointsMade: 0.22, // Positive for development (reduced from 0.4)
+  pipGain: 0.20,    // Positive for efficiency
+  homeBoard: 0.07,  // Positive for home board strength
   primeLength: 0.12, // Positive for blocking
-  builderCoverage: 0.29, // Positive for outer board coverage (increased)
-  stackPenalty: -0.07, // Negative penalty for excessive stacking
-  opponentBlotCount: 0.07, // Positive for opponent vulnerabilities
-  highRollBonus: 0.05 // Positive for high pip gain and deep runs
+  builderCoverage: 0.25, // Positive for outer board coverage (increased)
+  stackPenalty: -0.08, // Negative penalty for excessive stacking
+  opponentBlotCount: 0.08, // Positive for opponent vulnerabilities
+  highRollBonus: 0.07 // Positive for high pip gain and deep runs
 }
 
 /**
@@ -404,18 +404,21 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
     console.log(`     MC: ${evaluation.mcScore.toFixed(3)}, Hybrid: ${evaluation.hybridScore.toFixed(3)}`)
   })
 
-  // NEW LOGIC: Select winner from top 4 MC performers based on highest hybrid score
-  // Step 1: Sort by MC score to find top 4 tactical performers
+  // NEW LOGIC: Select winner from top MC performers based on highest hybrid score
+  // Step 1: Sort by MC score to find top tactical performers
   const mcSorted = [...evaluations].sort((a, b) => b.mcScore - a.mcScore)
-  const top4MC = mcSorted.slice(0, 4)
 
-  console.log(`[HybridSelection] Top 4 MC performers:`)
-  top4MC.forEach((evaluation, idx) => {
+  // Include all moves tied for top 4 MC positions (handle ties properly)
+  const minTopMCScore = mcSorted.length >= 4 ? mcSorted[3].mcScore : mcSorted[mcSorted.length - 1].mcScore
+  const topMCPerformers = mcSorted.filter(move => move.mcScore >= minTopMCScore)
+
+  console.log(`[HybridSelection] Top MC performers (including ties for 4th place):`)
+  topMCPerformers.forEach((evaluation, idx) => {
     console.log(`  ${idx + 1}. ${evaluation.move.description}: MC=${evaluation.mcScore.toFixed(3)}, Hybrid=${evaluation.hybridScore.toFixed(3)}`)
   })
 
-  // Step 2: From top 4 MC moves, pick the one with highest hybrid score
-  const bestEvaluation = top4MC.reduce((best, current) =>
+  // Step 2: From top MC performers (including ties), pick the one with highest hybrid score
+  const bestEvaluation = topMCPerformers.reduce((best, current) =>
     current.hybridScore > best.hybridScore ? current : best
   )
 
