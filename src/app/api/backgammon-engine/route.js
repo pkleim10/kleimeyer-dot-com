@@ -504,8 +504,8 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
       factorScores: evaluations.map((evaluation, idx) => ({
         moveNumber: idx + 1,
         moveDescription: formatMove(evaluation.move, currentPlayer), // Raw form for code use
-        normalizedMoveDescription: formatMove(evaluation.move, null, { collapseSequences: true }), // Collapsed form for display
-        rawMoveDescription: formatMove(evaluation.move, null), // Raw absolute coordinates for display
+        normalizedMoveDescription: formatMove(evaluation.move, currentPlayer, { collapseSequences: true }), // Collapsed form for display
+        rawMoveDescription: formatMove(evaluation.move, currentPlayer), // Raw absolute coordinates for display
         scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`,
         breakdown: evaluation.heuristicBreakdown // Include detailed breakdown
       })),

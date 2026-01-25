@@ -37,7 +37,14 @@ export default function BackgammonBoard({
   onAiAnalysis = null, // Callback to trigger engine analysis: () => Promise<void>
   onClearAiAnalysis = null, // Callback to clear engine analysis: () => void
   onUsedDiceChange = null, // Callback when used dice changes: (usedDice: number[]) => void
-  applyMoveTrigger = null // When this changes, apply the move from aiAnalysis (for external Apply button)
+  applyMoveTrigger = null, // When this changes, apply the move from aiAnalysis (for external Apply button)
+  maxMoves = 20, // Maximum moves per Monte Carlo simulation
+  maxTopMoves = 6, // Maximum top moves to analyze with MC
+  numSimulations = 1000, // Number of Monte Carlo simulations per move
+  onMaxMovesChange = null, // Callback when maxMoves changes: (value: number) => void
+  onMaxTopMovesChange = null, // Callback when maxTopMoves changes: (value: number) => void
+  onNumSimulationsChange = null, // Callback when numSimulations changes: (value: number) => void
+  openOptionsTrigger = null // When this changes, open the options dialog: (number) => void
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
   // player: -1 = BLACK (show BLACK's point numbers), 1 = WHITE (show WHITE's point numbers)
@@ -220,6 +227,13 @@ export default function BackgammonBoard({
       localStorage.setItem('backgammonBoardDialogPosition', JSON.stringify(dialogPosition))
     }
   }, [dialogPosition])
+
+  // Open options dialog when openOptionsTrigger changes
+  useEffect(() => {
+    if (openOptionsTrigger && openOptionsTrigger > 0) {
+      setShowOptionsDialog(true)
+    }
+  }, [openOptionsTrigger])
 
   // AI suggestion window position and drag state
   const [aiWindowPosition, setAiWindowPosition] = useState(() => {
@@ -4401,7 +4415,10 @@ export default function BackgammonBoard({
     useCube: finalEffectiveUseCube,
     dice: finalEffectiveDice,
     showTrays: activeShowTrays,
-    showBoardLabels: activeShowBoardLabels
+    showBoardLabels: activeShowBoardLabels,
+    maxMoves: maxMoves,
+    maxTopMoves: maxTopMoves,
+    numSimulations: numSimulations
   }
   
   const handleSettingsChange = (key, value) => {
@@ -4480,7 +4497,18 @@ export default function BackgammonBoard({
     if (localSettings && onPlayerChange && localSettings.player !== undefined) {
       onPlayerChange(localSettings.player)
     }
-    
+
+    // Notify parent of simulation parameter changes
+    if (localSettings && onMaxMovesChange && localSettings.maxMoves !== undefined) {
+      onMaxMovesChange(localSettings.maxMoves)
+    }
+    if (localSettings && onMaxTopMovesChange && localSettings.maxTopMoves !== undefined) {
+      onMaxTopMovesChange(localSettings.maxTopMoves)
+    }
+    if (localSettings && onNumSimulationsChange && localSettings.numSimulations !== undefined) {
+      onNumSimulationsChange(localSettings.numSimulations)
+    }
+
     // Settings are now applied via localSettings override
     setShowOptionsDialog(false)
   }
@@ -4755,6 +4783,71 @@ export default function BackgammonBoard({
                 <label htmlFor="showBoardLabels" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   Show Board Labels
                 </label>
+              </div>
+
+              {/* Simulation Parameters Section */}
+              <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Simulation Parameters
+                </h3>
+
+                {/* Max Moves per Simulation */}
+                <div className="mb-4">
+                  <label htmlFor="maxMoves" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Max Moves per Simulation
+                  </label>
+                  <input
+                    type="number"
+                    id="maxMoves"
+                    min="1"
+                    max="100"
+                    value={dialogSettings.maxMoves}
+                    onChange={(e) => handleSettingsChange('maxMoves', parseInt(e.target.value) || 20)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Maximum moves in each Monte Carlo simulation (default: 20)
+                  </p>
+                </div>
+
+                {/* Max Top Moves */}
+                <div className="mb-4">
+                  <label htmlFor="maxTopMoves" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Max Top Moves to Analyze
+                  </label>
+                  <input
+                    type="number"
+                    id="maxTopMoves"
+                    min="1"
+                    max="20"
+                    value={dialogSettings.maxTopMoves}
+                    onChange={(e) => handleSettingsChange('maxTopMoves', parseInt(e.target.value) || 6)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Number of top heuristic moves to analyze with Monte Carlo (default: 6)
+                  </p>
+                </div>
+
+                {/* Number of Simulations */}
+                <div className="mb-4">
+                  <label htmlFor="numSimulations" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Simulations per Move
+                  </label>
+                  <input
+                    type="number"
+                    id="numSimulations"
+                    min="10"
+                    max="10000"
+                    step="100"
+                    value={dialogSettings.numSimulations}
+                    onChange={(e) => handleSettingsChange('numSimulations', parseInt(e.target.value) || 1000)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Number of Monte Carlo simulations per analyzed move (default: 1000)
+                  </p>
+                </div>
               </div>
 
             </div>

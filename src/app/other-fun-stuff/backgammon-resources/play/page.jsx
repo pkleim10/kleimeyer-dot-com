@@ -44,6 +44,8 @@ export default function PlayPage() {
   const [savedGhostData, setSavedGhostData] = useState(null)
   // Trigger for applying move through BackgammonBoard's applyAIMove function
   const [applyMoveTrigger, setApplyMoveTrigger] = useState(0)
+  // Trigger for opening options dialog in BackgammonBoard
+  const [openOptionsTrigger, setOpenOptionsTrigger] = useState(0)
 
   // Engine analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -55,7 +57,26 @@ export default function PlayPage() {
     }
     return 'intermediate'
   })
-  const [showSimulationResults, setShowSimulationResults] = useState(false) // Toggle for simulation results
+
+  // Simulation parameters (configurable by user)
+  const [maxMoves, setMaxMoves] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('backgammonMaxMoves')) || 20
+    }
+    return 20
+  })
+  const [maxTopMoves, setMaxTopMoves] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('backgammonMaxTopMoves')) || 6
+    }
+    return 6
+  })
+  const [numSimulations, setNumSimulations] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('backgammonNumSimulations')) || 1000
+    }
+    return 1000
+  })
 
   // Get engine move analysis
   const handleEngineAnalysis = async () => {
@@ -79,7 +100,9 @@ export default function PlayPage() {
           xgid: boardXGID,
           player: actualPlayer, // Use actual player from XGID, not state variable
           difficulty: engineDifficulty,
-          maxMoves: 5,
+          maxTopMoves: maxTopMoves,
+          maxMoves: maxMoves,
+          numSimulations: numSimulations,
           debug: true, // Request debug information
           usedDice: usedDice // Pass used dice so API knows which dice are still available
         })
@@ -514,8 +537,8 @@ export default function PlayPage() {
   const formatMoveForToolbar = (move) => {
     if (!move) return ''
 
-    // Use normalized form with collapsed sequences for display
-    return formatMove(move, null, { collapseSequences: true })
+    // Use normalized form with collapsed sequences for display, from player's perspective
+    return formatMove(move, currentPlayer, { collapseSequences: true })
   }
 
   // Show suggested move with ghost checkers and arrows
@@ -682,6 +705,25 @@ export default function PlayPage() {
       localStorage.setItem('backgammonEngineDifficulty', engineDifficulty)
     }
   }, [engineDifficulty])
+
+  // Save simulation parameters to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonMaxMoves', maxMoves.toString())
+    }
+  }, [maxMoves])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonMaxTopMoves', maxTopMoves.toString())
+    }
+  }, [maxTopMoves])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonNumSimulations', numSimulations.toString())
+    }
+  }, [numSimulations])
 
   // Validate XGID string components
   const validateXGID = (xgid) => {
@@ -1783,19 +1825,15 @@ export default function PlayPage() {
                       </button>
                     </>
                   )}
-                  
-                  {/* Show Simulation Results Toggle */}
+
+                  {/* Simulation Parameters */}
                   {engineAnalysis && engineAnalysis.move && (
                     <>
                       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                       <button
-                        onClick={() => setShowSimulationResults(!showSimulationResults)}
-                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          showSimulationResults
-                            ? 'bg-blue-500 text-white shadow-sm'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
-                        }`}
-                        title="Show simulation results"
+                        onClick={() => setOpenOptionsTrigger(prev => prev + 1)}
+                        className="px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        title="Simulation parameters"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1890,6 +1928,13 @@ export default function PlayPage() {
                     onClearAiAnalysis={handleClearEngineAnalysis}
                     onUsedDiceChange={setUsedDice}
                     applyMoveTrigger={applyMoveTrigger}
+                    openOptionsTrigger={openOptionsTrigger}
+                    maxMoves={maxMoves}
+                    maxTopMoves={maxTopMoves}
+                    numSimulations={numSimulations}
+                    onMaxMovesChange={setMaxMoves}
+                    onMaxTopMovesChange={setMaxTopMoves}
+                    onNumSimulationsChange={setNumSimulations}
                   />
                 </div>
               </div>
@@ -1933,7 +1978,7 @@ export default function PlayPage() {
               </div>
 
               {/* Simulation Results */}
-              {showSimulationResults && engineAnalysis && engineDebug && (
+              {engineAnalysis && engineDebug && (
                 <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4">
                     Simulation Results
