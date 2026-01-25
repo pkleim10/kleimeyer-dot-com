@@ -290,8 +290,10 @@ function getRandomLegalMove(boardState, turnState) {
 function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20) {
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
+  let totalSims = 0 // Counter for actual simulations run
 
   for (let i = 0; i < numSimulations; i++) {
+    totalSims++ // Increment counter for each simulation
     // Apply the move combination to get new board state
     let currentBoard = cloneBoardState(boardState)
     const moves = moveCombination.moves || [moveCombination]
@@ -354,6 +356,8 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
     wins,
     winRate
   })
+
+  console.log(`** TOTAL SIMULATIONS for this move: ${totalSims}`)
 
   return winRate
 }
