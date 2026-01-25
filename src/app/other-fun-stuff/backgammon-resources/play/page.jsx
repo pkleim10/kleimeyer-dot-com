@@ -2004,6 +2004,23 @@ export default function PlayPage() {
                       </div>
                     </div>
 
+                    {/* Simulation Parameters */}
+                    <div>
+                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Simulation Parameters</h4>
+                      <div className="bg-white dark:bg-slate-800 rounded p-3 border">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400">Moves per Simulation:</span>
+                            <span className="ml-2 font-mono text-gray-900 dark:text-white">{maxMoves}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400">Number of Simulations:</span>
+                            <span className="ml-2 font-mono text-gray-900 dark:text-white">{numSimulations.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Move Scores Table */}
                     <div>
                       <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Move Scores</h4>
