@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.36.0] - 2026-02-02
+
+### Added
+- Major backgammon engine and UI improvements: Backgammon Engine Enhancements:
+- Make maxMoves configurable with default 40: Add maxMoves parameter to runMonteCarlo with default 40 (up from 20)
+- Add simulation counter to verify actual simulations run: Add totalSims counter in runMonteCarlo function
+- Display simulation parameters in Simulation Results section: Add 'Simulation Parameters' section showing maxMoves and numSimulations
+
+### Fixed
+- Normalize HE scores before hybrid calculation: HE scores range ~0.5-2.5, MC scores range 0-1
+- Update simulation results highlighting to show MC cutoff moves: Highlight moves that made the MC cutoff with green background
+- Properly handle MC score ties in move selection: Fix top MC performers selection to include all moves tied for 4th place
+- Display moves in relative coordinates from player's perspective: Update API to format move descriptions using currentPlayer instead of absolute coordinates
+
 ## [1.35.0] - 2026-01-25
 
 ### Added
