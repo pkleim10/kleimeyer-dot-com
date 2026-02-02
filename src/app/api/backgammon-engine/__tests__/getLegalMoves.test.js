@@ -3,6 +3,9 @@
  * Tests the starting position and all 15 opening rolls
  */
 
+// Mock fetch for Jest environment
+global.fetch = jest.fn(() => Promise.resolve({ ok: true }))
+
 import { parseXGID, createTurnState } from '../route'
 import { getLegalMoves } from '../getLegalMoves'
 
@@ -792,6 +795,55 @@ describe('getLegalMoves', () => {
         // If no such move found, that's also a problem - we should find it
         console.warn('No move found with both bar/22 and 6/2')
       }
+    })
+  })
+
+  describe('Bug Reports', () => {
+    test('should not mark 8/5 as hit when point 5 has own checker - user reported bug', () => {
+      // User's reported XGID and position
+      const xgid = "aA-a-ADAF---d-a--bad--a-B-:0:0:1:34:0:0:0:0:10"
+      const boardState = parseXGID(xgid)
+      const turnState = createTurnState(boardState, 1) // white to move, dice 3-4
+
+      const moves = getLegalMoves(boardState, turnState)
+
+      // Find any move that includes "8/5*"
+      const problematicMoves = moves.filter(move =>
+        move.description && move.description.includes('8/5*')
+      )
+
+      if (problematicMoves.length > 0) {
+        console.log('Found problematic moves:', problematicMoves.map(m => m.description))
+        // Check point 5 - it should have white's checker, not an opponent blot
+        const point5 = boardState.points[4] // index 4 = point 5
+        expect(point5.owner).toBe('white')
+        expect(point5.count).toBe(1)
+
+        // A move to point 5 should NOT be marked as a hit
+        problematicMoves.forEach(move => {
+          move.moves.forEach(singleMove => {
+            if (singleMove.to === 5) {
+              expect(singleMove.hitBlot).toBe(false)
+            }
+          })
+        })
+      }
+
+      // Also verify that 8/5 without asterisk should be allowed
+      const validMoves = moves.filter(move =>
+        move.description && move.description.includes('8/5') && !move.description.includes('8/5*')
+      )
+      expect(validMoves.length).toBeGreaterThan(0)
+
+      // Check individual move hitBlot values
+      moves.forEach(moveCombo => {
+        moveCombo.moves.forEach(move => {
+          if (move.to === 5 && move.from === 8) {
+            console.log('Move 8/5 hitBlot:', move.hitBlot)
+            expect(move.hitBlot).toBe(false)
+          }
+        })
+      })
     })
   })
 })

@@ -76,24 +76,89 @@ export function canBearOff(boardState, owner, currentPlayer) {
  * @param {string} owner - 'black' | 'white'
  * @returns {boolean} - True if player has won (all 15 checkers borne off)
  */
-export function hasPlayerWon(boardState, owner) {
-  // Check bar count
-  const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
-  if (barCount > 0) {
-    return false
-  }
-  
-  // Check point count
-  let pointCount = 0
-  for (let i = 0; i < 24; i++) {
+// Check if all of a player's checkers are in their home board
+export function hasAllCheckersInHomeBoard(boardState, owner) {
+  // Home board: points 1-6 for white, points 19-24 for black
+  const homeStart = owner === 'white' ? 0 : 18  // points[0] is point 1, points[18] is point 19
+  const homeEnd = owner === 'white' ? 5 : 23    // points[5] is point 6, points[23] is point 24
+
+  let homeBoardCheckers = 0
+
+  // Count checkers in home board points only
+  for (let i = homeStart; i <= homeEnd; i++) {
     const pointData = boardState.points[i]
-    if (pointData.count > 0 && pointData.owner === owner) {
-      pointCount += pointData.count
+    if (pointData.owner === owner) {
+      homeBoardCheckers += pointData.count
     }
   }
-  
-  // Player has won if bar + points = 0 (all 15 checkers borne off)
-  return barCount + pointCount === 0
+
+  // Check if player has any checkers outside home board
+  let outsideHomeBoard = 0
+  for (let i = 0; i < 24; i++) {
+    if (i < homeStart || i > homeEnd) { // Outside home board
+      const pointData = boardState.points[i]
+      if (pointData.owner === owner) {
+        outsideHomeBoard += pointData.count
+      }
+    }
+  }
+
+  // Check if player has checkers on bar
+  const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
+
+  // Win condition: all checkers in home board points, none on bar, none outside home board
+  const isWin = homeBoardCheckers === 15 && barCount === 0 && outsideHomeBoard === 0
+
+  // XGID logging moved to Monte Carlo discard logic
+
+  return isWin
+}
+
+// Check if there's a contact situation (opponent checkers that could be hit)
+export function hasContactSituation(boardState, playerOwner, opponentOwner) {
+  // Check if player has any blots that opponent could hit
+  for (let i = 0; i < 24; i++) {
+    const pointData = boardState.points[i]
+    if (pointData.owner === playerOwner && pointData.count === 1) {
+      // Found a blot - check if opponent has checkers that could reach it
+      const opponentPoints = boardState.points.map((point, idx) => ({...point, pointIndex: idx}))
+        .filter(point => point.owner === opponentOwner && point.count > 0)
+
+      // Check if any opponent checker can reach this blot
+      for (const oppPoint of opponentPoints) {
+        const distance = Math.abs(oppPoint.pointIndex - i)
+        if (distance <= 6) { // Could potentially hit with any die roll
+          return true
+        }
+      }
+    }
+  }
+
+  return false
+}
+
+export function hasPlayerWon(boardState, owner, completeGame = false) {
+  if (completeGame) {
+    // For complete games: win when all checkers are borne off (none left on board)
+    let totalCheckers = 0
+
+    // Count checkers on all points
+    for (let i = 0; i < 24; i++) {
+      const pointData = boardState.points[i]
+      if (pointData.owner === owner) {
+        totalCheckers += pointData.count
+      }
+    }
+
+    // Count checkers on bar
+    const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
+    totalCheckers += barCount
+
+    return totalCheckers === 0
+  } else {
+    // For heuristic evaluation: win when all checkers are in home board (can bear off)
+    return hasAllCheckersInHomeBoard(boardState, owner)
+  }
 }
 
 /**

@@ -5,7 +5,7 @@
 
 import { getLegalMoves } from './getLegalMoves'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
-import { hasPlayerWon } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
+import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 
 // Heuristic weights for move evaluation
 const HEURISTIC_WEIGHTS = {
@@ -135,19 +135,62 @@ function boardToArray(boardState, playerOwner) {
 /**
  * Check if a move is valid in array format
  */
+function canPlayerBearOff(board, playerIndex) {
+  // Player can bear off if all their checkers are in their home board
+  // Home board: points 1-6 for white (playerIndex 0), points 19-24 for black (playerIndex 1)
+
+  const homeStart = playerIndex === 0 ? 1 : 19
+  const homeEnd = playerIndex === 0 ? 6 : 24
+
+  // Check if any checkers are outside home board
+  for (let point = 1; point <= 24; point++) {
+    if ((point < homeStart || point > homeEnd) && board[point][playerIndex] > 0) {
+      return false
+    }
+  }
+
+  // Check if any checkers are on the bar
+  if (board[playerIndex === 0 ? 0 : 25][playerIndex] > 0) {
+    return false
+  }
+
+  return true
+}
+
 function isValidMove(board, fromPoint, dieValue, playerIndex) {
   // Must have at least one checker on the point
   if (board[fromPoint][playerIndex] === 0) return false
 
-  // Calculate target point based on player direction
+  // Calculate target point based on player direction and move type
   let toPoint
-  if (playerIndex === 0) { // White player - moves toward lower numbers
-    toPoint = fromPoint - dieValue
-  } else { // Black player - moves toward higher numbers
-    toPoint = fromPoint + dieValue
+  const isBarMove2 = (fromPoint === 0 && playerIndex === 0) || (fromPoint === 25 && playerIndex === 1)
+
+  if (isBarMove2) {
+    // Bar moves: entering the board on opponent's home board
+    if (playerIndex === 0) { // White enters on points 1-6
+      toPoint = dieValue  // 1-6
+    } else { // Black enters on points 19-24
+      toPoint = 25 - dieValue  // 24-19
+    }
+  } else {
+    // Regular moves
+    if (playerIndex === 0) { // White moves toward lower numbers
+      toPoint = fromPoint - dieValue
+    } else { // Black moves toward higher numbers
+      toPoint = fromPoint + dieValue
+    }
   }
 
-  // Can't move beyond the board boundaries (no bearing off in simplified version)
+  // Check if this is a bearing off move (moving beyond home board)
+  const isBearingOff = (playerIndex === 0 && toPoint < 1) || (playerIndex === 1 && toPoint > 24)
+
+  if (isBearingOff) {
+    // For bearing off, check if player can bear off (all checkers in home board)
+    const canBearOff = canPlayerBearOff(board, playerIndex)
+    return canBearOff
+  }
+
+  // Regular move - can't move beyond the board boundaries
   if (toPoint < 1 || toPoint > 24) return false
 
   // Cannot land on points with 2+ opponent checkers (made point)
@@ -162,26 +205,149 @@ function applyMove(board, fromPoint, toPoint, playerIndex) {
   // Remove checker from source
   board[fromPoint][playerIndex]--
 
-  // Add checker to target
-  board[toPoint][playerIndex]++
+  // Handle destination - only if it's a valid board position
+  if (toPoint >= 0 && toPoint <= 25) {
+    // Add checker to target
+    board[toPoint][playerIndex]++
 
-  // Handle hits - remove single opponent checker
-  const opponentIndex = 1 - playerIndex
-  if (board[toPoint][opponentIndex] === 1) {
-    board[toPoint][opponentIndex] = 0
-    // In full backgammon, hit checkers go to bar, but simplified for Monte Carlo
+    // Handle hits - remove single opponent checker
+    const opponentIndex = 1 - playerIndex
+    if (board[toPoint][opponentIndex] === 1) {
+      board[toPoint][opponentIndex] = 0
+      // In full backgammon, hit checkers go to bar, but simplified for Monte Carlo
+    }
   }
+  // For bearing off (toPoint < 0 or toPoint > 25), checker is already removed from source
+  // No additional action needed - checker is borne off the board
 }
 
 /**
- * Generate a single random legal move using fast array-based algorithm
+ * Find a single random legal move with a specific die value
+ */
+function findRandomMoveForDie(board, dieValue, playerIndex) {
+  let attempts = 0
+
+  // Check if player has checkers on bar that MUST be moved first
+  const barPoint = playerIndex === 0 ? 0 : 25
+  const hasCheckersOnBar = board[barPoint][playerIndex] > 0
+
+  while (attempts < 50) { // Increased attempts for better coverage
+    let point
+
+    if (hasCheckersOnBar) {
+      // Must move from bar first
+      point = barPoint
+    } else {
+      // Check if player can bear off - if so, prioritize bearing off moves
+      const canBearOff = canPlayerBearOff(board, playerIndex)
+      if (canBearOff && Math.random() < 0.3) { // 30% chance to try bearing off moves
+        // Try points in home board that could bear off
+        const homeStart = playerIndex === 0 ? 1 : 19
+        const homeEnd = playerIndex === 0 ? 6 : 24
+        const homePoints = []
+        for (let p = homeStart; p <= homeEnd; p++) {
+          if (board[p][playerIndex] > 0) {
+            homePoints.push(p)
+          }
+        }
+        if (homePoints.length > 0) {
+          point = homePoints[Math.floor(Math.random() * homePoints.length)]
+        } else {
+          point = Math.floor(Math.random() * 24) + 1
+        }
+      } else {
+        // Pick random point from valid board positions (1-24)
+        point = Math.floor(Math.random() * 24) + 1  // 1-24 inclusive
+      }
+    }
+
+    const inc = Math.floor(Math.random() * 2)
+
+    // Calculate target based on player direction and move type
+    let toPoint
+    if (point === barPoint) {
+      // Bar moves: entering the board on opponent's home board
+      if (playerIndex === 0) { // White enters on points 1-6
+        toPoint = dieValue  // 1-6
+      } else { // Black enters on points 19-24
+        toPoint = 25 - dieValue  // 24-19
+      }
+    } else {
+      // Regular moves
+      if (playerIndex === 0) { // White moves toward lower numbers
+        toPoint = point - dieValue
+      } else { // Black moves toward higher numbers
+        toPoint = point + dieValue
+      }
+    }
+
+    // Try primary point (including bearing off)
+    if (isValidMove(board, point, dieValue, playerIndex)) {
+      // Check if this move hits a blot (only for regular board positions)
+      const opponentIndex = 1 - playerIndex
+      const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][opponentIndex] === 1 : false
+      return { from: point, to: toPoint, die: dieValue, hitBlot }
+    }
+
+    // Try adjacent points (only if not forced to move from bar)
+    if (!hasCheckersOnBar) {
+      const altPoints = []
+      if (inc === 0 && point > 1) altPoints.push(point - 1)
+      if (inc === 1 && point < 24) altPoints.push(point + 1)
+
+      for (const altPoint of altPoints) {
+        let altToPoint
+        if (playerIndex === 0) { // White
+          altToPoint = altPoint - dieValue
+        } else { // Black
+          altToPoint = altPoint + dieValue
+        }
+
+        if (isValidMove(board, altPoint, dieValue, playerIndex)) {
+          // Check if this move hits a blot (only for regular board positions)
+          const opponentIndex = 1 - playerIndex
+          const hitBlot = (altToPoint >= 1 && altToPoint <= 24) ? board[altToPoint][opponentIndex] === 1 : false
+          return { from: altPoint, to: altToPoint, die: dieValue, hitBlot }
+        }
+      }
+    }
+
+    attempts++
+  }
+
+  // Fallback: systematic search if random fails
+  for (let point = 0; point < 26; point++) {
+    let toPoint
+    if (playerIndex === 0) { // White
+      toPoint = point - dieValue
+    } else { // Black
+      toPoint = point + dieValue
+    }
+
+    if (board[point][playerIndex] > 0) {  // Only check points with player's checkers
+      if (isValidMove(board, point, dieValue, playerIndex)) {
+        // Check if this move hits a blot (only for regular board positions)
+        const opponentIndex = 1 - playerIndex
+        const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][opponentIndex] === 1 : false
+        return { from: point, to: toPoint, die: dieValue, hitBlot }
+      }
+    }
+  }
+
+  // No move found
+  return null
+}
+
+/**
+ * Generate a complete random turn using sequential die processing
+ * Uses fast random sampling to find moves for each die in sequence
  */
 function getRandomLegalMove(boardState, turnState) {
   const playerOwner = turnState.currentPlayer
   const playerIndex = playerOwner === 'white' ? 0 : 1
 
   // Convert to array representation
-  const board = boardToArray(boardState, playerOwner)
+  let board = boardToArray(boardState, playerOwner)
 
   // Handle doubles by expanding dice
   const expandedDice = []
@@ -199,84 +365,32 @@ function getRandomLegalMove(boardState, turnState) {
     }
   }
 
-  // Apply moves for each die
+  // Process each die sequentially, updating board after each move
   const moves = []
   for (const dieValue of expandedDice) {
-    let moveFound = false
-    let attempts = 0
+    // Find random move for this die using current board state
+    const move = findRandomMoveForDie(board, dieValue, playerIndex)
 
-    while (!moveFound && attempts < 20) { // Prevent infinite loops
-      // Pick random point and increment for adjacent checking
-      const point = Math.floor(Math.random() * 26)
-      const inc = Math.floor(Math.random() * 2)
-
-      // Calculate target based on player direction
-      let toPoint
-      if (playerIndex === 0) { // White
-        toPoint = point - dieValue
-      } else { // Black
-        toPoint = point + dieValue
-      }
-
-      // Try primary point
-      if (point >= 0 && point <= 25 && isValidMove(board, point, dieValue, playerIndex)) {
-        applyMove(board, point, toPoint, playerIndex)
-        moves.push({ from: point, to: toPoint, die: dieValue })
-        moveFound = true
-        break
-      }
-
-      // Try adjacent points
-      const altPoints = []
-      if (inc === 0 && point > 0) altPoints.push(point - 1)
-      if (inc === 1 && point < 25) altPoints.push(point + 1)
-
-      for (const altPoint of altPoints) {
-        let altToPoint
-        if (playerIndex === 0) { // White
-          altToPoint = altPoint - dieValue
-        } else { // Black
-          altToPoint = altPoint + dieValue
-        }
-
-        if (isValidMove(board, altPoint, dieValue, playerIndex)) {
-          applyMove(board, altPoint, altToPoint, playerIndex)
-          moves.push({ from: altPoint, to: altToPoint, die: dieValue })
-          moveFound = true
-          break
-        }
-      }
-
-      attempts++
-    }
-
-    if (!moveFound) {
-      // Fallback: systematic search if random fails
-      for (let point = 0; point < 26 && !moveFound; point++) {
-        let toPoint
-        if (playerIndex === 0) { // White
-          toPoint = point - dieValue
-        } else { // Black
-          toPoint = point + dieValue
-        }
-
-        if (isValidMove(board, point, dieValue, playerIndex)) {
-          applyMove(board, point, toPoint, playerIndex)
-          moves.push({ from: point, to: toPoint, die: dieValue })
-          moveFound = true
-        }
-      }
+    if (move) {
+      // Apply move to board (UPDATE BOARD STATE for next die)
+      applyMove(board, move.from, move.to, playerIndex)
+      moves.push(move)
+    } else {
+      // No move found with this die - stop here (partial turn)
+      break
     }
   }
 
-  // Return a single move object compatible with existing code
-  // For simplicity, return the first move (since Monte Carlo just needs one valid move)
+  // Return complete turn object
   if (moves.length > 0) {
-    const move = moves[0]
+    // Build description from all moves
+    const descriptions = moves.map(m => `${m.from}/${m.to}`)
+    const description = descriptions.join(' ')
+
     return {
-      moves: [move], // Wrap in moves array for compatibility
-      description: `${move.from}/${move.to}`,
-      totalPips: move.die
+      moves: moves, // All moves in the turn
+      description: description,
+      totalPips: moves.reduce((sum, m) => sum + m.die, 0)
     }
   }
 
@@ -287,13 +401,18 @@ function getRandomLegalMove(boardState, turnState) {
 /**
  * Run Monte Carlo simulations for move evaluation
  */
-function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20, maxMoves = 40) {
+function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20) {
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
-  let totalSims = 0 // Counter for actual simulations run
+  let losses = 0
+  let discards = 0
+  let totalSims = 0
 
   for (let i = 0; i < numSimulations; i++) {
-    totalSims++ // Increment counter for each simulation
+    // Special detailed logging for first simulation
+    const detailedLogging = i === 0
+    let gameMoves = []
+
     // Apply the move combination to get new board state
     let currentBoard = cloneBoardState(boardState)
     const moves = moveCombination.moves || [moveCombination]
@@ -304,71 +423,471 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
     // Simulate random playout until game end or max moves
     let currentPlayer = opponentOwner
     let movesMade = 0
-    // maxMoves is now a parameter (default 40)
 
-    while (!isGameOver(currentBoard) && movesMade < maxMoves) {
+    const maxMovesForComplete = 400 // Allow longer games for complete evaluation
+    while (!isGameOver(currentBoard, true) && movesMade < maxMovesForComplete) {
       const randomDice = getRandomDice()
-      const randomMove = getRandomLegalMove(currentBoard, { currentPlayer, dice: randomDice })
-
-      if (!randomMove) {
-        break
+      const turnState = {
+        currentPlayer,
+        dice: randomDice,
+        usedDice: []
       }
-      const randomMoves = randomMove.moves || [randomMove]
+
+      const randomTurn = getRandomLegalMove(currentBoard, turnState)
+      if (!randomTurn) {
+        // No legal moves - pass turn to other player
+        currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
+        movesMade++
+        continue
+      }
+
+      // Detailed logging for first simulation
+      if (detailedLogging) {
+        const diceStr = randomDice.sort((a, b) => b - a).join('') // Format like "61"
+        const moveStr = randomTurn.moves.map(m => {
+          const formattedMove = formatMove({ from: m.from, to: m.to, hitBlot: m.hitBlot }, currentPlayer === 'white' ? 1 : -1)
+          return formattedMove
+        }).join(' ')
+
+        // Generate XGID after moves are applied
+        const points = currentBoard.points.map(p => {
+          if (p.count === 0) return '-'
+          if (p.owner === 'black') {
+            return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+          } else {
+            return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+          }
+        }).join('')
+
+        const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+          String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+        const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+          String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+        const xgid = blackBarChar + points + whiteBarChar
+
+        const playerName = currentPlayer === 'white' ? 'White' : 'Black'
+        gameMoves.push(`${playerName}: ${diceStr}: ${moveStr}     XGID: ${xgid}`)
+      }
+
+      const randomMoves = randomTurn.moves || [randomTurn]
       for (const move of randomMoves) {
         currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, currentPlayer)
       }
+
       currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
       movesMade++
     }
 
     // Check if game ended with a winner
-    const winner = getWinner(currentBoard)
+    const winner = getWinner(currentBoard, true)
     if (winner) {
-      // Game ended - award full win (1.0) or loss (0.0)
-      wins += (winner === playerOwner) ? 1.0 : 0.0
+      totalSims++
+      if (winner === playerOwner) {
+        wins++
+      } else {
+        losses++
+      }
+
+      // Simulation statistics tracking (logging removed)
     } else {
-      // Game still in progress - evaluate final position
-      const positionEval = evaluatePosition(currentBoard, playerOwner)
-      const opponentEval = evaluatePosition(currentBoard, playerOwner === 'white' ? 'black' : 'white')
+      // Game didn't complete within move limit - discard
+      discards++
+    }
+    // For complete games, log detailed moves for discarded first simulation
+    if (!winner && detailedLogging) {
+      console.log('')
+      console.log('Game 1')
 
-      // Award points based on relative position strength
-      // Scale from -1 to +1 based on position difference
-      const positionDiff = positionEval.score - opponentEval.score
-      const normalizedScore = Math.max(-1, Math.min(1, positionDiff / 2)) // Clamp and scale
+      // Output each move sequentially
+      for (let m = 0; m < gameMoves.length; m++) {
+        console.log(`${m + 1}. ${gameMoves[m]}`)
+      }
 
-      // Convert to win points: -1 = 0 points, 0 = 0.5 points, +1 = 1 point
-      wins += (normalizedScore + 1) / 2
+      console.log(`\nGame discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+      console.log('Complete move sequence shown above.')
+      console.log('')
     }
   }
 
-  // Log combined input parameters and results
-  const moveDescription = moveCombination.description || (moveCombination.moves ? moveCombination.moves.map(m => `${m.from}/${m.to}`).join(' ') : `${moveCombination.from}/${moveCombination.to}`)
-  const winRate = wins / numSimulations
-  console.log('[MonteCarlo]', {
-    playerOwner,
-    numSimulations,
-    moveDescription,
-    boardStateSummary: {
-      whiteBar: boardState.whiteBar,
-      blackBar: boardState.blackBar,
-      dice: boardState.dice
-    },
-    wins,
-    winRate
+  return totalSims > 0 ? wins / totalSims : 0.5
+}
+
+/**
+
+    // console.log(`[MC-Simulation-${i+1}] Starting simulation ${i+1}/${numSimulations}`)
+
+    // Apply the move combination to get new board state
+    // let currentBoard = cloneBoardState(boardState)
+    // const moves = moveCombination.moves || [moveCombination]
+    // for (const move of moves) {
+    //   currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, playerOwner)
+    // }
+    let currentBoard = boardState
+
+    // Log the opening move - force formatting from player perspective
+    const openingMoveDesc = formatMove(moveCombination, playerOwner === 'white' ? 1 : -1)
+    // console.log(`[MC-Simulation-${i+1}] Opening move by ${playerOwner}: ${openingMoveDesc}`)
+
+    // Simulate random playout until game end or max moves
+    let currentPlayer = opponentOwner
+    let movesMade = 0
+
+    const maxMovesForComplete = playCompleteGame ? Math.max(maxMoves * 10, 200) : maxMoves // Allow much longer for complete games
+    while ((playCompleteGame ? (!isGameOver(currentBoard, true) && movesMade < maxMovesForComplete) : (!isGameOver(currentBoard, false) && movesMade < maxMoves))) {
+      const randomDice = getRandomDice()
+      const turnState = {
+        currentPlayer,
+        dice: randomDice,
+        usedDice: []
+      }
+
+      // Get one random legal complete turn for this dice roll using fast sampling
+      const randomTurn = getRandomLegalMove(currentBoard, turnState)
+
+      if (!randomTurn) {
+        // console.log(`[MC-Simulation-${i+1}] No legal turns for ${currentPlayer} with dice ${randomDice.join('-')}`)
+        break
+      }
+
+      // Use the randomly selected turn
+      const selectedTurn = randomTurn
+
+      // Detailed logging for first simulation
+      if (detailedLogging) {
+        const diceStr = randomDice.sort((a, b) => b - a).join('') // Format like "61"
+        const moveStr = selectedTurn.moves.map(m => {
+          const formattedMove = formatMove({ from: m.from, to: m.to, hitBlot: m.hitBlot }, currentPlayer === 'white' ? 1 : -1)
+          return formattedMove
+        }).join(' ')
+
+        // Generate XGID after moves are applied
+        const points = currentBoard.points.map(p => {
+          if (p.count === 0) return '-'
+          if (p.owner === 'black') {
+            return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+          } else {
+            return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+          }
+        }).join('')
+
+        const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+          String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+        const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+          String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+        const xgid = blackBarChar + points + whiteBarChar
+
+        const playerName = currentPlayer === 'white' ? 'White' : 'Black'
+        gameMoves.push(`${playerName}: ${diceStr}: ${moveStr}     XGID: ${xgid}`)
+      }
+        // Log the selected turn - force formatting from player perspective
+        const turnDesc = selectedTurn.moves.map(m => {
+          const formattedMove = formatMove({ from: m.from, to: m.to, hitBlot: m.hitBlot }, currentPlayer === 'white' ? 1 : -1)
+          return formattedMove
+        }).join(' ')
+        // console.log(`[MC-Simulation-${i+1}] Turn ${movesMade + 1} by ${currentPlayer}: ${turnDesc} (dice: ${randomDice.join('-')})`)
+      }
+
+      const randomMoves = selectedTurn.moves || [selectedTurn]
+      for (const move of randomMoves) {
+        currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, currentPlayer)
+      }
+
+      currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
+      movesMade++
+    }
+
+    // Check if game ended with a winner
+    const winner = getWinner(currentBoard, true)
+
+    // Output detailed game log for first simulation
+    if (detailedLogging) {
+      console.log('')
+      console.log('Game 1')
+
+      // Output each move sequentially
+      for (let m = 0; m < gameMoves.length; m++) {
+        console.log(`${m + 1}. ${gameMoves[m]}`)
+      }
+
+      if (winner) {
+        console.log(`\nGame ended with ${winner} winning after ${movesMade} moves`)
+      } else {
+        console.log(`\nGame discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+        console.log('Complete move sequence shown above.')
+      }
+      console.log('')
+    }
+
+    if (winner) {
+      // Game ended with definitive winner (all checkers borne off)
+      totalSims++
+      if (winner === playerOwner) {
+        wins++
+      } else {
+        losses++
+      }
+
+      // Simulation statistics tracking (logging removed)
+      } else {
+        // Non-complete mode - simple win/loss
+        if (winner === playerOwner) {
+          wins++
+        } else {
+          losses++
+        }
+      }
+    } else {
+      // Game discarded - didn't complete within move limit
+      discards++
+    }
+    if (!winner) {
+      // Log discarded games that exceeded maxMovesForComplete (only for non-detailed logging)
+      if (!detailedLogging) {
+        // Create XGID for the final board state
+        const points = currentBoard.points.map(p => {
+          if (p.count === 0) return '-'
+          if (p.owner === 'black') {
+            return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+          } else {
+            return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+          }
+        }).join('')
+
+        const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+          String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+        const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+          String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+        const xg1 = blackBarChar + points + whiteBarChar
+        console.log(`[GAME DISCARDED] Exceeded ${maxMovesForComplete} moves - XGID: ${xg1}`)
+      }
+    }
+
+  return totalSims > 0 ? wins / totalSims : 0.5
+}
+
+/**
+ * Run a single Monte Carlo simulation and track all moves
+ * Returns the complete move sequence for both players
+ */
+function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner) {
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+
+  const gameMoves = []
+
+  console.log(`[MC-Tracking] Starting move tracking simulation`)
+
+  // Prepare the moves array
+  const movesArray = moveCombination.moves || [moveCombination]
+
+  // Apply the opening move combination
+  let currentBoard = cloneBoardState(boardState)
+  for (const move of movesArray) {
+    currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, playerOwner)
+  }
+
+  // Record the opening move (candidate move being evaluated) - force formatting from player perspective
+  const playerNum = playerOwner === 'white' ? 1 : -1
+  const sortedMoves = [...movesArray].sort((a, b) => {
+    const aIsBar = a.fromBar || a.from === 25 || a.from === 0
+    const bIsBar = b.fromBar || b.from === 25 || b.from === 0
+
+    // Bar moves always come first
+    if (aIsBar && !bIsBar) return -1
+    if (!aIsBar && bIsBar) return 1
+
+    // Convert absolute positions to relative display values
+    const aFromRelative = playerOwner === 'black' ? 25 - a.from : a.from
+    const bFromRelative = playerOwner === 'black' ? 25 - b.from : b.from
+
+    // Sort by relative from point (highest first)
+    if (aFromRelative !== bFromRelative) return bFromRelative - aFromRelative
+    return b.to - a.to
   })
 
-  console.log(`** TOTAL SIMULATIONS for this move: ${totalSims}`)
+  const openingMoveDesc = sortedMoves.map(m => {
+    const formattedMove = formatMove({ from: m.from, to: m.to, hitBlot: m.hitBlot }, playerNum)
+    return formattedMove
+  }).join(' ')
 
-  return winRate
+  // Get dice from board state (XGID dice) - this is the roll that makes the candidate move legal
+  const openingDice = boardState.dice ? boardState.dice.split('').map(d => parseInt(d)) : [6, 1] // fallback to 6-1
+  const openingDiceStr = openingDice.sort((a, b) => b - a).join('') // Sort descending like "61"
+  const playerName = playerOwner === 'white' ? 'White' : 'Black'
+
+  // Generate XGID after opening moves are applied
+  const points = currentBoard.points.map(p => {
+    if (p.count === 0) return '-'
+    if (p.owner === 'black') {
+      return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+    } else {
+      return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+    }
+  }).join('')
+
+  const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+    String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+  const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+    String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+  const openingXgid = blackBarChar + points + whiteBarChar
+  const openingMoveEntry = `${playerName}: ${openingDiceStr}: ${openingMoveDesc}     XGID: ${openingXgid}`
+
+  // Add opening move to the game moves
+  gameMoves.push(openingMoveEntry)
+
+  // Simulate random playout until game end or max moves
+  let currentPlayer = opponentOwner
+  let movesMade = 0
+
+  const maxMovesForComplete = 400 // Allow longer games for complete evaluation
+
+  while (!isGameOver(currentBoard, true) && movesMade < maxMovesForComplete) {
+    const randomDice = getRandomDice()
+    const turnState = {
+      currentPlayer,
+      dice: randomDice,
+      usedDice: []
+    }
+
+      // Get one random legal complete turn for this dice roll using fast sampling
+      const randomTurn = getRandomLegalMove(currentBoard, turnState)
+
+      if (!randomTurn) {
+        // No legal moves - player passes their turn
+        console.log(`[MC-Tracking] No legal turns for ${currentPlayer} with dice ${randomDice.join('-')} - passing turn`)
+
+        // Log the pass move
+        const diceStr = randomDice.sort((a, b) => b - a).join('') // Sort descending like "61"
+        const playerName = currentPlayer === 'white' ? 'White' : 'Black'
+
+        // Generate XGID for current board state
+        const points = currentBoard.points.map(p => {
+          if (p.count === 0) return '-'
+          if (p.owner === 'black') {
+            return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+          } else {
+            return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+          }
+        }).join('')
+
+        const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+          String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+        const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+          String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+        const xgid = blackBarChar + points + whiteBarChar
+
+        const passEntry = `${playerName}: ${diceStr}: pass     XGID: ${xgid}`
+        gameMoves.push(passEntry)
+
+        // Switch to next player without incrementing movesMade (pass doesn't count as a move)
+        currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
+        continue // Continue to next iteration (next player's turn)
+      }
+
+      // Use the randomly selected turn
+      const selectedTurn = randomTurn
+
+    const randomMoves = selectedTurn.moves || [selectedTurn]
+    for (const move of randomMoves) {
+      currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, currentPlayer)
+    }
+
+    // Record the turn - force formatting from player perspective
+    const playerNum = currentPlayer === 'white' ? 1 : -1
+
+    // Sort moves by relative point order (highest first) for proper display
+    const sortedMoves = [...selectedTurn.moves].sort((a, b) => {
+      const aIsBar = a.fromBar || a.from === 25 || a.from === 0
+      const bIsBar = b.fromBar || b.from === 25 || b.from === 0
+
+      // Bar moves always come first
+      if (aIsBar && !bIsBar) return -1
+      if (!aIsBar && bIsBar) return 1
+
+      // Convert absolute positions to relative display values
+      const aFromRelative = currentPlayer === 'black' ? 25 - a.from : a.from
+      const bFromRelative = currentPlayer === 'black' ? 25 - b.from : b.from
+
+      // Sort by relative from point (highest first)
+      if (aFromRelative !== bFromRelative) return bFromRelative - aFromRelative
+      return b.to - a.to
+    })
+
+    const turnDesc = sortedMoves.map(m => {
+      const formattedMove = formatMove({ from: m.from, to: m.to, hitBlot: m.hitBlot }, playerNum)
+      return formattedMove
+    }).join(' ')
+
+    const diceStr = randomDice.sort((a, b) => b - a).join('') // Sort descending like "61"
+    const playerName = currentPlayer === 'white' ? 'White' : 'Black'
+
+    // Generate XGID after moves are applied
+    const points = currentBoard.points.map(p => {
+      if (p.count === 0) return '-'
+      if (p.owner === 'black') {
+        return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+      } else {
+        return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+      }
+    }).join('')
+
+    const blackBarChar = currentBoard.blackBar === 0 ? '-' :
+      String.fromCharCode('a'.charCodeAt(0) + Math.min(currentBoard.blackBar - 1, 14))
+
+    const whiteBarChar = currentBoard.whiteBar === 0 ? '-' :
+      String.fromCharCode('A'.charCodeAt(0) + Math.min(currentBoard.whiteBar - 1, 14))
+
+    const xgid = blackBarChar + points + whiteBarChar
+    const moveEntry = `${playerName}: ${diceStr}: ${turnDesc}     XGID: ${xgid}`
+
+    gameMoves.push(moveEntry)
+
+    currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
+    movesMade++
+  }
+
+  // Output detailed game log in standard backgammon notation
+  console.log('')
+  console.log('Game 1')
+
+  for (let m = 0; m < gameMoves.length; m++) {
+    console.log(`${m + 1}. ${gameMoves[m]}`)
+  }
+
+  const winner = getWinner(currentBoard, true)
+  if (winner) {
+    console.log(`\nGame ended with ${winner} winning after ${movesMade} moves`)
+  } else {
+    const limitExceeded = playCompleteGame ? maxMovesForComplete : maxMoves
+    console.log(`\nGame discarded after ${movesMade} moves (exceeded ${limitExceeded} move limit)`)
+    console.log('Complete move sequence shown above.')
+  }
+
+  return {
+    gameMoves,
+    totalMoves: movesMade,
+    finalBoard: currentBoard,
+    winner
+  }
 }
 
 /**
  * Hybrid evaluation combining heuristic and MC with configurable weights
  */
-function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40) {
+function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50) {
   const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
   const heuristicScore = heuristicResult.score
-  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations, maxMoves)
+  console.log(`[MC] 🚀 About to call runMonteCarlo for move: ${move.description}`)
+  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
 
   // Normalize HE score to 0-1 range to match MC score range
   // HE typically ranges from ~0.5 (bad) to ~2.5 (good)
@@ -391,8 +910,8 @@ function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, 
 /**
  * Analyze moves using hybrid engine
  */
-function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40) {
-  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight, maxMoves))
+function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50) {
+  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight))
 
   // Log all heuristic scores with detailed breakdowns
   console.log('[HeuristicEngine] All move scores:')
@@ -414,27 +933,65 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
     console.log(`     MC: ${evaluation.mcScore.toFixed(3)}, Hybrid: ${evaluation.hybridScore.toFixed(3)}`)
   })
 
-  // NEW LOGIC: Select winner from top MC performers based on highest hybrid score
-  // Step 1: Sort by MC score to find top tactical performers
-  const mcSorted = [...evaluations].sort((a, b) => b.mcScore - a.mcScore)
+  // FIXED LOGIC: Select winner based on highest hybrid score (HE + MC combined)
+  // This ensures moves with excellent strategic value (HE) but challenging MC evaluation
+  // are not unfairly penalized
 
-  // Include all moves tied for top 4 MC positions (handle ties properly)
-  const minTopMCScore = mcSorted.length >= 4 ? mcSorted[3].mcScore : mcSorted[mcSorted.length - 1].mcScore
-  const topMCPerformers = mcSorted.filter(move => move.mcScore >= minTopMCScore)
-
-  console.log(`[HybridSelection] Top MC performers (including ties for 4th place):`)
-  topMCPerformers.forEach((evaluation, idx) => {
-    console.log(`  ${idx + 1}. ${evaluation.move.description}: MC=${evaluation.mcScore.toFixed(3)}, Hybrid=${evaluation.hybridScore.toFixed(3)}`)
+  console.log(`[HybridSelection] Evaluating all moves by hybrid score:`)
+  evaluations.forEach((evaluation, idx) => {
+    console.log(`  ${idx + 1}. ${evaluation.move.description}: HE=${evaluation.heuristicScore.toFixed(3)}, MC=${evaluation.mcScore.toFixed(3)}, Hybrid=${evaluation.hybridScore.toFixed(3)}`)
   })
 
-  // Step 2: From top MC performers (including ties), pick the one with highest hybrid score
-  const bestEvaluation = topMCPerformers.reduce((best, current) =>
+  // Step 1: Select the move with the highest hybrid score
+  const bestEvaluation = evaluations.reduce((best, current) =>
     current.hybridScore > best.hybridScore ? current : best
   )
 
   console.log(`[HybridSelection] Selected winner: ${bestEvaluation.move.description}`)
-  console.log(`  MC Score: ${bestEvaluation.mcScore.toFixed(3)}, Hybrid Score: ${bestEvaluation.hybridScore.toFixed(3)}`)
-    const bestMove = bestEvaluation.move
+  console.log(`  Best Hybrid Score: ${bestEvaluation.hybridScore.toFixed(3)} (HE: ${bestEvaluation.heuristicScore.toFixed(3)}, MC: ${bestEvaluation.mcScore.toFixed(3)})`)
+
+  // Find MC performance ranking for context
+  const mcSorted = [...evaluations].sort((a, b) => b.mcScore - a.mcScore)
+  const mcRank = mcSorted.findIndex(evaluation => evaluation.move.description === bestEvaluation.move.description) + 1
+  console.log(`  MC Ranking: ${mcRank}${mcRank === 1 ? 'st' : mcRank === 2 ? 'nd' : mcRank === 3 ? 'rd' : 'th'} of ${evaluations.length} moves`)
+
+  // Calculate statistical confidence based on hybrid score differences
+  const bestHybridScore = bestEvaluation.hybridScore
+  let confidence = 0.5 // Default moderate confidence
+
+  // Find the second-best hybrid score
+  const sortedByHybrid = [...evaluations]
+    .map(evaluation => evaluation.hybridScore)
+    .sort((a, b) => b - a)
+
+  if (sortedByHybrid.length > 1) {
+    const secondBestHybridScore = sortedByHybrid[1]
+    const hybridDifference = bestHybridScore - secondBestHybridScore
+
+    // Hybrid scores are on different scales (HE is ~0.5-2.5, MC is 0-1)
+    // Normalize the difference relative to the score range
+    const hybridRange = 2.0 // Approximate range of hybrid scores (0-2)
+    const normalizedDifference = hybridDifference / hybridRange
+
+    // Convert to confidence based on normalized difference
+    if (normalizedDifference > 0.3) confidence = 0.95 // Very clear winner
+    else if (normalizedDifference > 0.2) confidence = 0.85 // Clear winner
+    else if (normalizedDifference > 0.15) confidence = 0.75 // Strong preference
+    else if (normalizedDifference > 0.1) confidence = 0.65 // Moderate preference
+    else if (normalizedDifference > 0.05) confidence = 0.55 // Slight preference
+    else confidence = 0.50 // Very close decision
+  }
+
+  // Consider MC score reliability as well
+  const bestMCScore = bestEvaluation.mcScore
+  if (bestMCScore > 0.7) confidence = Math.max(confidence, 0.8) // Strong MC support
+  if (bestMCScore > 0.8) confidence = Math.max(confidence, 0.9) // Very strong MC support
+
+  // Reduce confidence for small sample sizes
+  if (numSimulations < 100) confidence *= 0.8
+  else if (numSimulations < 250) confidence *= 0.9
+
+  const bestMove = bestEvaluation.move
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:143',message:'analyzeMovesWithHybridEngine bestMove BEFORE check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
     // #endregion
@@ -451,10 +1008,10 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
           fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:150',message:'BUG DETECTED: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
           // #endregion
           // Re-sort moves array to ensure bar moves come first
-          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
           bestMove.moves.sort((a, b) => {
-            const aIsBar = isBarMove(a)
-            const bIsBar = isBarMove(b)
+            const aIsBar = checkIsBarMove(a)
+            const bIsBar = checkIsBarMove(b)
             if (aIsBar && !bIsBar) return -1
             if (!aIsBar && bIsBar) return 1
             const aFrom = aIsBar ? 25 : a.from
@@ -509,14 +1066,12 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
     return {
       bestMoveIndex: bestMoveIndex >= 0 ? bestMoveIndex : 0, // Use found index or fallback to 0
       reasoning,
-      confidence: 0.9, // High confidence for deterministic evaluation
+      confidence: Math.round(confidence * 100) / 100, // Round to 2 decimal places
       evaluations, // Include all evaluations with HE, MC, and hybrid scores
       hybridScore: evaluations[0].hybridScore.toFixed(3),
       heuristicScore: evaluations[0].heuristicScore.toFixed(3),
       mcScore: evaluations[0].mcScore.toFixed(3),
       factorScores: evaluations.map((evaluation, idx) => {
-        // Check if this move was in the top MC performers
-        const madeMCCutoff = topMCPerformers.some(tmcp => tmcp.move.description === evaluation.move.description)
         // Check if this is the winning move
         const isWinner = bestEvaluation.move.description === evaluation.move.description
 
@@ -526,7 +1081,6 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
           normalizedMoveDescription: formatMove(evaluation.move, currentPlayer, { collapseSequences: true }), // Collapsed form for display
           rawMoveDescription: formatMove(evaluation.move, currentPlayer), // Raw absolute coordinates for display
           scores: `Heuristic: ${evaluation.heuristicScore.toFixed(3)} | MC: ${evaluation.mcScore.toFixed(3)} | Total: ${evaluation.hybridScore.toFixed(3)}`,
-          madeMCCutoff, // Whether this move made the MC cutoff
           isWinner, // Whether this is the winning move
           breakdown: evaluation.heuristicBreakdown // Include detailed breakdown
         }
@@ -558,10 +1112,10 @@ function validateAndReturnMove(hybridAnalysis, moves) {
           fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:195',message:'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'})}).catch(()=>{});
           // #endregion
           // Re-sort moves array to ensure bar moves come first
-          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
           bestMove.moves.sort((a, b) => {
-            const aIsBar = isBarMove(a)
-            const bIsBar = isBarMove(b)
+            const aIsBar = checkIsBarMove(a)
+            const bIsBar = checkIsBarMove(b)
             if (aIsBar && !bIsBar) return -1
             if (!aIsBar && bIsBar) return 1
             const aFrom = aIsBar ? 25 : a.from
@@ -604,10 +1158,10 @@ function validateAndReturnMove(hybridAnalysis, moves) {
         const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
         if (!isFirstBar) {
           // Re-sort moves array to ensure bar moves come first
-          const isBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
+          const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
           selectedCombination.moves.sort((a, b) => {
-            const aIsBar = isBarMove(a)
-            const bIsBar = isBarMove(b)
+            const aIsBar = checkIsBarMove(a)
+            const bIsBar = checkIsBarMove(b)
             if (aIsBar && !bIsBar) return -1
             if (!aIsBar && bIsBar) return 1
             const aFrom = aIsBar ? 25 : a.from
@@ -653,14 +1207,14 @@ function getRandomDice() {
   return d1 === d2 ? [d1, d1, d1, d1] : [d1, d2]
 }
 
-function isGameOver(boardState) {
-  // Check if either player has won (borne off all checkers)
-  return hasPlayerWon(boardState, 'white') || hasPlayerWon(boardState, 'black')
+function isGameOver(boardState, completeGame = false) {
+  // Check if either player has won
+  return hasPlayerWon(boardState, 'white', completeGame) || hasPlayerWon(boardState, 'black', completeGame)
 }
 
-function getWinner(boardState) {
-  if (hasPlayerWon(boardState, 'white')) return 'white'
-  if (hasPlayerWon(boardState, 'black')) return 'black'
+function getWinner(boardState, completeGame = false) {
+  if (hasPlayerWon(boardState, 'white', completeGame)) return 'white'
+  if (hasPlayerWon(boardState, 'black', completeGame)) return 'black'
   return null
 }
 
@@ -777,6 +1331,9 @@ function parseXGID(xgid) {
 export { parseXGID, createTurnState, getLegalMoves }
 
 export async function POST(request) {
+  console.log('[API] 🔍 BACKGAMMON ENGINE API CALLED!')
+  const requestBody = await request.json()
+
   // Set a timeout of 30 seconds for the entire analysis
   const timeoutMs = 30000
   const startTime = Date.now()
@@ -792,7 +1349,10 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 1000, debug = false, usedDice = [], heuristicWeight = 0.35, mcWeight = 0.65, maxMoves = 40 } = await request.json()
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false } = requestBody
+
+      const effectiveNumSimulations = numSimulations
+
 
       // Validate input
       if (!xgid) {
@@ -824,18 +1384,43 @@ export async function POST(request) {
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'Before getLegalMoves',data:{turnStateCurrentPlayer:turnState.currentPlayer,turnStateDice:turnState.dice,turnStateUsedDice:turnState.usedDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       
-      const allLegalMoves = getLegalMoves(boardState, turnState)
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
+      let allLegalMoves = []
+      if (!skipLegalMoves) {
+        allLegalMoves = getLegalMoves(boardState, turnState)
 
-      if (allLegalMoves.length === 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+
+        if (allLegalMoves.length === 0) {
+          return Response.json({
+            move: null,
+            reasoning: "No legal moves available",
+            confidence: 1.0,
+            source: 'local'
+          })
+        }
+      } else {
+        // Skip all expensive processing for MC-only testing
+        // Run Monte Carlo directly with a dummy move for tracking
+        const dummyMove = {
+          moves: [{ from: 13, to: 10, die: 3 }],
+          description: "13/10",
+          totalPips: 3,
+          heuristicScore: 0,
+          mcScore: 0
+        }
+
+        // Run Monte Carlo simulation
+        const mcResults = runMonteCarloWithMoveTracking(boardState, dummyMove, player === 1 ? 'white' : 'black')
+
         return Response.json({
-          move: null,
-          reasoning: "No legal moves available",
-          confidence: 1.0,
-          source: 'local'
+          move: dummyMove,
+          reasoning: "Fast MC simulation (legal moves skipped)",
+          confidence: 0.5,
+          source: 'local',
+          mcResults: mcResults,
+          trackedSimulation: mcResults
         })
       }
 
@@ -970,7 +1555,18 @@ export async function POST(request) {
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'Before analyzeMovesWithHybridEngine',data:{playerOwner,topMovesLength:topMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       
-      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, numSimulations, heuristicWeight, mcWeight, maxMoves)
+      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, effectiveNumSimulations, heuristicWeight, mcWeight)
+
+      // If numSimulations is 1, also run a tracked simulation to log all moves
+      let trackedSimulation = null
+      console.log(`[MC-Tracking] Checking condition: numSimulations=${numSimulations}, topMoves.length=${topMoves.length}`)
+      if (numSimulations === 1 && topMoves.length > 0) {
+        console.log('[MC-Tracking] Running tracked simulation for move logging...')
+        trackedSimulation = runMonteCarloWithMoveTracking(boardState, topMoves[0], playerOwner)
+        console.log(`[MC-Tracking] Simulation completed: ${trackedSimulation.totalMoves} moves, winner: ${trackedSimulation.winner || 'none'}`)
+      } else {
+        console.log(`[MC-Tracking] Condition not met: numSimulations=${numSimulations}, topMoves.length=${topMoves.length}`)
+      }
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:378',message:'After analyzeMovesWithHybridEngine',data:{hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
@@ -1005,7 +1601,7 @@ export async function POST(request) {
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:432',message:'Final result',data:{resultMoveDescription:result.move?.description,resultMoveMovesLength:result.move?.moves?.length||1,resultReasoning:result.reasoning,resultSource:result.source},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
 
-      if (!debugInfo) {
+      if (!debug) {
         delete result.factorScores
       }
 
@@ -1014,12 +1610,16 @@ export async function POST(request) {
         result.debug = debugInfo
       }
 
+      // Include tracked simulation data if available (for single simulation logging)
+      if (trackedSimulation) {
+        result.trackedSimulation = trackedSimulation
+      }
+
       // Add comprehensive performance info
       result.performance = {
         totalElapsedMs: Date.now() - startTime,
         parameters: {
           maxTopMoves: maxTopMoves,
-          maxMoves: maxMoves, // MC simulation depth (each sim runs max N moves)
           numSimulations: numSimulations // Monte Carlo simulations per move
         }
       }
@@ -1093,6 +1693,17 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 }
 
 // ============================================================================
+// INTERMEDIATE WIN DETERMINATION FOR COMPLETE GAMES
+// ============================================================================
+// Complete games use intermediate win determination:
+// 1. Game continues until all checkers of either player are in home board
+// 2. If no contact situation: player with all checkers in home board wins 100%
+// 3. If contact situation: player with all checkers in home board wins 85%, opponent wins 15%
+// 4. If maxMoves*10 reached without winner: simulation discarded (not counted)
+//
+// This provides more accurate evaluation than heuristic cutoffs while being faster than full bearing-off.
+
+// ============================================================================
 // DETERMINISTIC ENGINE - Verified calculations for hybrid engine system
 // ============================================================================
 
@@ -1150,6 +1761,9 @@ function applyMoveToBoardForAnalysis(boardState, move, playerOwner) {
       toPoint.owner = playerOwner
     }
     toPoint.count += 1
+  } else {
+    // Bearing off - checker is removed from the board completely
+    // No action needed since we already removed it from the source
   }
 
   return newState

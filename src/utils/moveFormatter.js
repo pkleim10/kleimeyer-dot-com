@@ -48,9 +48,17 @@ function formatSingleMove(move, player = null) {
   } else {
     // Convert to relative coordinates
     const fromRel = absoluteToRelative(move.from, player)
-    const toRel = absoluteToRelative(move.to, player)
     from = fromRel === 0 ? 'bar' : fromRel === 25 ? 'bar' : fromRel
-    to = isBearOffMove(move) ? 'off' : (toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel)
+
+    const isFromBar = move.from === 0 || move.from === 25
+    if (isFromBar) {
+      // Bar moves: show target in relative coordinates from player's perspective
+      const toRel = absoluteToRelative(move.to, player)
+      to = isBearOffMove(move) ? 'off' : (toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel)
+    } else {
+      const toRel = absoluteToRelative(move.to, player)
+      to = isBearOffMove(move) ? 'off' : (toRel === -1 ? 'off' : toRel === -2 ? 'off' : toRel)
+    }
   }
   
   const asterisk = move.hitBlot ? '*' : ''
@@ -226,12 +234,12 @@ function formatMove(move, player = null, options = {}) {
  * @param {Array} moves - Array of move objects
  * @returns {string} Formatted move description
  */
-function rebuildDescription(moves) {
+function rebuildDescription(moves, owner = null) {
   if (!moves || moves.length === 0) return ''
-  
-  // Sort moves first
-  const sortedMoves = [...moves].sort(sortMoves)
-  
+
+  // Moves are sorted at display time, not analysis time
+  const sortedMoves = [...moves]
+
   // Format each move
   const formattedParts = sortedMoves.map(m => formatSingleMove(m, null))
   

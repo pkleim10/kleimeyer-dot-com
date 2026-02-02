@@ -304,33 +304,7 @@ function getLegalMoves(boardState, turnState) {
     return null
   }
 
-  // If must enter from bar, generate only bar entry moves
-  if (mustEnterFromBar) {
-    for (const die of availableDice) {
-      const barMove = canEnterFromBar(boardState, die)
-      if (barMove) {
-        moveCombinations.push({
-          moves: [barMove],
-          description: `bar/${barMove.to}`,
-          totalPips: die
-        })
-      }
-    }
-    // Try to use both dice if possible
-    if (availableDice.length >= 2) {
-      const [die1, die2] = availableDice
-      const move1 = canEnterFromBar(boardState, die1)
-      const move2 = canEnterFromBar(boardState, die2)
-      if (move1 && move2) {
-        moveCombinations.push({
-          moves: [move1, move2],
-          description: `bar/${move1.to} bar/${move2.to}`,
-          totalPips: die1 + die2
-        })
-      }
-    }
-    return moveCombinations
-  }
+  // Complex combination generation handles all cases, including bar entry
 
   const buildMove = (state, fromPoint, die) => {
     // Handle bar moves separately (fromPoint === 25 means bar)
@@ -378,7 +352,7 @@ function getLegalMoves(boardState, turnState) {
 
   const buildDescription = (moves) => {
     // Use centralized formatter
-    return rebuildDescription(moves)
+    return rebuildDescription(moves, owner)
   }
   
   const buildDescriptionOld = moves => {
@@ -401,20 +375,22 @@ function getLegalMoves(boardState, turnState) {
       return move.fromBar || move.from === 25 || move.from === 0
     }
     
-    // Sort moves so bar moves come first (for display purposes)
-    // Bar moves MUST come before any other moves
     const sortedMoves = [...moves].sort((a, b) => {
       const aIsBar = isBarMove(a)
       const bIsBar = isBarMove(b)
-      
+
       // Bar moves always come first
       if (aIsBar && !bIsBar) return -1
       if (!aIsBar && bIsBar) return 1
-      
-      // If both are bar or both are not bar, sort by from point (highest first)
-      const aFrom = aIsBar ? 25 : a.from
-      const bFrom = bIsBar ? 25 : b.from
-      if (aFrom !== bFrom) return bFrom - aFrom
+
+      // For sorting, convert absolute positions to relative points for proper ordering
+      // Black positions (1-12): relative = 25 - absolute
+      // White positions (13-24): relative = absolute
+      const aFromRelative = a.from <= 12 ? 25 - a.from : a.from
+      const bFromRelative = b.from <= 12 ? 25 - b.from : b.from
+
+      // Sort by relative from point (highest first)
+      if (aFromRelative !== bFromRelative) return bFromRelative - aFromRelative
       return b.to - a.to
     })
     
@@ -668,7 +644,7 @@ function getLegalMoves(boardState, turnState) {
         // #endregion
         
         return [{
-          moves: sortedMovesForCombination,
+          moves: currentMoves, // Keep in execution order
           description: finalDescription,
           totalPips: currentMoves.reduce((sum, m) => sum + (m.die || 0), 0)
         }]
@@ -798,11 +774,14 @@ function getLegalMoves(boardState, turnState) {
         }
       }
     }
-    
+
+    // Don't add partial combinations - only return complete combinations that use all dice
+    // This ensures players must use as many dice as possible
+
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:444',message:'generateCombinations returning',data:{combinationsLength:combinations.length,combinations:combinations.map(c=>({movesLength:c.moves.length,description:c.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:444',message:'generateCombinations returning',data:{combinationsLength:combinations.length,combinations:combinations.map(c=>({movesLength:c.moves.length,description:c.description,isComplete:c.isComplete}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
-    
+
     return combinations
   }
 

@@ -101,7 +101,6 @@ export default function PlayPage() {
           player: actualPlayer, // Use actual player from XGID, not state variable
           difficulty: engineDifficulty,
           maxTopMoves: maxTopMoves,
-          maxMoves: maxMoves,
           numSimulations: numSimulations,
           debug: true, // Request debug information
           usedDice: usedDice // Pass used dice so API knows which dice are still available
@@ -724,6 +723,7 @@ export default function PlayPage() {
       localStorage.setItem('backgammonNumSimulations', numSimulations.toString())
     }
   }, [numSimulations])
+
 
   // Validate XGID string components
   const validateXGID = (xgid) => {
@@ -1929,10 +1929,8 @@ export default function PlayPage() {
                     onUsedDiceChange={setUsedDice}
                     applyMoveTrigger={applyMoveTrigger}
                     openOptionsTrigger={openOptionsTrigger}
-                    maxMoves={maxMoves}
                     maxTopMoves={maxTopMoves}
                     numSimulations={numSimulations}
-                    onMaxMovesChange={setMaxMoves}
                     onMaxTopMovesChange={setMaxTopMoves}
                     onNumSimulationsChange={setNumSimulations}
                   />
@@ -2008,11 +2006,7 @@ export default function PlayPage() {
                     <div>
                       <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Simulation Parameters</h4>
                       <div className="bg-white dark:bg-slate-800 rounded p-3 border">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600 dark:text-gray-400">Moves per Simulation:</span>
-                            <span className="ml-2 font-mono text-gray-900 dark:text-white">{maxMoves}</span>
-                          </div>
+                        <div className="text-sm">
                           <div>
                             <span className="text-gray-600 dark:text-gray-400">Number of Simulations:</span>
                             <span className="ml-2 font-mono text-gray-900 dark:text-white">{numSimulations.toLocaleString()}</span>
@@ -2035,7 +2029,17 @@ export default function PlayPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {engineAnalysis.factorScores?.slice(0, 10).map((factorScore, idx) => {
+                            {engineAnalysis.factorScores
+                              ?.sort((a, b) => {
+                                // Parse hybrid scores for sorting
+                                const aMatch = a.scores?.match(/Total:\s*([\d.-]+)/);
+                                const bMatch = b.scores?.match(/Total:\s*([\d.-]+)/);
+                                const aHybrid = aMatch ? parseFloat(aMatch[1]) : 0;
+                                const bHybrid = bMatch ? parseFloat(bMatch[1]) : 0;
+                                return bHybrid - aHybrid; // Sort descending (highest first)
+                              })
+                              .slice(0, 10)
+                              .map((factorScore, idx) => {
                               // Parse the scores string: "Heuristic: 2.105 | MC: .506 | Total: 1.48"
                               const scoresMatch = factorScore.scores?.match(/Heuristic:\s*([\d.-]+).*MC:\s*([\d.-]+).*Total:\s*([\d.-]+)/)
                               const heScore = scoresMatch ? parseFloat(scoresMatch[1]) : null

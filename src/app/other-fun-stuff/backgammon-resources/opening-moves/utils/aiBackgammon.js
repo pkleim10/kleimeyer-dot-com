@@ -37,7 +37,8 @@ export async function getAIMove(xgid, player, difficulty = 'intermediate', maxMo
         xgid,
         player,
         difficulty,
-        maxMoves
+        maxMoves,
+        playCompleteGame: true // Use accurate complete game evaluation
       })
     })
 
@@ -124,7 +125,8 @@ async function analyzeMovesWithAI(xgid, moves, difficulty) {
       xgid,
       player: 1, // Default to white for now, could be parameterized
       difficulty,
-      maxMoves: moves.length
+      maxMoves: moves.length,
+      playCompleteGame: true // Use accurate complete game evaluation
     })
   })
 

@@ -38,10 +38,8 @@ export default function BackgammonBoard({
   onClearAiAnalysis = null, // Callback to clear engine analysis: () => void
   onUsedDiceChange = null, // Callback when used dice changes: (usedDice: number[]) => void
   applyMoveTrigger = null, // When this changes, apply the move from aiAnalysis (for external Apply button)
-  maxMoves = 20, // Maximum moves per Monte Carlo simulation
   maxTopMoves = 6, // Maximum top moves to analyze with MC
   numSimulations = 1000, // Number of Monte Carlo simulations per move
-  onMaxMovesChange = null, // Callback when maxMoves changes: (value: number) => void
   onMaxTopMovesChange = null, // Callback when maxTopMoves changes: (value: number) => void
   onNumSimulationsChange = null, // Callback when numSimulations changes: (value: number) => void
   openOptionsTrigger = null // When this changes, open the options dialog: (number) => void
@@ -885,9 +883,12 @@ export default function BackgammonBoard({
       // Normal dice display
       // In editable mode, use dice from editableXGID (boardState.dice), otherwise use finalEffectiveDice
       // Don't show dice if value is "00" - keep it consistent with XGID
-      diceToShow = isEditable 
+      // Exception: Show dice when ghost moves are visible, even if not editable
+      diceToShow = isEditable
         ? (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null)
-        : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
+        : ghostsVisible
+          ? (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : (boardState.dice !== undefined && boardState.dice !== "00" ? boardState.dice : null))
+          : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
     }
     
     if (!diceToShow) return null
@@ -2573,7 +2574,8 @@ export default function BackgammonBoard({
               player: currentPlayer,
               usedDice: newUsedDice,
               maxTopMoves: 1, // Just check if any moves exist
-              numSimulations: 1
+              numSimulations: 1,
+              playCompleteGame: true // Use accurate complete game evaluation
             })
           })
 
@@ -4416,7 +4418,6 @@ export default function BackgammonBoard({
     dice: finalEffectiveDice,
     showTrays: activeShowTrays,
     showBoardLabels: activeShowBoardLabels,
-    maxMoves: maxMoves,
     maxTopMoves: maxTopMoves,
     numSimulations: numSimulations
   }
@@ -4785,30 +4786,13 @@ export default function BackgammonBoard({
                 </label>
               </div>
 
+
               {/* Simulation Parameters Section */}
               <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Simulation Parameters
                 </h3>
 
-                {/* Max Moves per Simulation */}
-                <div className="mb-4">
-                  <label htmlFor="maxMoves" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Max Moves per Simulation
-                  </label>
-                  <input
-                    type="number"
-                    id="maxMoves"
-                    min="1"
-                    max="100"
-                    value={dialogSettings.maxMoves}
-                    onChange={(e) => handleSettingsChange('maxMoves', parseInt(e.target.value) || 40)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Maximum moves in each Monte Carlo simulation (default: 40)
-                  </p>
-                </div>
 
                 {/* Max Top Moves */}
                 <div className="mb-4">
@@ -5123,51 +5107,6 @@ export default function BackgammonBoard({
         <span className="text-lg font-semibold">{infoText}</span>
       </div>
 
-      {/* AI Debug/Trace Area */}
-      {aiDebug && (
-        <div className="w-full bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-gray-700 p-4" style={{ width: `${BOARD_WIDTH}px`, maxWidth: '100%' }}>
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Analysis Debug</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">XGID Sent to AI:</h4>
-                <code className="block p-2 bg-gray-100 dark:bg-slate-700 rounded text-sm font-mono text-gray-900 dark:text-gray-100 break-all">
-                  {aiDebug.xgid}
-                </code>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legal Moves:</h4>
-                <div className="max-h-32 overflow-y-auto">
-                  {aiDebug.legalMoves && aiDebug.legalMoves.map((move, i) => {
-                    // Format move with current player's perspective (convert absolute to relative)
-                    const boardState = parseXGID(effectiveXGID || xgid)
-                    const currentPlayer = boardState?.player !== undefined ? boardState.player : 1
-                    let formattedMove = move.description || ''
-                    
-                    // If moves array is available, format with current player's perspective
-                    if (move.moves && Array.isArray(move.moves) && move.moves.length > 0) {
-                      try {
-                        formattedMove = formatMove({ moves: move.moves }, currentPlayer)
-                      } catch (error) {
-                        console.warn('Error formatting move:', error, move)
-                        formattedMove = move.description || ''
-                      }
-                    }
-                    
-                    return (
-                      <code key={i} className="block p-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono text-gray-900 dark:text-gray-100 mb-1">
-                        {formattedMove}
-                      </code>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Win message overlay */}
       {winner && (

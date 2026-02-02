@@ -19,4 +19,4 @@ const IDEAL_HE_WEIGHTS = {
   stackPenalty: -0.09,      // Slight increase (more clustering penalty)
   opponentBlotCount: 0.07,  // Unchanged (good)
   highRollBonus: 0.07       // Slight increase (high-roll fix)
-};
+};. 
