@@ -920,8 +920,8 @@ export default function BackgammonBoard({
             x={rightHalfCenterX}
             y={diceY + dieSize * 0.1}
             textAnchor="middle"
-            fontSize={dieSize * 0.3}
-            fontWeight="bold"
+            fontSize={dieSize * 0.4}
+            fontWeight="900"
             fill="#ffffff"
           >
             ROLL
@@ -1240,8 +1240,8 @@ export default function BackgammonBoard({
             x={rightHalfCenterX}
             y={diceY + dieSize * 0.1}
             textAnchor="middle"
-            fontSize={dieSize * 0.3}
-            fontWeight="bold"
+            fontSize={dieSize * 0.4}
+            fontWeight="900"
             fill="#ffffff"
           >
             ROLL
@@ -1414,7 +1414,7 @@ export default function BackgammonBoard({
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize={checkerRadius * 0.8}
-              fontWeight="bold"
+              fontWeight="900"
               fill={COLORS.checkerWhite}
             >
               {topBarCount}
@@ -1542,7 +1542,7 @@ export default function BackgammonBoard({
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize={checkerRadius * 0.8}
-              fontWeight="bold"
+              fontWeight="900"
               fill={COLORS.stroke}
             >
               {bottomBarCount}
@@ -1775,7 +1775,7 @@ export default function BackgammonBoard({
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize={checkerRadius * 0.8}
-              fontWeight="bold"
+              fontWeight="900"
               fill={fillColor === COLORS.checkerWhite ? COLORS.stroke : COLORS.checkerWhite}
             >
               {checkerCount}
@@ -1831,7 +1831,7 @@ export default function BackgammonBoard({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fontSize={checkerRadius * 0.8}
-                fontWeight="bold"
+                fontWeight="900"
                 fill={fillColor === COLORS.checkerWhite ? COLORS.stroke : COLORS.checkerWhite}
                 opacity={0.7}
               >
@@ -4368,7 +4368,7 @@ export default function BackgammonBoard({
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize="18"
-            fontWeight="bold"
+            fontWeight="900"
             fill={COLORS.number}
           >
             {pointNumber}
@@ -5146,7 +5146,7 @@ export default function BackgammonBoard({
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fontSize={checkerRadius * 0.8}
-                    fontWeight="bold"
+                    fontWeight="900"
                     fill={draggedChecker.owner === 'white' ? COLORS.stroke : COLORS.checkerWhite}
                     opacity={0.8}
                     style={{ pointerEvents: 'none' }}
