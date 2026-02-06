@@ -423,12 +423,14 @@ export default function BackgammonBoard({
           // Doubles: if both dice are the same, allow 4 moves of that number
           const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
           const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
-          
+
+          console.log(`[DEBUG UI] Initial turn state: player=${owner}, barCount=${barCount}, dice=${diceArray.join(',')}`)
+
           // Create initial turn state
           const initialTurnState = {
             currentPlayer: owner,
             dice: diceArray,
-        usedDice: [],
+            usedDice: [],
             isTurnComplete: false,
             mustEnterFromBar: barCount > 0,
             noLegalMoves: false
@@ -891,7 +893,10 @@ export default function BackgammonBoard({
           : (finalEffectiveDice && finalEffectiveDice !== "00" ? finalEffectiveDice : null)
     }
     
-    if (!diceToShow) return null
+    // Show ROLL indicator when dice can be thrown (dice are "00" and board is editable)
+    const canRollDice = !diceToShow && isEditable && effectiveEditingMode === 'play'
+
+    if (!diceToShow && !canRollDice) return null
     
     // Parse dice values
     const die1 = parseInt(diceToShow[0]) || 1
@@ -1181,6 +1186,40 @@ export default function BackgammonBoard({
       )
     }
     
+    // If dice can be rolled, show ROLL indicator instead
+    if (canRollDice) {
+      const diceY = topBorderWidth + innerHeight / 2
+      const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
+      const dieSize = BAR_WIDTH * 0.8
+
+      return (
+        <g id="dice-area">
+          {/* Light grey rectangle */}
+          <rect
+            x={rightHalfCenterX - dieSize * 0.8}
+            y={diceY - dieSize * 0.4}
+            width={dieSize * 1.6}
+            height={dieSize * 0.8}
+            fill="#d1d5db" // light grey
+            rx={dieSize * 0.1}
+            stroke="#6b7280"
+            strokeWidth="1"
+          />
+          {/* "ROLL" text */}
+          <text
+            x={rightHalfCenterX}
+            y={diceY + dieSize * 0.1}
+            textAnchor="middle"
+            fontSize={dieSize * 0.3}
+            fontWeight="bold"
+            fill="#ffffff"
+          >
+            ROLL
+          </text>
+        </g>
+      )
+    }
+
     return <g id="dice-area">{diceElements}</g>
   }
   
@@ -3371,6 +3410,8 @@ export default function BackgammonBoard({
             
             const barCount = updatedTurnState.currentPlayer === 'black' ? newBoardState.blackBar : newBoardState.whiteBar
             updatedTurnState.mustEnterFromBar = barCount > 0
+
+            console.log(`[DEBUG UI] After move: player=${updatedTurnState.currentPlayer}, barCount=${barCount}, mustEnterFromBar=${updatedTurnState.mustEnterFromBar}`)
             
             const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
             const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length

@@ -19,7 +19,7 @@ export default function PlayPage() {
   
   const [currentPlayer, setCurrentPlayer] = useState(1) // Track current player: -1 = black, 1 = white
   const [boardXGID, setBoardXGID] = useState(STARTING_XGID) // Track board state
-  const [editingMode, setEditingMode] = useState('free') // 'free' or 'play'
+  const [editingMode, setEditingMode] = useState('play') // 'free' or 'play'
   const [xgidInputValue, setXgidInputValue] = useState(STARTING_XGID) // Current input value
   const [xgidError, setXgidError] = useState(null) // Validation error message
   const [usedDice, setUsedDice] = useState([]) // Track dice that have been used in the current turn
