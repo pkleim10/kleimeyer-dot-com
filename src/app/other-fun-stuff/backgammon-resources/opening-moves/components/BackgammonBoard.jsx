@@ -925,6 +925,7 @@ export default function BackgammonBoard({
             fontSize={dieSize * 0.4}
             fontWeight="900"
             fill="#ffffff"
+            cursor="pointer"
           >
             ROLL
           </text>
@@ -1247,6 +1248,7 @@ export default function BackgammonBoard({
             fontSize={dieSize * 0.4}
             fontWeight="900"
             fill="#ffffff"
+            cursor="pointer"
           >
             ROLL
           </text>
