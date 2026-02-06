@@ -245,7 +245,7 @@ function getLegalMoves(boardState, turnState) {
     // Only check the bar count from state, not turnState.mustEnterFromBar (which is only relevant at turn start)
     const currentBarCount = owner === 'white' ? state.whiteBar : state.blackBar
     const currentMustEnterFromBar = currentBarCount > 0
-    
+
     // If must enter from bar, only return bar (represented as 0 for white, 25 for black in some systems)
     // But we'll handle bar separately, so return empty array if must enter from bar
     if (currentMustEnterFromBar) {
@@ -654,9 +654,11 @@ function getLegalMoves(boardState, turnState) {
 
     const combinations = []
     
-    // Check if we still need to enter from bar (check current state's bar count)
+    // Check if we still need to enter from bar
+    // If the turn started with checkers on bar, must enter ALL before moving other checkers
     const currentBarCount = owner === 'white' ? currentState.whiteBar : currentState.blackBar
-    const stillMustEnterFromBar = currentBarCount > 0
+    const turnStartedWithBarCheckers = turnState.mustEnterFromBar === true
+    const stillMustEnterFromBar = turnStartedWithBarCheckers && currentBarCount > 0
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:390',message:'Checking bar status',data:{currentBarCount,stillMustEnterFromBar,remainingDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
@@ -799,13 +801,39 @@ function getLegalMoves(boardState, turnState) {
   // Helper function to check if a die can be fully used from a board state
   const canDieBeFullyUsed = (state, owner, die) => {
     const currentPlayer = owner === 'white' ? 1 : -1
-    
+
+    // Check if die can be used for bar entry (highest priority when must enter from bar)
+    const barCount = owner === 'white' ? state.whiteBar : state.blackBar
+    if (barCount > 0) {
+      // Inline bar entry check
+      let entryPoint
+      if (owner === 'white') {
+        entryPoint = 25 - die
+      } else {
+        entryPoint = die
+      }
+
+      if (entryPoint >= 1 && entryPoint <= 24) {
+        const toData = state.points[entryPoint - 1]
+        if (
+          toData.count === 0 ||
+          toData.owner === owner ||
+          (toData.count === 1 && toData.owner !== owner)
+        ) {
+          // Can enter from bar with this die
+          return true
+        }
+      }
+      // If must enter from bar but this die can't be used for entry, it can't be used at all
+      return false
+    }
+
     // Check if die can bear off from point equal to die value (in relative coordinates)
     if (canBearOff(state, owner)) {
       const homeBoardStart = owner === 'white' ? 1 : 19
       const homeBoardEnd = owner === 'white' ? 6 : 24
       const absolutePoint = owner === 'white' ? die : (25 - die)
-      
+
       if (absolutePoint >= homeBoardStart && absolutePoint <= homeBoardEnd) {
         const pointData = state.points[absolutePoint - 1]
         if (pointData.owner === owner && pointData.count > 0) {
@@ -814,7 +842,7 @@ function getLegalMoves(boardState, turnState) {
         }
       }
     }
-    
+
     // Check if die can be used for a regular move (not bear-off)
     const playerPoints = getPlayerPoints(state)
     for (const fromPoint of playerPoints) {
@@ -824,7 +852,7 @@ function getLegalMoves(boardState, turnState) {
         return true
       }
     }
-    
+
     return false
   }
   

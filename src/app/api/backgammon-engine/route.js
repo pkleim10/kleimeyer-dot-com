@@ -3,7 +3,7 @@
  * Provides server-side hybrid heuristic + Monte Carlo engine for move analysis
  */
 
-import { getLegalMoves } from './getLegalMoves'
+import { getLegalMoves } from './getLegalMoves.js'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
 import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 
@@ -167,10 +167,10 @@ function isValidMove(board, fromPoint, dieValue, playerIndex) {
 
   if (isBarMove2) {
     // Bar moves: entering the board on opponent's home board
-    if (playerIndex === 0) { // White enters on points 1-6
-      toPoint = dieValue  // 1-6
-    } else { // Black enters on points 19-24
+    if (playerIndex === 0) { // White enters on points 19-24
       toPoint = 25 - dieValue  // 24-19
+    } else { // Black enters on points 1-6
+      toPoint = dieValue  // 1-6
     }
   } else {
     // Regular moves
@@ -222,14 +222,88 @@ function applyMove(board, fromPoint, toPoint, playerIndex) {
 }
 
 /**
+ * Display the board in human-readable ASCII format
+ */
+function displayBoard(boardState) {
+  const lines = []
+
+  // Helper function to get checker symbol
+  function getCheckerSymbol(owner, count) {
+    if (count === 0) return '   '
+    if (count === 1) return owner === 'white' ? ' O ' : ' X '
+    // For counts 2-15, format as " X" where X is the count + symbol
+    const symbol = owner === 'white' ? 'O' : 'X'
+    const countStr = count.toString() + symbol
+    // Pad with space on left to make exactly 3 characters
+    return (' ' + countStr).slice(-3)
+  }
+
+  // Standard backgammon board layout:
+  // Top row (Black's side): points 13-18, then bar, then points 19-24
+  // Bottom row (White's side): points 12-7, then bar, then points 6-1
+
+  // Top row - Black's perspective
+  const topLeft = [12, 13, 14, 15, 16, 17] // Points 13,14,15,16,17,18 (array indices 12-17)
+  const topRight = [18, 19, 20, 21, 22, 23] // Points 19,20,21,22,23,24 (array indices 18-23)
+
+  const topLeftDisplay = topLeft.map(idx => {
+    const point = boardState.points[idx]
+    return getCheckerSymbol(point.owner, point.count)
+  }).join('|')
+
+  const topRightDisplay = topRight.map(idx => {
+    const point = boardState.points[idx]
+    return getCheckerSymbol(point.owner, point.count)
+  }).join('|')
+
+  // Bottom row - White's perspective (reversed for display)
+  const bottomLeft = [11, 10, 9, 8, 7, 6] // Points 12,11,10,9,8,7 (array indices 11-6, reversed)
+  const bottomRight = [5, 4, 3, 2, 1, 0] // Points 6,5,4,3,2,1 (array indices 5-0, reversed)
+
+  const bottomLeftDisplay = bottomLeft.map(idx => {
+    const point = boardState.points[idx]
+    return getCheckerSymbol(point.owner, point.count)
+  }).join('|')
+
+  const bottomRightDisplay = bottomRight.map(idx => {
+    const point = boardState.points[idx]
+    return getCheckerSymbol(point.owner, point.count)
+  }).join('|')
+
+  // Create the display with proper spacing
+  lines.push('    13  14  15  16  17  18  BB 19  20  21  22  23  24')
+  lines.push('   ----------------------------------------------------')
+  lines.push(`   |${topLeftDisplay}|${boardState.blackBar || 0}|${topRightDisplay}|`)
+  lines.push('   ----------------------------------------------------')
+  lines.push(`   |${bottomLeftDisplay}|${boardState.whiteBar || 0}|${bottomRightDisplay}|`)
+  lines.push('   ----------------------------------------------------')
+  lines.push('    12  11  10   9   8   7  BW  6   5   4   3   2   1')
+
+  return lines.join('\n')
+}
+
+/**
  * Find a single random legal move with a specific die value
  */
-function findRandomMoveForDie(board, dieValue, playerIndex) {
+function findRandomMoveForDie(board, dieValue, playerIndex, mustEnterFromBar = null) {
   let attempts = 0
 
   // Check if player has checkers on bar that MUST be moved first
+  // Use passed parameter if provided, otherwise check current state
   const barPoint = playerIndex === 0 ? 0 : 25
-  const hasCheckersOnBar = board[barPoint][playerIndex] > 0
+  const hasCheckersOnBar = mustEnterFromBar !== null ? mustEnterFromBar : board[barPoint][playerIndex] > 0
+
+  // Special handling for bar moves - try them first and more reliably
+  if (hasCheckersOnBar) {
+    // For bar moves, try systematically rather than randomly
+    const toPoint = playerIndex === 0 ? 25 - dieValue : dieValue
+    if (isValidMove(board, barPoint, dieValue, playerIndex)) {
+      const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][1 - playerIndex] === 1 : false
+      return { from: barPoint, to: toPoint, die: dieValue, hitBlot }
+    }
+    // No valid bar move found
+    return null
+  }
 
   while (attempts < 50) { // Increased attempts for better coverage
     let point
@@ -267,10 +341,10 @@ function findRandomMoveForDie(board, dieValue, playerIndex) {
     let toPoint
     if (point === barPoint) {
       // Bar moves: entering the board on opponent's home board
-      if (playerIndex === 0) { // White enters on points 1-6
-        toPoint = dieValue  // 1-6
-      } else { // Black enters on points 19-24
+      if (playerIndex === 0) { // White enters on points 19-24
         toPoint = 25 - dieValue  // 24-19
+      } else { // Black enters on points 1-6
+        toPoint = dieValue  // 1-6
       }
     } else {
       // Regular moves
@@ -286,7 +360,8 @@ function findRandomMoveForDie(board, dieValue, playerIndex) {
       // Check if this move hits a blot (only for regular board positions)
       const opponentIndex = 1 - playerIndex
       const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][opponentIndex] === 1 : false
-      return { from: point, to: toPoint, die: dieValue, hitBlot }
+        process.stderr.write(`[DEBUG findRandomMoveForDie] Selected move: from=${point}, to=${toPoint}, die=${dieValue}, hitBlot=${hitBlot}\n`)
+        return { from: point, to: toPoint, die: dieValue, hitBlot }
     }
 
     // Try adjacent points (only if not forced to move from bar)
@@ -315,22 +390,33 @@ function findRandomMoveForDie(board, dieValue, playerIndex) {
     attempts++
   }
 
-  // Fallback: systematic search if random fails
+  // Fallback: systematic search of all possible moves
   for (let point = 0; point < 26; point++) {
+    if (board[point][playerIndex] === 0) continue // Skip points with no checkers
+
     let toPoint
-    if (playerIndex === 0) { // White
-      toPoint = point - dieValue
-    } else { // Black
-      toPoint = point + dieValue
+    if (point === barPoint) {
+      // Bar moves: entering the board on opponent's home board
+      if (playerIndex === 0) { // White enters on points 19-24
+        toPoint = 25 - dieValue  // 24-19
+      } else { // Black enters on points 1-6
+        toPoint = dieValue  // 1-6
+      }
+    } else {
+      // Regular moves
+      if (playerIndex === 0) { // White
+        toPoint = point - dieValue
+      } else { // Black
+        toPoint = point + dieValue
+      }
     }
 
-    if (board[point][playerIndex] > 0) {  // Only check points with player's checkers
-      if (isValidMove(board, point, dieValue, playerIndex)) {
-        // Check if this move hits a blot (only for regular board positions)
-        const opponentIndex = 1 - playerIndex
-        const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][opponentIndex] === 1 : false
-        return { from: point, to: toPoint, die: dieValue, hitBlot }
-      }
+    if (isValidMove(board, point, dieValue, playerIndex)) {
+      // Check if this move hits a blot (only for regular board positions)
+      const opponentIndex = 1 - playerIndex
+      const hitBlot = (toPoint >= 1 && toPoint <= 24) ? board[toPoint][opponentIndex] === 1 : false
+      const move = { from: point, to: toPoint, die: dieValue, hitBlot }
+      return move
     }
   }
 
@@ -345,6 +431,9 @@ function findRandomMoveForDie(board, dieValue, playerIndex) {
 function getRandomLegalMove(boardState, turnState) {
   const playerOwner = turnState.currentPlayer
   const playerIndex = playerOwner === 'white' ? 0 : 1
+
+  // Track if this turn started with checkers on bar - must enter all before regular moves
+  const turnStartedWithBarCheckers = turnState.mustEnterFromBar
 
   // Convert to array representation
   let board = boardToArray(boardState, playerOwner)
@@ -365,19 +454,43 @@ function getRandomLegalMove(boardState, turnState) {
     }
   }
 
+  // Sort dice in ascending order for better bar entry handling
+  expandedDice.sort((a, b) => a - b)
+
   // Process each die sequentially, updating board after each move
   const moves = []
   for (const dieValue of expandedDice) {
+    // Check if we still must enter from bar (turn started with bar checkers AND still have some on bar)
+    const barPoint = playerIndex === 0 ? 0 : 25
+    const stillMustEnterFromBar = turnStartedWithBarCheckers && board[barPoint][playerIndex] > 0
+
     // Find random move for this die using current board state
-    const move = findRandomMoveForDie(board, dieValue, playerIndex)
+    const move = findRandomMoveForDie(board, dieValue, playerIndex, stillMustEnterFromBar)
 
     if (move) {
       // Apply move to board (UPDATE BOARD STATE for next die)
       applyMove(board, move.from, move.to, playerIndex)
       moves.push(move)
     } else {
-      // No move found with this die - stop here (partial turn)
-      break
+      // No move found with this die
+      // If we haven't made any moves yet, check if any moves are possible with remaining dice
+      if (moves.length === 0) {
+        // Check if any of the remaining dice can make moves
+        const remainingDice = expandedDice.slice(expandedDice.indexOf(dieValue) + 1)
+        let hasPossibleMoves = false
+        for (const remainingDie of remainingDice) {
+          const testMove = findRandomMoveForDie(board, remainingDie, playerIndex, stillMustEnterFromBar)
+          if (testMove) {
+            hasPossibleMoves = true
+            break
+          }
+        }
+        if (!hasPossibleMoves) {
+          break // No moves possible at all
+        }
+        // Continue to try remaining dice
+      }
+      // If we have made moves, continue to try other dice
     }
   }
 
@@ -394,7 +507,7 @@ function getRandomLegalMove(boardState, turnState) {
     }
   }
 
-  // No moves found (shouldn't happen in valid positions)
+  // No moves found
   return null
 }
 
@@ -430,8 +543,10 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
       const turnState = {
         currentPlayer,
         dice: randomDice,
-        usedDice: []
+        usedDice: [],
+        mustEnterFromBar: (currentPlayer === 'white' ? currentBoard.whiteBar : currentBoard.blackBar) > 0
       }
+
 
       const randomTurn = getRandomLegalMove(currentBoard, turnState)
       if (!randomTurn) {
@@ -540,7 +655,8 @@ function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations 
       const turnState = {
         currentPlayer,
         dice: randomDice,
-        usedDice: []
+        usedDice: [],
+        mustEnterFromBar: (currentPlayer === 'white' ? currentBoard.whiteBar : currentBoard.blackBar) > 0
       }
 
       // Get one random legal complete turn for this dice roll using fast sampling
@@ -753,11 +869,13 @@ function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner)
     const turnState = {
       currentPlayer,
       dice: randomDice,
-      usedDice: []
+      usedDice: [],
+      mustEnterFromBar: (currentPlayer === 'white' ? currentBoard.whiteBar : currentBoard.blackBar) > 0
     }
 
-      // Get one random legal complete turn for this dice roll using fast sampling
-      const randomTurn = getRandomLegalMove(currentBoard, turnState)
+    // Get one random legal complete turn for this dice roll using fast sampling
+    const randomTurn = getRandomLegalMove(currentBoard, turnState)
+
 
       if (!randomTurn) {
         // No legal moves - player passes their turn
@@ -1331,8 +1449,18 @@ function parseXGID(xgid) {
 export { parseXGID, createTurnState, getLegalMoves }
 
 export async function POST(request) {
-  console.log('[API] 🔍 BACKGAMMON ENGINE API CALLED!')
+  console.log('=== BACKGAMMON ENGINE API CALLED ===')
+
+  console.log('=== BACKGAMMON ENGINE API CALLED ===')
+
   const requestBody = await request.json()
+  console.log('[API] Processing request:', {
+    xgid: requestBody.xgid,
+    player: requestBody.player,
+    numSimulations: requestBody.numSimulations,
+    usedDice: requestBody.usedDice,
+    allParams: Object.keys(requestBody)
+  })
 
   // Set a timeout of 30 seconds for the entire analysis
   const timeoutMs = 30000
@@ -1349,18 +1477,22 @@ export async function POST(request) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:327',message:'API POST entry',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false } = requestBody
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], dice, heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false } = requestBody
 
       const effectiveNumSimulations = numSimulations
 
 
       // Validate input
       if (!xgid) {
+        console.log('[API] ERROR: No XGID provided')
         return Response.json(
           { error: 'XGID is required' },
           { status: 400 }
         )
       }
+
+      console.log(`[API] Processing: xgid=${xgid.substring(0,10)}..., player=${player}, dice=${JSON.stringify(dice)}, usedDice=${JSON.stringify(usedDice)}`)
+      console.error(`[API] Processing: xgid=${xgid.substring(0,10)}..., player=${player}, dice=${JSON.stringify(dice)}, usedDice=${JSON.stringify(usedDice)}`)
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:341',message:'Before parseXGID',data:{xgid:xgid.substring(0,50),player,difficulty,maxTopMoves,usedDiceLength:usedDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
@@ -1369,15 +1501,24 @@ export async function POST(request) {
       // Parse position and generate legal moves
       const boardState = parseXGID(xgid)
 
+      const fs = require('fs');
+      const debugLog = (msg) => {
+        console.log(msg);
+        fs.appendFileSync('/tmp/backgammon_debug.log', msg + '\n');
+      };
+
+
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:344',message:'Before createTurnState',data:{boardStatePlayer:boardState.player,boardStateDice:boardState.dice},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
 
       // Create turn state for legal move generation
-      const turnState = createTurnState(boardState, player)
+      const turnState = createTurnState(boardState, player, dice)
+      console.log(`[API] Created turn state: currentPlayer=${turnState.currentPlayer}, dice=${JSON.stringify(turnState.dice)}`)
       // If usedDice is provided, update turn state to reflect already used dice
       if (usedDice && usedDice.length > 0) {
         turnState.usedDice = usedDice
+        console.log(`[API] Updated usedDice: ${JSON.stringify(turnState.usedDice)}`)
       }
       
       // #region agent log
@@ -1393,6 +1534,7 @@ export async function POST(request) {
         // #endregion
 
         if (allLegalMoves.length === 0) {
+          console.log('[API] RESULT: No legal moves found')
           return Response.json({
             move: null,
             reasoning: "No legal moves available",
@@ -1400,6 +1542,8 @@ export async function POST(request) {
             source: 'local'
           })
         }
+
+        console.log(`[API] Found ${allLegalMoves.length} legal moves`)
       } else {
         // Skip all expensive processing for MC-only testing
         // Run Monte Carlo directly with a dummy move for tracking
@@ -1557,15 +1701,52 @@ export async function POST(request) {
       
       const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, effectiveNumSimulations, heuristicWeight, mcWeight)
 
-      // If numSimulations is 1, also run a tracked simulation to log all moves
-      let trackedSimulation = null
-      console.log(`[MC-Tracking] Checking condition: numSimulations=${numSimulations}, topMoves.length=${topMoves.length}`)
-      if (numSimulations === 1 && topMoves.length > 0) {
-        console.log('[MC-Tracking] Running tracked simulation for move logging...')
-        trackedSimulation = runMonteCarloWithMoveTracking(boardState, topMoves[0], playerOwner)
-        console.log(`[MC-Tracking] Simulation completed: ${trackedSimulation.totalMoves} moves, winner: ${trackedSimulation.winner || 'none'}`)
-      } else {
-        console.log(`[MC-Tracking] Condition not met: numSimulations=${numSimulations}, topMoves.length=${topMoves.length}`)
+      // Always run a tracked simulation for the first simulated game to show detailed moves and board positions
+      let firstGameSimulation = null
+      if (topMoves.length > 0) {
+        console.log('[MC-Tracking] Running tracked simulation for the first move to show detailed game progression...')
+        firstGameSimulation = runMonteCarloWithMoveTracking(boardState, topMoves[0], playerOwner, true) // Enable enhanced logging
+        console.log(`[MC-Tracking] First game simulation completed: ${firstGameSimulation.totalMoves} moves, winner: ${firstGameSimulation.winner || 'none'}`)
+
+        // Log detailed first game simulation to console
+        console.log('\n=== FIRST GAME SIMULATION ===')
+        firstGameSimulation.gameMoves.forEach((move, i) => {
+          console.log(`${i + 1}. ${move}`)
+        })
+        console.log(`Game ended with ${firstGameSimulation.winner || 'no'} winner after ${firstGameSimulation.totalMoves} moves`)
+
+
+        // Also write to debug log
+        const fs = require('fs')
+        let debugMsg = `\n=== FIRST GAME SIMULATION ===\n`
+        firstGameSimulation.gameMoves.forEach((move, i) => {
+          debugMsg += `${i + 1}. ${move}\n`
+        })
+        debugMsg += `Game ended with ${firstGameSimulation.winner || 'no'} winner after ${firstGameSimulation.totalMoves} moves\n`
+        fs.appendFileSync('/tmp/backgammon_debug.log', debugMsg)
+
+        // Generate ASCII board display for the final position
+        if (firstGameSimulation.finalBoard) {
+          firstGameSimulation.asciiBoard = displayBoard(firstGameSimulation.finalBoard)
+
+          // Generate final XGID
+          const points = firstGameSimulation.finalBoard.points.map(p => {
+            if (p.count === 0) return '-'
+            if (p.owner === 'black') {
+              return String.fromCharCode('a'.charCodeAt(0) + Math.min(p.count - 1, 14)) // a=1, o=15 (lowercase = black)
+            } else {
+              return String.fromCharCode('A'.charCodeAt(0) + Math.min(p.count - 1, 14)) // A=1, O=15 (uppercase = white)
+            }
+          }).join('')
+
+          const blackBarChar = firstGameSimulation.finalBoard.blackBar === 0 ? '-' :
+            String.fromCharCode('a'.charCodeAt(0) + Math.min(firstGameSimulation.finalBoard.blackBar - 1, 14))
+
+          const whiteBarChar = firstGameSimulation.finalBoard.whiteBar === 0 ? '-' :
+            String.fromCharCode('A'.charCodeAt(0) + Math.min(firstGameSimulation.finalBoard.whiteBar - 1, 14))
+
+          firstGameSimulation.finalXGID = blackBarChar + points + whiteBarChar
+        }
       }
 
       // #region agent log
@@ -1610,9 +1791,15 @@ export async function POST(request) {
         result.debug = debugInfo
       }
 
-      // Include tracked simulation data if available (for single simulation logging)
-      if (trackedSimulation) {
-        result.trackedSimulation = trackedSimulation
+      // Include first game simulation data with detailed moves, XGID, and ASCII board
+      if (firstGameSimulation) {
+        result.firstGameSimulation = {
+          allMoves: firstGameSimulation.gameMoves,
+          finalXGID: firstGameSimulation.finalXGID,
+          asciiBoard: firstGameSimulation.asciiBoard,
+          totalMoves: firstGameSimulation.totalMoves,
+          winner: firstGameSimulation.winner
+        }
       }
 
       // Add comprehensive performance info
@@ -1660,10 +1847,14 @@ export async function POST(request) {
 /**
  * Create turn state for move validation
  */
-function createTurnState(boardState, player) {
+function createTurnState(boardState, player, customDice = null) {
   const owner = player === 1 ? 'white' : 'black'
   let dice = []
-  if (boardState.dice && boardState.dice !== '00') {
+
+  // Use custom dice if provided
+  if (customDice && Array.isArray(customDice)) {
+    dice = customDice
+  } else if (boardState.dice && boardState.dice !== '00') {
     const die1 = parseInt(boardState.dice[0])
     const die2 = parseInt(boardState.dice[1])
     if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
