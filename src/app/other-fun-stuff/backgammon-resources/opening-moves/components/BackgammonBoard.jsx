@@ -897,11 +897,45 @@ export default function BackgammonBoard({
     const canRollDice = !diceToShow && isEditable && effectiveEditingMode === 'play'
 
     if (!diceToShow && !canRollDice) return null
-    
-    // Parse dice values
+
+    // If we can roll dice, show the ROLL indicator
+    if (canRollDice) {
+      const diceY = topBorderWidth + innerHeight / 2
+      const rightHalfCenterX = leftBorderWidth + innerWidth * 0.75
+      const dieSize = BAR_WIDTH * 0.8
+
+      return (
+        <g id="dice-area">
+          {/* Light grey rectangle */}
+          <rect
+            x={rightHalfCenterX - dieSize * 0.8}
+            y={diceY - dieSize * 0.4}
+            width={dieSize * 1.6}
+            height={dieSize * 0.8}
+            fill="#d1d5db" // light grey
+            rx={dieSize * 0.1}
+            stroke="#6b7280"
+            strokeWidth="1"
+          />
+          {/* "ROLL" text */}
+          <text
+            x={rightHalfCenterX}
+            y={diceY + dieSize * 0.1}
+            textAnchor="middle"
+            fontSize={dieSize * 0.3}
+            fontWeight="bold"
+            fill="#ffffff"
+          >
+            ROLL
+          </text>
+        </g>
+      )
+    }
+
+    // Parse dice values (only when we have dice to show)
     const die1 = parseInt(diceToShow[0]) || 1
     const die2 = parseInt(diceToShow[1]) || 1
-    
+
     if (die1 === 0 || die2 === 0) return null
     
     // Dice size
@@ -1222,7 +1256,7 @@ export default function BackgammonBoard({
 
     return <g id="dice-area">{diceElements}</g>
   }
-  
+
   // Helper: Render "No legal moves" message and "End Turn" button
   const renderNoLegalMoves = () => {
     // Only show in play mode when there are no legal moves
