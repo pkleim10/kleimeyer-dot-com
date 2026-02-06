@@ -914,8 +914,6 @@ export default function BackgammonBoard({
             height={dieSize * 0.8}
             fill="#d1d5db" // light grey
             rx={dieSize * 0.1}
-            stroke="#6b7280"
-            strokeWidth="1"
           />
           {/* "ROLL" text */}
           <text
@@ -1236,8 +1234,6 @@ export default function BackgammonBoard({
             height={dieSize * 0.8}
             fill="#d1d5db" // light grey
             rx={dieSize * 0.1}
-            stroke="#6b7280"
-            strokeWidth="1"
           />
           {/* "ROLL" text */}
           <text
