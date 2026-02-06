@@ -894,7 +894,7 @@ export default function BackgammonBoard({
     }
     
     // Show ROLL indicator when dice can be thrown (dice are "00" and board is editable)
-    const canRollDice = !diceToShow && isEditable && effectiveEditingMode === 'play'
+    const canRollDice = !diceToShow && isEditable
 
     if (!diceToShow && !canRollDice) return null
 
