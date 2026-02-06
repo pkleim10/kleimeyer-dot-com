@@ -918,7 +918,8 @@ export default function BackgammonBoard({
           {/* "ROLL" text */}
           <text
             x={rightHalfCenterX}
-            y={diceY + dieSize * 0.1}
+            y={diceY}
+            dominantBaseline="middle"
             textAnchor="middle"
             fontSize={dieSize * 0.4}
             fontWeight="900"
@@ -1238,7 +1239,8 @@ export default function BackgammonBoard({
           {/* "ROLL" text */}
           <text
             x={rightHalfCenterX}
-            y={diceY + dieSize * 0.1}
+            y={diceY}
+            dominantBaseline="middle"
             textAnchor="middle"
             fontSize={dieSize * 0.4}
             fontWeight="900"
