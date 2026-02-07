@@ -1554,12 +1554,6 @@ export async function POST(request) {
         // #region agent log
         debugFetchLog('route.js:349', 'After getLegalMoves', {
           allLegalMovesLength: allLegalMoves.length,
-          allLegalMoves: allLegalMoves.map(m => ({
-            movesLength: m.moves?.length || 1,
-            description: m.description,
-            totalPips: m.totalPips,
-            moves: m.moves?.map(mv => ({ from: mv.from, to: mv.to, die: mv.die })) || []
-          })),
           singleMoves: allLegalMoves.filter(m => (m.moves?.length || 1) === 1).length,
           multiMoves: allLegalMoves.filter(m => (m.moves?.length || 1) > 1).length
         })
