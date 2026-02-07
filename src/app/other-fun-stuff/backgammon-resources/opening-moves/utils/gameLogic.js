@@ -437,11 +437,13 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
     isDoubles = allDice.length === 4 && allDice[0] === allDice[1] && allDice[1] === allDice[2] && allDice[2] === allDice[3]
 
   // Check bar entry requirement
-  if (turnState.mustEnterFromBar) {
+  if (turnState && turnState.mustEnterFromBar) {
       // Bars are physical locations: 0 = black bar (top), 25 = white bar (bottom)
       // Check if moving from the correct bar for this owner
       const correctBar = owner === 'white' ? 25 : 0
+      console.log(`[DEBUG validateMove] Bar check: owner=${owner}, from=${from}, correctBar=${correctBar}, mustEnterFromBar=${turnState.mustEnterFromBar}`)
       if (from !== correctBar) {
+        console.log(`[DEBUG validateMove] BLOCKED: Must enter from bar first`)
         return false // Must enter from bar first
       }
     }
@@ -468,8 +470,21 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
     return false // No available dice
   }
 
-  // In play mode, validate checker count based on whether doubles are rolled
+  // In play mode, enforce bar entry rules
   if (mode === 'play') {
+    // Check if player must enter from bar first
+    const barCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
+    console.log(`[DEBUG validateMove] Fallback bar check: mode=${mode}, owner=${owner}, barCount=${barCount}, from=${from}`)
+    if (barCount > 0) {
+      const correctBar = owner === 'white' ? 25 : 0
+      console.log(`[DEBUG validateMove] Fallback: correctBar=${correctBar}, must enter from bar`)
+      if (from !== correctBar) {
+        console.log(`[DEBUG validateMove] Fallback BLOCKED: Must enter from bar first`)
+        return false // Must enter from bar before making other moves
+      }
+    }
+
+    // Validate checker count based on whether doubles are rolled
     if (isDoubles) {
       // Doubles: allow 1-4 checkers
       if (count < 1 || count > 4) {

@@ -32,6 +32,9 @@ async function testOpeningMove21() {
 
     const result = await response.json();
 
+    console.log('Raw API response:');
+    console.log(JSON.stringify(result, null, 2));
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`\n=== RESULTS (took ${elapsed}s) ===`);
     console.log('Move:', result.move?.description || 'N/A');
