@@ -5,6 +5,7 @@ import { parseXGID } from '../utils/xgidParser'
 import { getAIMove } from '../utils/aiBackgammon'
 import { getAvailableDice, relativeToAbsolute, canBearOff, getHighestOccupiedPoint, canEnterFromBar, calculateMoveDistance, getLegalMoves, validateMove, hasPlayerWon, findCollapsedMovePath } from '../utils/gameLogic.js'
 import { formatMove } from '@/utils/moveFormatter'
+import { debugLog } from '@/config/debug.js'
 
 export default function BackgammonBoard({ 
   direction = 0, 
@@ -424,7 +425,7 @@ export default function BackgammonBoard({
           const diceArray = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
           const barCount = owner === 'black' ? boardState.blackBar : boardState.whiteBar
 
-          console.log(`[DEBUG UI] Initial turn state: player=${owner}, barCount=${barCount}, dice=${diceArray.join(',')}`)
+          debugLog('backgammon.ui', `Initial turn state: player=${owner}, barCount=${barCount}, dice=${diceArray.join(',')}`)
 
           // Create initial turn state
           const initialTurnState = {
@@ -3447,7 +3448,7 @@ export default function BackgammonBoard({
             const barCount = updatedTurnState.currentPlayer === 'black' ? newBoardState.blackBar : newBoardState.whiteBar
             updatedTurnState.mustEnterFromBar = barCount > 0
 
-            console.log(`[DEBUG UI] After move: player=${updatedTurnState.currentPlayer}, barCount=${barCount}, mustEnterFromBar=${updatedTurnState.mustEnterFromBar}`)
+            debugLog('backgammon.ui', `After move: player=${updatedTurnState.currentPlayer}, barCount=${barCount}, mustEnterFromBar=${updatedTurnState.mustEnterFromBar}`)
             
             const remainingLegalMoves = getLegalMoves(newBoardState, updatedTurnState)
             const allDiceUsed = updatedTurnState.usedDice.length >= turnState.dice.length

@@ -4,6 +4,26 @@
  */
 
 import { rebuildDescription } from '../../../utils/moveFormatter.js'
+import { debugLog } from '../../../config/debug.js'
+
+// Debug logging helper that only logs when debug is enabled
+function debugFetchLog(location, message, data = {}) {
+  if (process.env.NEXT_PUBLIC_DEBUG_LOGGING !== 'true') return
+
+  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run8',
+      hypothesisId: 'H'
+    })
+  }).catch(() => {})
+}
 
 /**
  * Helper function to check if player can bear off
@@ -162,7 +182,7 @@ function applyMoveToBoard(boardState, move) {
     }
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:62',message:'Bar move applied in applyMoveToBoard',data:{moveOwner,moveFrom:move.from,moveFromBar:move.fromBar,moveOwnerSet:move.owner,whiteBarBefore:boardState.whiteBar,whiteBarAfter:newBoard.whiteBar,blackBarBefore:boardState.blackBar,blackBarAfter:newBoard.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+    debugFetchLog('getLegalMoves.js:62', 'Bar move applied in applyMoveToBoard', {moveOwner,moveFrom:move.from,moveFromBar:move.fromBar,moveOwnerSet:move.owner,whiteBarBefore:boardState.whiteBar,whiteBarAfter:newBoard.whiteBar,blackBarBefore:boardState.blackBar,blackBarAfter:newBoard.blackBar))
     // #endregion
   } else {
     // Regular move from point
@@ -210,13 +230,13 @@ function applyMoveToBoard(boardState, move) {
  */
 function getLegalMoves(boardState, turnState) {
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:114',message:'getLegalMoves entry',data:{hasTurnState:!!turnState,turnStateCurrentPlayer:turnState?.currentPlayer,turnStateDice:turnState?.dice,turnStateDiceLength:turnState?.dice?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
+  debugFetchLog('getLegalMoves.js:114', 'getLegalMoves entry', {hasTurnState:!!turnState,turnStateCurrentPlayer:turnState?.currentPlayer,turnStateDice:turnState?.dice,turnStateDiceLength:turnState?.dice?.length))
   // #endregion
   const moveCombinations = []
 
   if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:117',message:'getLegalMoves early return',data:{hasTurnState:!!turnState,hasCurrentPlayer:!!turnState?.currentPlayer,diceLength:turnState?.dice?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
+    debugFetchLog('getLegalMoves.js:117', 'getLegalMoves early return', {hasTurnState:!!turnState,hasCurrentPlayer:!!turnState?.currentPlayer,diceLength:turnState?.dice?.length))
     // #endregion
     return moveCombinations
   }
@@ -260,7 +280,7 @@ function getLegalMoves(boardState, turnState) {
     }
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:160',message:'getPlayerPoints result',data:{owner,currentBarCount,currentMustEnterFromBar,pointsFound:points.length,points,stateWhiteBar:state.whiteBar,stateBlackBar:state.blackBar,point22Owner:state.points[21]?.owner,point22Count:state.points[21]?.count},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+    debugFetchLog('getLegalMoves.js:160', 'getPlayerPoints result', {owner,currentBarCount,currentMustEnterFromBar,pointsFound:points.length,points,stateWhiteBar:state.whiteBar,stateBlackBar:state.blackBar,point22Owner:state.points[21]?.owner,point22Count:state.points[21]?.count))
     // #endregion
     
     return points
@@ -395,7 +415,7 @@ function getLegalMoves(boardState, turnState) {
     })
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:250',message:'buildDescription sorting',data:{originalMoves:moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar})),sortedMoves:sortedMoves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+    debugFetchLog({location:'getLegalMoves.js:250',message:'buildDescription sorting',data:{originalMoves:moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar})),sortedMoves:sortedMoves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'}))
     // #endregion
     
     if (sortedMoves.length === 1) {
@@ -413,7 +433,7 @@ function getLegalMoves(boardState, turnState) {
       // This should never happen if sorting worked, but ensures correctness
       if (!m1IsBar && m2IsBar) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:285',message:'BUG DETECTED: Bar move second, swapping',data:{originalM1:{from:m1.from,to:m1.to,fromBar:m1.fromBar},originalM2:{from:m2.from,to:m2.to,fromBar:m2.fromBar}},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        debugFetchLog({location:'getLegalMoves.js:285',message:'BUG DETECTED: Bar move second, swapping',data:{originalM1:{from:m1.from,to:m1.to,fromBar:m1.fromBar},originalM2:{from:m2.from,to:m2.to,fromBar:m2.fromBar}},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'}))
         // #endregion
         const temp = m1
         m1 = m2
@@ -426,7 +446,7 @@ function getLegalMoves(boardState, turnState) {
       const m2FromStr = formatFrom(m2)
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:281',message:'buildDescription 2 moves',data:{m1From:m1.from,m1To:m1.to,m1IsBar,m1FromStr,m2From:m2.from,m2To:m2.to,m2IsBar,m2FromStr},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+      debugFetchLog('getLegalMoves.js:281', 'buildDescription 2 moves', {m1From:m1.from,m1To:m1.to,m1IsBar,m1FromStr,m2From:m2.from,m2To:m2.to,m2IsBar,m2FromStr))
       // #endregion
       
       const sameChecker = m2.from === m1.to
@@ -451,7 +471,7 @@ function getLegalMoves(boardState, turnState) {
         const m2ToStr = formatTo(m2)
         const description = `${m1FromStr}/${m1ToStr}${firstAsterisk} ${m2FromStr}/${m2ToStr}${secondAsterisk}`
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:298',message:'buildDescription result',data:{description,m1IsBar,m2IsBar,m1From:m1.from,m2From:m2.from},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        debugFetchLog('getLegalMoves.js:298', 'buildDescription result', {description,m1IsBar,m2IsBar,m1From:m1.from,m2From:m2.from))
         // #endregion
         return description
       }
@@ -586,7 +606,7 @@ function getLegalMoves(boardState, turnState) {
     // Safety check: prevent call explosion (check early to catch recursion before it gets too deep)
     if (totalCallsMade >= MAX_CALLS) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:395',message:'MAX CALLS EXCEEDED',data:{totalCallsMade,MAX_CALLS,depth,remainingDiceLength:remainingDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      debugFetchLog('getLegalMoves.js:395', 'MAX CALLS EXCEEDED', {totalCallsMade,MAX_CALLS,depth,remainingDiceLength:remainingDice.length))
       // #endregion
       console.warn('generateCombinations: Maximum calls limit reached', { totalCallsMade, depth })
       return []
@@ -597,7 +617,7 @@ function getLegalMoves(boardState, turnState) {
     const maxDepth = remainingDice.length >= 4 ? 4 : 8
     if (depth > maxDepth) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:388',message:'MAX DEPTH EXCEEDED',data:{depth,maxDepth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      debugFetchLog('getLegalMoves.js:388', 'MAX DEPTH EXCEEDED', {depth,maxDepth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length))
       // #endregion
       console.error('generateCombinations: Maximum depth exceeded', { depth, maxDepth, remainingDice, currentMoves })
       return []
@@ -606,14 +626,14 @@ function getLegalMoves(boardState, turnState) {
     // Safety check: prevent combination explosion
     if (totalCombinationsGenerated >= MAX_COMBINATIONS) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:409',message:'MAX COMBINATIONS EXCEEDED',data:{totalCombinationsGenerated,MAX_COMBINATIONS,depth,remainingDiceLength:remainingDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+      debugFetchLog('getLegalMoves.js:409', 'MAX COMBINATIONS EXCEEDED', {totalCombinationsGenerated,MAX_COMBINATIONS,depth,remainingDiceLength:remainingDice.length))
       // #endregion
       console.warn('generateCombinations: Maximum combinations limit reached', { totalCombinationsGenerated, depth })
       return []
     }
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:365',message:'generateCombinations entry',data:{depth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length,currentMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die})),barCount:owner==='white'?currentState.whiteBar:currentState.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
+    debugFetchLog({location:'getLegalMoves.js:365',message:'generateCombinations entry',data:{depth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length,currentMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die})),barCount:owner==='white'?currentState.whiteBar:currentState.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'}))
     // #endregion
     
     if (remainingDice.length === 0) {
@@ -640,7 +660,7 @@ function getLegalMoves(boardState, turnState) {
         const finalDescription = buildDescription(sortedMovesForCombination)
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:375',message:'generateCombinations returning complete combination',data:{movesLength:currentMoves.length,originalMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),sortedMoves:sortedMovesForCombination.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),finalDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'})}).catch(()=>{});
+        debugFetchLog({location:'getLegalMoves.js:375',message:'generateCombinations returning complete combination',data:{movesLength:currentMoves.length,originalMoves:currentMoves.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),sortedMoves:sortedMovesForCombination.map(m=>({from:m.from,to:m.to,die:m.die,fromBar:m.fromBar})),finalDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'G'}))
         // #endregion
         
         return [{
@@ -661,7 +681,7 @@ function getLegalMoves(boardState, turnState) {
     const stillMustEnterFromBar = turnStartedWithBarCheckers && currentBarCount > 0
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:390',message:'Checking bar status',data:{currentBarCount,stillMustEnterFromBar,remainingDice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
+    debugFetchLog('getLegalMoves.js:390', 'Checking bar status', {currentBarCount,stillMustEnterFromBar,remainingDice))
     // #endregion
     
     // Get available points (or bar if must enter)
@@ -671,7 +691,7 @@ function getLegalMoves(boardState, turnState) {
     } catch (error) {
       console.error('getPlayerPoints error:', error)
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:427',message:'getPlayerPoints error',data:{error:error.message,stillMustEnterFromBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+      debugFetchLog('getLegalMoves.js:427', 'getPlayerPoints error', {error:error.message,stillMustEnterFromBar))
       // #endregion
       return []
     }
@@ -694,7 +714,7 @@ function getLegalMoves(boardState, turnState) {
     }
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:435',message:'Player points determined',data:{stillMustEnterFromBar,playerPointsLength:playerPoints.length,playerPoints,depth,canBearOffNow,highestPoint:canBearOffNow?getHighestOccupiedPoint(currentState,owner):null,lowestDie:remainingDice.length>0?Math.min(...remainingDice):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'B'})}).catch(()=>{});
+    debugFetchLog('getLegalMoves.js:435', 'Player points determined', {stillMustEnterFromBar,playerPointsLength:playerPoints.length,playerPoints,depth,canBearOffNow,highestPoint:canBearOffNow?getHighestOccupiedPoint(currentState,owner):null,lowestDie:remainingDice.length>0?Math.min(...remainingDice):null))
     // #endregion
     
     // Try each unique die value (but we'll remove one instance at a time)
@@ -714,7 +734,7 @@ function getLegalMoves(boardState, turnState) {
         if (stillMustEnterFromBar && point === 25) {
           const move = canEnterFromBar(currentState, dieValue)
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:402',message:'Trying bar move',data:{dieValue,hasMove:!!move,move:move?{from:move.from,to:move.to,die:move.die,owner:move.owner}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'C'})}).catch(()=>{});
+          debugFetchLog({location:'getLegalMoves.js:402',message:'Trying bar move',data:{dieValue,hasMove:!!move,move:move?{from:move.from,to:move.to,die:move.die,owner:move.owner}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'C'}))
           // #endregion
           if (!move) continue
           
@@ -727,14 +747,14 @@ function getLegalMoves(boardState, turnState) {
           
           // Apply move to get new state
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:432',message:'Before applying bar move',data:{moveOwner:move.owner,moveFrom:move.from,moveFromBar:move.fromBar,currentBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+          debugFetchLog('getLegalMoves.js:432', 'Before applying bar move', {moveOwner:move.owner,moveFrom:move.from,moveFromBar:move.fromBar,currentBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar))
           // #endregion
           
           const newState = applyMoveToBoard(currentState, move)
           const newMoves = [...currentMoves, move]
           
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:435',message:'After bar move applied',data:{newBarCount:owner==='white'?newState.whiteBar:newState.blackBar,oldBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar,remainingDiceBefore:remainingDice,moveOwner:move.owner},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'B'})}).catch(()=>{});
+          debugFetchLog('getLegalMoves.js:435', 'After bar move applied', {newBarCount:owner==='white'?newState.whiteBar:newState.blackBar,oldBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar,remainingDiceBefore:remainingDice,moveOwner:move.owner))
           // #endregion
           
           // Remove one instance of this die from remaining dice
@@ -745,13 +765,13 @@ function getLegalMoves(boardState, turnState) {
           }
           
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:418',message:'Recursing after bar move',data:{newRemainingDiceLength:newRemainingDice.length,newRemainingDice,newMovesLength:newMoves.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+          debugFetchLog('getLegalMoves.js:418', 'Recursing after bar move', {newRemainingDiceLength:newRemainingDice.length,newRemainingDice,newMovesLength:newMoves.length))
           // #endregion
           
           // Recursively generate combinations with remaining dice
           const subCombinations = generateCombinations(newState, newRemainingDice, newMoves, seenKeys, depth + 1)
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:423',message:'Sub-combinations returned',data:{subCombinationsLength:subCombinations.length,subCombinations:subCombinations.map(c=>({movesLength:c.moves.length,description:c.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+          debugFetchLog({location:'getLegalMoves.js:423',message:'Sub-combinations returned',data:{subCombinationsLength:subCombinations.length,subCombinations:subCombinations.map(c=>({movesLength:c.moves.length,description:c.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'}))
           // #endregion
           combinations.push(...subCombinations)
         } else {
@@ -781,21 +801,21 @@ function getLegalMoves(boardState, turnState) {
     // This ensures players must use as many dice as possible
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:444',message:'generateCombinations returning',data:{combinationsLength:combinations.length,combinations:combinations.map(c=>({movesLength:c.moves.length,description:c.description,isComplete:c.isComplete}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+    debugFetchLog({location:'getLegalMoves.js:444',message:'generateCombinations returning',data:{combinationsLength:combinations.length,combinations:combinations.map(c=>({movesLength:c.moves.length,description:c.description,isComplete:c.isComplete}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'}))
     // #endregion
 
     return combinations
   }
 
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:527',message:'Before generateCombinations call',data:{availableDice,barCount,owner,availableDiceLength:availableDice.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+  debugFetchLog('getLegalMoves.js:527', 'Before generateCombinations call', {availableDice,barCount,owner,availableDiceLength:availableDice.length))
   // #endregion
   
   // Generate all combinations (with limits built into generateCombinations)
   const allCombos = generateCombinations(boardState, availableDice, [], new Set(), 0)
   
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:527',message:'After generateCombinations call',data:{allCombosLength:allCombos.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'A'})}).catch(()=>{});
+  debugFetchLog('getLegalMoves.js:527', 'After generateCombinations call', {allCombosLength:allCombos.length))
   // #endregion
 
   // Helper function to check if a die can be fully used from a board state
@@ -909,7 +929,7 @@ function getLegalMoves(boardState, turnState) {
   }
 
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:538',message:'getLegalMoves before sorting',data:{uniqueSize:unique.size,firstFewMoves:Array.from(unique.values()).slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+  debugFetchLog({location:'getLegalMoves.js:538',message:'getLegalMoves before sorting',data:{uniqueSize:unique.size,firstFewMoves:Array.from(unique.values()).slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'}))
   // #endregion
 
   if (unique.size > 0) {
@@ -926,7 +946,7 @@ function getLegalMoves(boardState, turnState) {
     })
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'getLegalMoves.js:575',message:'getLegalMoves after sorting',data:{sortedSize:sortedCombos.length,firstFewMoves:sortedCombos.slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'})}).catch(()=>{});
+    debugFetchLog({location:'getLegalMoves.js:575',message:'getLegalMoves after sorting',data:{sortedSize:sortedCombos.length,firstFewMoves:sortedCombos.slice(0,5).map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'}))
     // #endregion
     
     return sortedCombos

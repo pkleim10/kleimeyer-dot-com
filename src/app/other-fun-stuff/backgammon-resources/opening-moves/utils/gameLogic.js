@@ -5,6 +5,7 @@
 
 // Import required utilities
 import { parseXGID } from './xgidParser.js'
+import { debugLog } from '../../../../config/debug.js'
 
 /**
  * Get available dice (not yet used)
@@ -441,9 +442,9 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
       // Bars are physical locations: 0 = black bar (top), 25 = white bar (bottom)
       // Check if moving from the correct bar for this owner
       const correctBar = owner === 'white' ? 25 : 0
-      console.log(`[DEBUG validateMove] Bar check: owner=${owner}, from=${from}, correctBar=${correctBar}, mustEnterFromBar=${turnState.mustEnterFromBar}`)
+      debugLog('backgammon.validation', `Bar check: owner=${owner}, from=${from}, correctBar=${correctBar}, mustEnterFromBar=${turnState.mustEnterFromBar}`)
       if (from !== correctBar) {
-        console.log(`[DEBUG validateMove] BLOCKED: Must enter from bar first`)
+        debugLog('backgammon.validation', 'BLOCKED: Must enter from bar first')
         return false // Must enter from bar first
       }
     }
@@ -474,12 +475,12 @@ export function validateMove(from, to, count, owner, mode, boardState, turnState
   if (mode === 'play') {
     // Check if player must enter from bar first
     const barCount = owner === 'white' ? boardState.whiteBar : boardState.blackBar
-    console.log(`[DEBUG validateMove] Fallback bar check: mode=${mode}, owner=${owner}, barCount=${barCount}, from=${from}`)
+    debugLog('backgammon.validation', `Fallback bar check: mode=${mode}, owner=${owner}, barCount=${barCount}, from=${from}`)
     if (barCount > 0) {
       const correctBar = owner === 'white' ? 25 : 0
-      console.log(`[DEBUG validateMove] Fallback: correctBar=${correctBar}, must enter from bar`)
+      debugLog('backgammon.validation', `Fallback: correctBar=${correctBar}, must enter from bar`)
       if (from !== correctBar) {
-        console.log(`[DEBUG validateMove] Fallback BLOCKED: Must enter from bar first`)
+        debugLog('backgammon.validation', 'Fallback BLOCKED: Must enter from bar first')
         return false // Must enter from bar before making other moves
       }
     }
