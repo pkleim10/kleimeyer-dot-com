@@ -2,7 +2,7 @@
  * Backgammon Engine API Route
  * Provides server-side hybrid heuristic + Monte Carlo engine for move analysis
  * Debug logging controlled by NEXT_PUBLIC_DEBUG_LOGGING environment variable
- * Fixed syntax errors in debugFetchLog calls
+ * All syntax errors in debugFetchLog calls have been resolved
  */
 
 import { getLegalMoves } from './getLegalMoves.js'
