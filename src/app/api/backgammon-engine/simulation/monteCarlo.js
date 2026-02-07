@@ -138,12 +138,12 @@ export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimul
 /**
  * Run Monte Carlo simulation with detailed move tracking
  */
-export function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner) {
+export function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner, enableLogging = true) {
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
 
   const gameMoves = []
 
-  console.log(`[MC-Tracking] Starting move tracking simulation`)
+  if (enableLogging) console.log(`[MC-Tracking] Starting move tracking simulation`)
 
   // Prepare the moves array
   const movesArray = moveCombination.moves || [moveCombination]
@@ -226,7 +226,7 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
 
       if (!randomTurn) {
         // No legal moves - player passes their turn
-        console.log(`[MC-Tracking] No legal turns for ${currentPlayer} with dice ${randomDice.join('-')} - passing turn`)
+        if (enableLogging) console.log(`[MC-Tracking] No legal turns for ${currentPlayer} with dice ${randomDice.join('-')} - passing turn`)
 
         // Log the pass move
         const diceStr = randomDice.sort((a, b) => b - a).join('') // Sort descending like "61"
@@ -297,18 +297,25 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
 
     // Check if game ended with a winner
     const winner = getWinner(currentBoard, true)
-    if (winner) {
-      console.log(`[MC-Tracking] Game completed in ${movesMade} moves. Winner: ${winner}`)
-    } else {
-      console.log(`[MC-Tracking] Game discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+    if (enableLogging) {
+      if (winner) {
+        console.log(`[MC-Tracking] Game completed in ${movesMade} moves. Winner: ${winner}`)
+      } else {
+        console.log(`[MC-Tracking] Game discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+      }
+
+      console.log('[MC-Tracking] Complete game sequence:')
+      for (let i = 0; i < gameMoves.length; i++) {
+        console.log(`  ${i + 1}. ${gameMoves[i]}`)
+      }
     }
 
-    console.log('[MC-Tracking] Complete game sequence:')
-    for (let i = 0; i < gameMoves.length; i++) {
-      console.log(`  ${i + 1}. ${gameMoves[i]}`)
+    return {
+      gameMoves,
+      totalMoves: movesMade,
+      finalBoard: currentBoard,
+      winner
     }
-
-    return gameMoves
 }
 
 /**
