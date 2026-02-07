@@ -4,7 +4,7 @@
  */
 
 import { rebuildDescription } from '../../../utils/moveFormatter.js'
-import { debugLog } from '../../../config/debug.js'
+import { debugLog } from '@/config/debug.js'
 
 // Debug logging helper that only logs when debug is enabled
 function debugFetchLog(location, message, data = {}) {

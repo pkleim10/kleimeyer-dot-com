@@ -6,7 +6,7 @@
 import { getLegalMoves } from './getLegalMoves.js'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
 import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
-import { debugLog } from '../../../config/debug.js'
+import { debugLog } from '@/config/debug.js'
 
 // Debug logging helper that only logs when debug is enabled
 function debugFetchLog(location, message, data = {}) {

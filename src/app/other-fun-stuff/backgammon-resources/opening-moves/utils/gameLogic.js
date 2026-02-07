@@ -5,7 +5,7 @@
 
 // Import required utilities
 import { parseXGID } from './xgidParser.js'
-import { debugLog } from '../../../../config/debug.js'
+import { debugLog } from '@/config/debug.js'
 
 /**
  * Get available dice (not yet used)
