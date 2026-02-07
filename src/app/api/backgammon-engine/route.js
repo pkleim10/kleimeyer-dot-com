@@ -1562,7 +1562,7 @@ export async function POST(request) {
           })),
           singleMoves: allLegalMoves.filter(m => (m.moves?.length || 1) === 1).length,
           multiMoves: allLegalMoves.filter(m => (m.moves?.length || 1) > 1).length
-        }))
+        })
         // #endregion
 
         if (allLegalMoves.length === 0) {
