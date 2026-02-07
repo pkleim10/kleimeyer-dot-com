@@ -919,7 +919,7 @@ export default function BackgammonBoard({
           />
           {/* "ROLL" text */}
           <text
-            x={rightHalfCenterX}
+            x={rightHalfCenterX + dieSize * 0.4}
             y={diceY + 2}
             dominantBaseline="middle"
             textAnchor="middle"
@@ -1242,7 +1242,7 @@ export default function BackgammonBoard({
           />
           {/* "ROLL" text */}
           <text
-            x={rightHalfCenterX}
+            x={rightHalfCenterX + dieSize * 0.4}
             y={diceY + 2}
             dominantBaseline="middle"
             textAnchor="middle"
