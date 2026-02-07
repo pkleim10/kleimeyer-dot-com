@@ -182,7 +182,7 @@ function applyMoveToBoard(boardState, move) {
     }
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:62', 'Bar move applied in applyMoveToBoard', {moveOwner,moveFrom:move.from,moveFromBar:move.fromBar,moveOwnerSet:move.owner,whiteBarBefore:boardState.whiteBar,whiteBarAfter:newBoard.whiteBar,blackBarBefore:boardState.blackBar,blackBarAfter:newBoard.blackBar))
+    debugFetchLog('getLegalMoves.js:62', 'Bar move applied in applyMoveToBoard', {moveOwner, moveFrom: move.from, moveFromBar: move.fromBar, moveOwnerSet: move.owner, whiteBarBefore: boardState.whiteBar, whiteBarAfter: newBoard.whiteBar, blackBarBefore: boardState.blackBar, blackBarAfter: newBoard.blackBar})
     // #endregion
   } else {
     // Regular move from point
@@ -230,13 +230,13 @@ function applyMoveToBoard(boardState, move) {
  */
 function getLegalMoves(boardState, turnState) {
   // #region agent log
-  debugFetchLog('getLegalMoves.js:114', 'getLegalMoves entry', {hasTurnState:!!turnState,turnStateCurrentPlayer:turnState?.currentPlayer,turnStateDice:turnState?.dice,turnStateDiceLength:turnState?.dice?.length))
+  debugFetchLog('getLegalMoves.js:114', 'getLegalMoves entry', {hasTurnState: !!turnState, turnStateCurrentPlayer: turnState?.currentPlayer, turnStateDice: turnState?.dice, turnStateDiceLength: turnState?.dice?.length})
   // #endregion
   const moveCombinations = []
 
   if (!turnState || !turnState.currentPlayer || turnState.dice.length === 0) {
     // #region agent log
-    debugFetchLog('getLegalMoves.js:117', 'getLegalMoves early return', {hasTurnState:!!turnState,hasCurrentPlayer:!!turnState?.currentPlayer,diceLength:turnState?.dice?.length))
+    debugFetchLog('getLegalMoves.js:117', 'getLegalMoves early return', {hasTurnState: !!turnState, hasCurrentPlayer: !!turnState?.currentPlayer, diceLength: turnState?.dice?.length})
     // #endregion
     return moveCombinations
   }
@@ -280,7 +280,7 @@ function getLegalMoves(boardState, turnState) {
     }
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:160', 'getPlayerPoints result', {owner,currentBarCount,currentMustEnterFromBar,pointsFound:points.length,points,stateWhiteBar:state.whiteBar,stateBlackBar:state.blackBar,point22Owner:state.points[21]?.owner,point22Count:state.points[21]?.count))
+    debugFetchLog('getLegalMoves.js:160', 'getPlayerPoints result', {owner, currentBarCount, currentMustEnterFromBar, pointsFound: points.length, points, stateWhiteBar: state.whiteBar, stateBlackBar: state.blackBar, point22Owner: state.points[21]?.owner, point22Count: state.points[21]?.count})
     // #endregion
     
     return points
@@ -415,7 +415,7 @@ function getLegalMoves(boardState, turnState) {
     })
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:250', 'buildDescription sorting', { originalMoves: moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar })), sortedMoves: sortedMoves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar })) }))
+    debugFetchLog('getLegalMoves.js:250', 'buildDescription sorting', { originalMoves: moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar })), sortedMoves: sortedMoves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar })) })
     // #endregion
     
     if (sortedMoves.length === 1) {
@@ -433,7 +433,7 @@ function getLegalMoves(boardState, turnState) {
       // This should never happen if sorting worked, but ensures correctness
       if (!m1IsBar && m2IsBar) {
         // #region agent log
-        debugFetchLog('getLegalMoves.js:285', 'BUG DETECTED: Bar move second, swapping', { originalM1: { from: m1.from, to: m1.to, fromBar: m1.fromBar }, originalM2: { from: m2.from, to: m2.to, fromBar: m2.fromBar } }))
+        debugFetchLog('getLegalMoves.js:285', 'BUG DETECTED: Bar move second, swapping', { originalM1: { from: m1.from, to: m1.to, fromBar: m1.fromBar }, originalM2: { from: m2.from, to: m2.to, fromBar: m2.fromBar } })
         // #endregion
         const temp = m1
         m1 = m2
@@ -446,7 +446,7 @@ function getLegalMoves(boardState, turnState) {
       const m2FromStr = formatFrom(m2)
       
       // #region agent log
-      debugFetchLog('getLegalMoves.js:281', 'buildDescription 2 moves', {m1From:m1.from,m1To:m1.to,m1IsBar,m1FromStr,m2From:m2.from,m2To:m2.to,m2IsBar,m2FromStr))
+      debugFetchLog('getLegalMoves.js:281', 'buildDescription 2 moves', {m1From: m1.from, m1To: m1.to, m1IsBar, m1FromStr, m2From: m2.from, m2To: m2.to, m2IsBar, m2FromStr})
       // #endregion
       
       const sameChecker = m2.from === m1.to
@@ -471,7 +471,7 @@ function getLegalMoves(boardState, turnState) {
         const m2ToStr = formatTo(m2)
         const description = `${m1FromStr}/${m1ToStr}${firstAsterisk} ${m2FromStr}/${m2ToStr}${secondAsterisk}`
         // #region agent log
-        debugFetchLog('getLegalMoves.js:298', 'buildDescription result', {description,m1IsBar,m2IsBar,m1From:m1.from,m2From:m2.from))
+        debugFetchLog('getLegalMoves.js:298', 'buildDescription result', {description, m1IsBar, m2IsBar, m1From: m1.from, m2From: m2.from})
         // #endregion
         return description
       }
@@ -606,7 +606,7 @@ function getLegalMoves(boardState, turnState) {
     // Safety check: prevent call explosion (check early to catch recursion before it gets too deep)
     if (totalCallsMade >= MAX_CALLS) {
       // #region agent log
-      debugFetchLog('getLegalMoves.js:395', 'MAX CALLS EXCEEDED', {totalCallsMade,MAX_CALLS,depth,remainingDiceLength:remainingDice.length))
+      debugFetchLog('getLegalMoves.js:395', 'MAX CALLS EXCEEDED', {totalCallsMade, MAX_CALLS, depth, remainingDiceLength: remainingDice.length})
       // #endregion
       console.warn('generateCombinations: Maximum calls limit reached', { totalCallsMade, depth })
       return []
@@ -617,7 +617,7 @@ function getLegalMoves(boardState, turnState) {
     const maxDepth = remainingDice.length >= 4 ? 4 : 8
     if (depth > maxDepth) {
       // #region agent log
-      debugFetchLog('getLegalMoves.js:388', 'MAX DEPTH EXCEEDED', {depth,maxDepth,remainingDiceLength:remainingDice.length,remainingDice,currentMovesLength:currentMoves.length))
+      debugFetchLog('getLegalMoves.js:388', 'MAX DEPTH EXCEEDED', {depth, maxDepth, remainingDiceLength: remainingDice.length, remainingDice, currentMovesLength: currentMoves.length})
       // #endregion
       console.error('generateCombinations: Maximum depth exceeded', { depth, maxDepth, remainingDice, currentMoves })
       return []
@@ -626,14 +626,14 @@ function getLegalMoves(boardState, turnState) {
     // Safety check: prevent combination explosion
     if (totalCombinationsGenerated >= MAX_COMBINATIONS) {
       // #region agent log
-      debugFetchLog('getLegalMoves.js:409', 'MAX COMBINATIONS EXCEEDED', {totalCombinationsGenerated,MAX_COMBINATIONS,depth,remainingDiceLength:remainingDice.length))
+      debugFetchLog('getLegalMoves.js:409', 'MAX COMBINATIONS EXCEEDED', {totalCombinationsGenerated, MAX_COMBINATIONS, depth, remainingDiceLength: remainingDice.length})
       // #endregion
       console.warn('generateCombinations: Maximum combinations limit reached', { totalCombinationsGenerated, depth })
       return []
     }
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:365', 'generateCombinations entry', { depth, remainingDiceLength: remainingDice.length, remainingDice, currentMovesLength: currentMoves.length, currentMoves: currentMoves.map(m => ({ from: m.from, to: m.to, die: m.die })), barCount: owner === 'white' ? currentState.whiteBar : currentState.blackBar }))
+    debugFetchLog('getLegalMoves.js:365', 'generateCombinations entry', { depth, remainingDiceLength: remainingDice.length, remainingDice, currentMovesLength: currentMoves.length, currentMoves: currentMoves.map(m => ({ from: m.from, to: m.to, die: m.die })), barCount: owner === 'white' ? currentState.whiteBar : currentState.blackBar })
     // #endregion
     
     if (remainingDice.length === 0) {
@@ -660,7 +660,7 @@ function getLegalMoves(boardState, turnState) {
         const finalDescription = buildDescription(sortedMovesForCombination)
         
         // #region agent log
-        debugFetchLog('getLegalMoves.js:375', 'generateCombinations returning complete combination', { movesLength: currentMoves.length, originalMoves: currentMoves.map(m => ({ from: m.from, to: m.to, die: m.die, fromBar: m.fromBar })), sortedMoves: sortedMovesForCombination.map(m => ({ from: m.from, to: m.to, die: m.die, fromBar: m.fromBar })), finalDescription }))
+        debugFetchLog('getLegalMoves.js:375', 'generateCombinations returning complete combination', { movesLength: currentMoves.length, originalMoves: currentMoves.map(m => ({ from: m.from, to: m.to, die: m.die, fromBar: m.fromBar })), sortedMoves: sortedMovesForCombination.map(m => ({ from: m.from, to: m.to, die: m.die, fromBar: m.fromBar })), finalDescription })
         // #endregion
         
         return [{
@@ -681,7 +681,7 @@ function getLegalMoves(boardState, turnState) {
     const stillMustEnterFromBar = turnStartedWithBarCheckers && currentBarCount > 0
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:390', 'Checking bar status', {currentBarCount,stillMustEnterFromBar,remainingDice))
+    debugFetchLog('getLegalMoves.js:390', 'Checking bar status', {currentBarCount, stillMustEnterFromBar, remainingDice})
     // #endregion
     
     // Get available points (or bar if must enter)
@@ -691,7 +691,7 @@ function getLegalMoves(boardState, turnState) {
     } catch (error) {
       console.error('getPlayerPoints error:', error)
       // #region agent log
-      debugFetchLog('getLegalMoves.js:427', 'getPlayerPoints error', {error:error.message,stillMustEnterFromBar))
+      debugFetchLog('getLegalMoves.js:427', 'getPlayerPoints error', {error: error.message, stillMustEnterFromBar})
       // #endregion
       return []
     }
@@ -714,7 +714,7 @@ function getLegalMoves(boardState, turnState) {
     }
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:435', 'Player points determined', {stillMustEnterFromBar,playerPointsLength:playerPoints.length,playerPoints,depth,canBearOffNow,highestPoint:canBearOffNow?getHighestOccupiedPoint(currentState,owner):null,lowestDie:remainingDice.length>0?Math.min(...remainingDice):null))
+    debugFetchLog('getLegalMoves.js:435', 'Player points determined', {stillMustEnterFromBar, playerPointsLength: playerPoints.length, playerPoints, depth, canBearOffNow, highestPoint: canBearOffNow ? getHighestOccupiedPoint(currentState, owner) : null, lowestDie: remainingDice.length > 0 ? Math.min(...remainingDice) : null})
     // #endregion
     
     // Try each unique die value (but we'll remove one instance at a time)
@@ -734,7 +734,7 @@ function getLegalMoves(boardState, turnState) {
         if (stillMustEnterFromBar && point === 25) {
           const move = canEnterFromBar(currentState, dieValue)
           // #region agent log
-          debugFetchLog('getLegalMoves.js:402', 'Trying bar move', { dieValue, hasMove: !!move, move: move ? { from: move.from, to: move.to, die: move.die, owner: move.owner } : null }))
+          debugFetchLog('getLegalMoves.js:402', 'Trying bar move', { dieValue, hasMove: !!move, move: move ? { from: move.from, to: move.to, die: move.die, owner: move.owner } : null })
           // #endregion
           if (!move) continue
           
@@ -747,14 +747,14 @@ function getLegalMoves(boardState, turnState) {
           
           // Apply move to get new state
           // #region agent log
-          debugFetchLog('getLegalMoves.js:432', 'Before applying bar move', {moveOwner:move.owner,moveFrom:move.from,moveFromBar:move.fromBar,currentBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar))
+          debugFetchLog('getLegalMoves.js:432', 'Before applying bar move', {moveOwner: move.owner, moveFrom: move.from, moveFromBar: move.fromBar, currentBarCount: owner === 'white' ? currentState.whiteBar : currentState.blackBar})
           // #endregion
           
           const newState = applyMoveToBoard(currentState, move)
           const newMoves = [...currentMoves, move]
           
           // #region agent log
-          debugFetchLog('getLegalMoves.js:435', 'After bar move applied', {newBarCount:owner==='white'?newState.whiteBar:newState.blackBar,oldBarCount:owner==='white'?currentState.whiteBar:currentState.blackBar,remainingDiceBefore:remainingDice,moveOwner:move.owner))
+          debugFetchLog('getLegalMoves.js:435', 'After bar move applied', {newBarCount: owner === 'white' ? newState.whiteBar : newState.blackBar, oldBarCount: owner === 'white' ? currentState.whiteBar : currentState.blackBar, remainingDiceBefore: remainingDice, moveOwner: move.owner})
           // #endregion
           
           // Remove one instance of this die from remaining dice
@@ -765,13 +765,13 @@ function getLegalMoves(boardState, turnState) {
           }
           
           // #region agent log
-          debugFetchLog('getLegalMoves.js:418', 'Recursing after bar move', {newRemainingDiceLength:newRemainingDice.length,newRemainingDice,newMovesLength:newMoves.length))
+          debugFetchLog('getLegalMoves.js:418', 'Recursing after bar move', {newRemainingDiceLength: newRemainingDice.length, newRemainingDice, newMovesLength: newMoves.length})
           // #endregion
           
           // Recursively generate combinations with remaining dice
           const subCombinations = generateCombinations(newState, newRemainingDice, newMoves, seenKeys, depth + 1)
           // #region agent log
-          debugFetchLog('getLegalMoves.js:423', 'Sub-combinations returned', { subCombinationsLength: subCombinations.length, subCombinations: subCombinations.map(c => ({ movesLength: c.moves.length, description: c.description })) }))
+          debugFetchLog('getLegalMoves.js:423', 'Sub-combinations returned', { subCombinationsLength: subCombinations.length, subCombinations: subCombinations.map(c => ({ movesLength: c.moves.length, description: c.description })) })
           // #endregion
           combinations.push(...subCombinations)
         } else {
@@ -801,21 +801,21 @@ function getLegalMoves(boardState, turnState) {
     // This ensures players must use as many dice as possible
 
     // #region agent log
-    debugFetchLog('getLegalMoves.js:444', 'generateCombinations returning', { combinationsLength: combinations.length, combinations: combinations.map(c => ({ movesLength: c.moves.length, description: c.description, isComplete: c.isComplete })) }))
+    debugFetchLog('getLegalMoves.js:444', 'generateCombinations returning', { combinationsLength: combinations.length, combinations: combinations.map(c => ({ movesLength: c.moves.length, description: c.description, isComplete: c.isComplete })) })
     // #endregion
 
     return combinations
   }
 
   // #region agent log
-  debugFetchLog('getLegalMoves.js:527', 'Before generateCombinations call', {availableDice,barCount,owner,availableDiceLength:availableDice.length))
+  debugFetchLog('getLegalMoves.js:527', 'Before generateCombinations call', {availableDice, barCount, owner, availableDiceLength: availableDice.length})
   // #endregion
   
   // Generate all combinations (with limits built into generateCombinations)
   const allCombos = generateCombinations(boardState, availableDice, [], new Set(), 0)
   
   // #region agent log
-  debugFetchLog('getLegalMoves.js:527', 'After generateCombinations call', {allCombosLength:allCombos.length))
+  debugFetchLog('getLegalMoves.js:527', 'After generateCombinations call', {allCombosLength: allCombos.length})
   // #endregion
 
   // Helper function to check if a die can be fully used from a board state
@@ -929,7 +929,7 @@ function getLegalMoves(boardState, turnState) {
   }
 
   // #region agent log
-  debugFetchLog('getLegalMoves.js:538', 'getLegalMoves before sorting', { uniqueSize: unique.size, firstFewMoves: Array.from(unique.values()).slice(0, 5).map(m => ({ movesLength: m.moves?.length || 1, description: m.description })) }))
+  debugFetchLog('getLegalMoves.js:538', 'getLegalMoves before sorting', { uniqueSize: unique.size, firstFewMoves: Array.from(unique.values()).slice(0, 5).map(m => ({ movesLength: m.moves?.length || 1, description: m.description })) })
   // #endregion
 
   if (unique.size > 0) {
@@ -946,7 +946,7 @@ function getLegalMoves(boardState, turnState) {
     })
     
     // #region agent log
-    debugFetchLog('getLegalMoves.js:575', 'getLegalMoves after sorting', { sortedSize: sortedCombos.length, firstFewMoves: sortedCombos.slice(0, 5).map(m => ({ movesLength: m.moves?.length || 1, description: m.description, totalPips: m.totalPips })) }))
+    debugFetchLog('getLegalMoves.js:575', 'getLegalMoves after sorting', { sortedSize: sortedCombos.length, firstFewMoves: sortedCombos.slice(0, 5).map(m => ({ movesLength: m.moves?.length || 1, description: m.description, totalPips: m.totalPips })) })
     // #endregion
     
     return sortedCombos

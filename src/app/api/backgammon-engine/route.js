@@ -1717,15 +1717,9 @@ export async function POST(request) {
       // #region agent log
       debugFetchLog('route.js:373', 'Top moves selected', {
         topMovesLength: topMoves.length,
-        topMoves: topMoves.map(m => ({
-          movesLength: m.moves ? m.moves.length : 1,
-          description: m.description,
-          totalPips: m.totalPips,
-          moves: m.moves ? m.moves.map(mv => ({ from: mv.from, to: mv.to, die: mv.die })) : null
-        })),
         topSingleMoves: topMoves.filter(m => (m.moves?.length || 1) === 1).length,
         topMultiMoves: topMoves.filter(m => (m.moves?.length || 1) > 1).length
-      }))
+      })
       // #endregion
 
       // Get hybrid engine analysis
