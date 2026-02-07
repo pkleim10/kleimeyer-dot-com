@@ -911,7 +911,7 @@ export default function BackgammonBoard({
           <rect
             x={rightHalfCenterX - dieSize * 0.8}
             y={diceY - dieSize * 0.4}
-            width={dieSize * 1.6}
+            width={dieSize * 2.4}
             height={dieSize * 0.8}
             fill="#d1d5db" // light grey
             rx={dieSize * 0.1}
@@ -1234,7 +1234,7 @@ export default function BackgammonBoard({
           <rect
             x={rightHalfCenterX - dieSize * 0.8}
             y={diceY - dieSize * 0.4}
-            width={dieSize * 1.6}
+            width={dieSize * 2.4}
             height={dieSize * 0.8}
             fill="#d1d5db" // light grey
             rx={dieSize * 0.1}
