@@ -6,6 +6,7 @@ import { debugFetchLog } from '../config/debugConfig.js'
 import { cloneBoardState, applyMoveToBoardForAnalysis, isGameOver, getWinner } from '../utils/boardUtils.js'
 import { evaluateMoveHeuristically } from '../evaluation/moveEvaluation.js'
 import { formatMove, sortMoves, rebuildDescription } from '../../../../utils/moveFormatter'
+import { getRandomLegalMove } from '../moveGeneration/moveGeneration.js'
 
 /**
  * Generate random dice roll
