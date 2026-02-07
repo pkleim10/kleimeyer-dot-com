@@ -1170,7 +1170,7 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
     }
     
     // #region agent log
-    debugFetchLog('route.js:170', 'analyzeMovesWithHybridEngine bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
+    debugFetchLog('route.js:170', 'analyzeMovesWithHybridEngine bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) })
     // #endregion
     // Get current player from boardState for coordinate conversion
     const currentPlayer = boardState.player !== undefined ? boardState.player : 1
@@ -1497,7 +1497,7 @@ export async function POST(request) {
   const analysisPromise = (async () => {
     try {
       // #region agent log
-      debugFetchLog('route.js:327', 'API POST entry', {timestamp:Date.now()))
+      debugFetchLog('route.js:327', 'API POST entry', {timestamp:Date.now()})
       // #endregion
       const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], dice, heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false } = requestBody
 
