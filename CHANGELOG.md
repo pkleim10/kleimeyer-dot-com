@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.0] - 2026-02-07
+
+### Added
+- Add documentation comment for debug logging control: Added comment explaining debug logging is controlled by NEXT_PUBLIC_DEBUG_LOGGING env var
+- Add debug logging control system: Create src/config/debug.js with centralized debug configuration
+- Add development documentation and update .gitignore: Add reconstruct-features.md: detailed change tracking for backgammon engine
+- Add debug logging and enhanced bar entry validation: Add debug logging to validateMove function for bar entry checks
+- Add pointer cursor to ROLL text element: Add cursor='pointer' to the ROLL text for consistent hover behavior
+- Add hand cursor to ROLL indicator rectangle: Add cursor='pointer' to the light grey rectangle
+- Add cosmetic improvements to backgammon play page: Default editing mode to PLAY instead of FREE
+
+### Changed
+- Update debug logging documentation: Clarified that all syntax errors in debugFetchLog calls are resolved
+- Change ROLL cursor to arrow pointer: Change cursor from 'pointer' (hand) to 'default' (arrow) for ROLL area
+
+### Fixed
+- UI Enhancement: Center ROLL button and dice horizontally with respect to each other: Repositioned ROLL button to be centered at the same horizontal position as dice
+- UI Enhancement: Center ROLL text within the wider button: Updated ROLL text positioning from x={rightHalfCenterX} to x={rightHalfCenterX + dieSize * 0.4}
+- UI Enhancement: Make ROLL button 50% wider: Increased ROLL button width from dieSize * 1.6 to dieSize * 2.4 (50% wider)
+- Factor out Game State Management functions into gameState module: Created gameState/ folder with organized modules:
+- Move getLegalMoves.js into moveGeneration folder: Moved getLegalMoves.js from backgammon-engine/ to backgammon-engine/moveGeneration/
+- Extract Position Evaluation functions from route.js: Created src/app/api/backgammon-engine/evaluation/positionEvaluation.js (92 lines)
+- Fix runMonteCarloWithMoveTracking return value and logging parameter: Fixed function to return proper object {gameMoves, totalMoves, finalBoard, winner}
+- Extract Move Generation functions from route.js: Created src/app/api/backgammon-engine/moveGeneration/moveGeneration.js (176 lines)
+- Extract Monte Carlo & Simulation Logic from route.js: Created src/app/api/backgammon-engine/simulation/monteCarlo.js (523 lines)
+- Fix potential webpack module loading issues: Clear Next.js cache and restart dev server to resolve '__webpack_modules__[moduleId] is not a function' error
+- Extract Move Evaluation functions from route.js: Created src/app/api/backgammon-engine/evaluation/moveEvaluation.js
+- Extract Board Analysis & Utilities functions: Create utils/boardUtils.js with boardToArray, displayBoard, cloneBoardState, applyMoveToBoardForAnalysis, calculateFinalBoardState, parseXGID
+- Extract constants and debug config from route.js: Create config/heuristicWeights.js with HEURISTIC_WEIGHTS and POSITION_WEIGHTS
+- Fix onMaxMovesChange error in options modal: Removed invalid onMaxMovesChange call from handleSaveSettings
+- Fix final syntax errors in debug logging calls: Fixed all remaining missing closing braces in debugFetchLog calls
+- Fix complex debugFetchLog call syntax error: Simplified the 'After getLegalMoves' debugFetchLog call to avoid nested object syntax issues
+- Fix extra closing parenthesis in debugFetchLog call: Removed extra closing parenthesis from 'After getLegalMoves' debugFetchLog call
+- Fix debug logging condition logic: Corrected the condition in debugFetchLog from 'if (!env === true)' to 'if (env !== true)'
+- Fix final syntax error in debug logging call: Fixed extra closing parenthesis in debugFetchLog call on line 1276
+- Fix remaining syntax errors in debug logging calls: Fixed extra closing parentheses in debugFetchLog calls on lines 1252 and 1270
+- Fix last syntax error in debug logging call: Fixed extra closing parenthesis in debugFetchLog call on line 1241
+- Fix final syntax errors in debug logging calls: Fixed extra closing parentheses in remaining debugFetchLog calls
+- Fix remaining syntax errors in debug logging: Fixed missing closing braces in debugFetchLog function calls
+- Fix syntax errors in debug logging calls: Fixed missing closing braces in debugFetchLog calls in route.js
+- Fix syntax errors in debug logging calls: Convert all remaining debugFetchLog calls from object format to proper function calls
+- Fix debug config import paths to use @ alias: Update all debug.js imports to use '@/config/debug.js' instead of relative paths
+- Move ROLL text down 2 pixels: Adjust y position from diceY to diceY + 2 for better visual alignment
+- Center ROLL text vertically in rectangle: Move text y position to diceY (rectangle center)
+- Make ROLL text bigger and bolder: Increase font size from 30% to 40% of dieSize
+- Show ROLL indicator in EDIT mode too: Remove PLAY mode restriction for ROLL indicator visibility
+- Fix ROLL indicator runtime error: Move ROLL indicator rendering before dice parsing to prevent null access
+- Fix Monte Carlo simulation passing on valid moves: Improve canDieBeFullyUsed to check bar entry possibilities first
+
+### Removed
+- Remove border from ROLL indicator rectangle: Remove stroke and strokeWidth properties from the ROLL background
+
 ## [1.36.0] - 2026-02-02
 
 ### Added
