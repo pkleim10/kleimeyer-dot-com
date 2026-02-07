@@ -1162,7 +1162,7 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
           bestMove.moves.sort(sortMoves)
           bestMove.description = rebuildDescription(bestMove.moves)
           // #region agent log
-          debugFetchLog('route.js:165', 'Fixed bestMove moves array and description', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
+          debugFetchLog('route.js:165', 'Fixed bestMove moves array and description', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) })
           // #endregion
         }
       }
@@ -1516,7 +1516,7 @@ export async function POST(request) {
       console.error(`[API] Processing: xgid=${xgid.substring(0,10)}..., player=${player}, dice=${JSON.stringify(dice)}, usedDice=${JSON.stringify(usedDice)}`)
 
       // #region agent log
-      debugFetchLog('route.js:341', 'Before parseXGID', {xgid:xgid.substring(0,50),player,difficulty,maxTopMoves,usedDiceLength:usedDice.length))
+      debugFetchLog('route.js:341', 'Before parseXGID', {xgid:xgid.substring(0,50),player,difficulty,maxTopMoves,usedDiceLength:usedDice.length})
       // #endregion
 
       // Parse position and generate legal moves
@@ -1530,7 +1530,7 @@ export async function POST(request) {
 
 
       // #region agent log
-      debugFetchLog('route.js:344', 'Before createTurnState', {boardStatePlayer:boardState.player,boardStateDice:boardState.dice))
+      debugFetchLog('route.js:344', 'Before createTurnState', {boardStatePlayer:boardState.player,boardStateDice:boardState.dice})
       // #endregion
 
       // Create turn state for legal move generation
@@ -1543,7 +1543,7 @@ export async function POST(request) {
       }
       
       // #region agent log
-      debugFetchLog('route.js:349', 'Before getLegalMoves', {turnStateCurrentPlayer:turnState.currentPlayer,turnStateDice:turnState.dice,turnStateUsedDice:turnState.usedDice))
+      debugFetchLog('route.js:349', 'Before getLegalMoves', {turnStateCurrentPlayer:turnState.currentPlayer,turnStateDice:turnState.dice,turnStateUsedDice:turnState.usedDice})
       // #endregion
       
       let allLegalMoves = []
@@ -1737,7 +1737,7 @@ export async function POST(request) {
       // playerOwner already defined above
       
       // #region agent log
-      debugFetchLog('route.js:378', 'Before analyzeMovesWithHybridEngine', {playerOwner,topMovesLength:topMoves.length))
+      debugFetchLog('route.js:378', 'Before analyzeMovesWithHybridEngine', {playerOwner,topMovesLength:topMoves.length})
       // #endregion
       
       const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, effectiveNumSimulations, heuristicWeight, mcWeight)
@@ -1791,7 +1791,7 @@ export async function POST(request) {
       }
 
       // #region agent log
-      debugFetchLog('route.js:378', 'After analyzeMovesWithHybridEngine', {hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning))
+      debugFetchLog('route.js:378', 'After analyzeMovesWithHybridEngine', {hasBestMove:!!hybridAnalysis.bestMove,bestMoveIndex:hybridAnalysis.bestMoveIndex,bestMoveDescription:hybridAnalysis.bestMove?.description,bestMoveMovesLength:hybridAnalysis.bestMove?.moves?.length||1,reasoning:hybridAnalysis.reasoning})
       // #endregion
 
       // Collect debug information (after hybrid analysis for complete scores)
@@ -1820,7 +1820,7 @@ export async function POST(request) {
       const result = validateAndReturnMove(hybridAnalysis, topMoves)
       
       // #region agent log
-      debugFetchLog('route.js:432', 'Final result', {resultMoveDescription:result.move?.description,resultMoveMovesLength:result.move?.moves?.length||1,resultReasoning:result.reasoning,resultSource:result.source))
+      debugFetchLog('route.js:432', 'Final result', {resultMoveDescription:result.move?.description,resultMoveMovesLength:result.move?.moves?.length||1,resultReasoning:result.reasoning,resultSource:result.source})
       // #endregion
 
       if (!debug) {
