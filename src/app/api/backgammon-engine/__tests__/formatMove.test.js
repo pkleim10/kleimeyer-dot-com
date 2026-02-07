@@ -7,7 +7,7 @@
 global.fetch = jest.fn(() => Promise.resolve({ ok: true }))
 
 import { parseXGID, createTurnState } from '../route'
-import { getLegalMoves } from '../getLegalMoves'
+import { getLegalMoves } from '../moveGeneration/getLegalMoves'
 
 // Import formatMove - need to check if it's exported
 // If not exported, we'll test via the API route

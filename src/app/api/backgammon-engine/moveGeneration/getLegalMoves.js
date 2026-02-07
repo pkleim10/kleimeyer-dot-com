@@ -3,7 +3,7 @@
  * Generates all legal move combinations for a given board state and dice roll
  */
 
-import { rebuildDescription } from '../../../utils/moveFormatter.js'
+import { rebuildDescription } from '../../../../utils/moveFormatter.js'
 import { debugLog } from '@/config/debug.js'
 
 // Debug logging helper that only logs when debug is enabled

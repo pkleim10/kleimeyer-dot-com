@@ -3,7 +3,7 @@ const xgid = "-b----E-C---eE---c-e----B-:0:0:0:61:0:0:0:0:10"
 
 // Import required functions
 import { parseXGID, createTurnState } from './src/app/api/backgammon-engine/route.js'
-import { getLegalMoves } from './src/app/api/backgammon-engine/getLegalMoves.js'
+import { getLegalMoves } from './src/app/api/backgammon-engine/moveGeneration/getLegalMoves.js'
 
 // Mock fetch
 global.fetch = jest.fn(() => Promise.resolve({ ok: true }))

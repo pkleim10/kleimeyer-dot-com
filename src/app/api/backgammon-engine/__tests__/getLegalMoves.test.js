@@ -7,7 +7,7 @@
 global.fetch = jest.fn(() => Promise.resolve({ ok: true }))
 
 import { parseXGID, createTurnState } from '../route'
-import { getLegalMoves } from '../getLegalMoves'
+import { getLegalMoves } from '../moveGeneration/getLegalMoves'
 
 // Helper to check if a move is from bar (matches logic in getLegalMoves.js)
 function isBarMove(move) {

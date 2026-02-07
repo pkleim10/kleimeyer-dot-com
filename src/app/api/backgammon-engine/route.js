@@ -5,7 +5,7 @@
  * All syntax errors in debugFetchLog calls have been resolved
  */
 
-import { getLegalMoves } from './getLegalMoves.js'
+import { getLegalMoves } from './moveGeneration/getLegalMoves.js'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
 import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 import { debugLog } from '@/config/debug.js'
