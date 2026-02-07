@@ -1238,7 +1238,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
   // Prefer using bestMove directly if available (most reliable)
   if (bestMove) {
     // #region agent log
-    debugFetchLog('route.js:190', 'validateAndReturnMove bestMove BEFORE check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
+    debugFetchLog('route.js:190', 'validateAndReturnMove bestMove BEFORE check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) })
     // #endregion
     // CRITICAL: Ensure moves array is sorted (bar moves first) before returning
     // The moves array from getLegalMoves should already be sorted, but verify and fix if needed
