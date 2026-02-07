@@ -1249,7 +1249,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
         const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
         if (!isFirstBar) {
           // #region agent log
-          debugFetchLog('route.js:195', 'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first', { description: bestMove.description, moves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
+          debugFetchLog('route.js:195', 'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first', { description: bestMove.description, moves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) })
           // #endregion
           // Re-sort moves array to ensure bar moves come first
           const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
@@ -1267,7 +1267,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
           bestMove.moves.sort(sortMoves)
           bestMove.description = rebuildDescription(bestMove.moves)
           // #region agent log
-          debugFetchLog('route.js:210', 'Fixed bestMove in validateAndReturnMove', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
+          debugFetchLog('route.js:210', 'Fixed bestMove in validateAndReturnMove', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) })
           // #endregion
         }
       }
