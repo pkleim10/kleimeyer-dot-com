@@ -1273,7 +1273,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
       }
     }
     // #region agent log
-    debugFetchLog('route.js:215', 'validateAndReturnMove bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
+    debugFetchLog('route.js:215', 'validateAndReturnMove bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) })
     // #endregion
     return {
       move: bestMove,
