@@ -4578,9 +4578,6 @@ export default function BackgammonBoard({
     }
 
     // Notify parent of simulation parameter changes
-    if (localSettings && onMaxMovesChange && localSettings.maxMoves !== undefined) {
-      onMaxMovesChange(localSettings.maxMoves)
-    }
     if (localSettings && onMaxTopMovesChange && localSettings.maxTopMoves !== undefined) {
       onMaxTopMovesChange(localSettings.maxTopMoves)
     }
