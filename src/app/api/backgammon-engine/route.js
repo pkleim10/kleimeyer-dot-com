@@ -9,39 +9,10 @@ import { getLegalMoves } from './getLegalMoves.js'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
 import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 import { debugLog } from '@/config/debug.js'
+import { HEURISTIC_WEIGHTS, POSITION_WEIGHTS } from './config/heuristicWeights.js'
+import { debugFetchLog } from './config/debugConfig.js'
 
-// Debug logging helper that only logs when debug is enabled
-function debugFetchLog(location, message, data = {}) {
-  if (process.env.NEXT_PUBLIC_DEBUG_LOGGING !== 'true') return
 
-  fetch('http://127.0.0.1:7242/ingest/77a958ec-7306-4149-95fb-3e227fab679e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run8',
-      hypothesisId: 'H'
-    })
-  }).catch(() => {})
-}
-
-// Heuristic weights for move evaluation
-const HEURISTIC_WEIGHTS = {
-  blots: -0.22,    // Negative for safety (matches actual calculation)
-  hits: 0.24,       // Positive for aggression
-  pointsMade: 0.22, // Positive for development (reduced from 0.4)
-  pipGain: 0.20,    // Positive for efficiency
-  homeBoard: 0.07,  // Positive for home board strength
-  primeLength: 0.12, // Positive for blocking
-  builderCoverage: 0.25, // Positive for outer board coverage (increased)
-  stackPenalty: -0.08, // Negative penalty for excessive stacking
-  opponentBlotCount: 0.08, // Positive for opponent vulnerabilities
-  highRollBonus: 0.07 // Positive for high pip gain and deep runs
-}
 
 /**
  * Evaluate move using heuristic scoring
@@ -2373,18 +2344,6 @@ function checkPrimeLength(boardState, playerOwner) {
 // POSITION EVALUATION - Comprehensive heuristic position assessment
 // ============================================================================
 
-/**
- * Position evaluation weights for overall board state assessment
- */
-const POSITION_WEIGHTS = {
-  pipAdvantage: 0.25,      // Race advantage
-  blotSafety: 0.2,         // Penalty for vulnerability
-  madePoints: 0.15,        // Control and blocking
-  primeStrength: 0.12,     // Blocking potential
-  homeBoardStrength: 0.1,   // Bear-off readiness
-  anchorStrength: 0.08,     // Back game potential
-  contactAdvantage: 0.1    // Tactical position strength
-}
 
 /**
  * Evaluate overall position quality for a player
