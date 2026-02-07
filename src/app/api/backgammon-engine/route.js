@@ -1143,7 +1143,7 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
         const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
         if (!isFirstBar) {
           // #region agent log
-          debugFetchLog({location:'route.js:150',message:'BUG DETECTED: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+          debugFetchLog('route.js:150', 'BUG DETECTED: Moves array has bar move but bar is NOT first', { description: bestMove.description, moves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) })
           // #endregion
           // Re-sort moves array to ensure bar moves come first
           const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
@@ -1161,14 +1161,14 @@ function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulat
           bestMove.moves.sort(sortMoves)
           bestMove.description = rebuildDescription(bestMove.moves)
           // #region agent log
-          debugFetchLog({location:'route.js:165',message:'Fixed bestMove moves array and description',data:{fixedDescription:bestMove.description,fixedMoves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+          debugFetchLog('route.js:165', 'Fixed bestMove moves array and description', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
           // #endregion
         }
       }
     }
     
     // #region agent log
-    debugFetchLog({location:'route.js:170',message:'analyzeMovesWithHybridEngine bestMove AFTER check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+    debugFetchLog('route.js:170', 'analyzeMovesWithHybridEngine bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
     // #endregion
     // Get current player from boardState for coordinate conversion
     const currentPlayer = boardState.player !== undefined ? boardState.player : 1
@@ -1236,7 +1236,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
   // Prefer using bestMove directly if available (most reliable)
   if (bestMove) {
     // #region agent log
-    debugFetchLog({location:'route.js:190',message:'validateAndReturnMove bestMove BEFORE check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+    debugFetchLog('route.js:190', 'validateAndReturnMove bestMove BEFORE check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
     // #endregion
     // CRITICAL: Ensure moves array is sorted (bar moves first) before returning
     // The moves array from getLegalMoves should already be sorted, but verify and fix if needed
@@ -1247,7 +1247,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
         const isFirstBar = firstMove.fromBar || firstMove.from === 25 || firstMove.from === 0
         if (!isFirstBar) {
           // #region agent log
-          debugFetchLog({location:'route.js:195',message:'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first',data:{description:bestMove.description,moves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+          debugFetchLog('route.js:195', 'BUG DETECTED in validateAndReturnMove: Moves array has bar move but bar is NOT first', { description: bestMove.description, moves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
           // #endregion
           // Re-sort moves array to ensure bar moves come first
           const checkIsBarMove = (m) => m.fromBar || m.from === 25 || m.from === 0
@@ -1265,13 +1265,13 @@ function validateAndReturnMove(hybridAnalysis, moves) {
           bestMove.moves.sort(sortMoves)
           bestMove.description = rebuildDescription(bestMove.moves)
           // #region agent log
-          debugFetchLog({location:'route.js:210',message:'Fixed bestMove in validateAndReturnMove',data:{fixedDescription:bestMove.description,fixedMoves:bestMove.moves.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+          debugFetchLog('route.js:210', 'Fixed bestMove in validateAndReturnMove', { fixedDescription: bestMove.description, fixedMoves: bestMove.moves.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false })) }))
           // #endregion
         }
       }
     }
     // #region agent log
-    debugFetchLog({location:'route.js:215',message:'validateAndReturnMove bestMove AFTER check',data:{description:bestMove.description,moves:bestMove.moves?.map(m=>({from:m.from,to:m.to,fromBar:m.fromBar||false,die:m.die}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run8',hypothesisId:'H'}))
+    debugFetchLog('route.js:215', 'validateAndReturnMove bestMove AFTER check', { description: bestMove.description, moves: bestMove.moves?.map(m => ({ from: m.from, to: m.to, fromBar: m.fromBar || false, die: m.die })) }))
     // #endregion
     return {
       move: bestMove,
@@ -1550,7 +1550,17 @@ export async function POST(request) {
         allLegalMoves = getLegalMoves(boardState, turnState)
 
         // #region agent log
-        debugFetchLog({location:'route.js:349',message:'After getLegalMoves',data:{allLegalMovesLength:allLegalMoves.length,allLegalMoves:allLegalMoves.map(m=>({movesLength:m.moves?.length||1,description:m.description,totalPips:m.totalPips,moves:m.moves?.map(mv=>({from:mv.from,to:mv.to,die:mv.die}))||[]})),singleMoves:allLegalMoves.filter(m=>(m.moves?.length||1)===1).length,multiMoves:allLegalMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'}))
+        debugFetchLog('route.js:349', 'After getLegalMoves', {
+          allLegalMovesLength: allLegalMoves.length,
+          allLegalMoves: allLegalMoves.map(m => ({
+            movesLength: m.moves?.length || 1,
+            description: m.description,
+            totalPips: m.totalPips,
+            moves: m.moves?.map(mv => ({ from: mv.from, to: mv.to, die: mv.die })) || []
+          })),
+          singleMoves: allLegalMoves.filter(m => (m.moves?.length || 1) === 1).length,
+          multiMoves: allLegalMoves.filter(m => (m.moves?.length || 1) > 1).length
+        }))
         // #endregion
 
         if (allLegalMoves.length === 0) {
@@ -1709,7 +1719,17 @@ export async function POST(request) {
       }
 
       // #region agent log
-      debugFetchLog({location:'route.js:373',message:'Top moves selected',data:{topMovesLength:topMoves.length,topMoves:topMoves.map(m=>({movesLength:m.moves?m.moves.length:1,description:m.description,totalPips:m.totalPips,moves:m.moves?m.moves.map(mv=>({from:mv.from,to:mv.to,die:mv.die})):null})),topSingleMoves:topMoves.filter(m=>(m.moves?.length||1)===1).length,topMultiMoves:topMoves.filter(m=>(m.moves?.length||1)>1).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run6',hypothesisId:'F'}))
+      debugFetchLog('route.js:373', 'Top moves selected', {
+        topMovesLength: topMoves.length,
+        topMoves: topMoves.map(m => ({
+          movesLength: m.moves ? m.moves.length : 1,
+          description: m.description,
+          totalPips: m.totalPips,
+          moves: m.moves ? m.moves.map(mv => ({ from: mv.from, to: mv.to, die: mv.die })) : null
+        })),
+        topSingleMoves: topMoves.filter(m => (m.moves?.length || 1) === 1).length,
+        topMultiMoves: topMoves.filter(m => (m.moves?.length || 1) > 1).length
+      }))
       // #endregion
 
       // Get hybrid engine analysis
