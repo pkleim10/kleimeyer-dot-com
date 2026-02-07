@@ -461,10 +461,17 @@ export function checkPrimeLength(boardState, playerOwner) {
  * Format a move combination for display
  */
 function formatMove(moveCombination) {
+  if (!moveCombination) return 'unknown move'
+
   if (!moveCombination.moves) {
+    // Single move
+    if (moveCombination.fromBar) {
+      return `bar/${moveCombination.to}`
+    }
     return `${moveCombination.from}/${moveCombination.to}`
   }
 
+  // Move combination
   const parts = []
   for (const move of moveCombination.moves) {
     if (move.fromBar) {
