@@ -45,5 +45,12 @@ next-env.d.ts
 conversation_summary.md
 .cursor/
 
+# debug and test files
+server.log
+server_stderr.log
+server_stdout.log
+test-*.js
+test_debug.js
+
 # documentation
 PROJECT_STATUS.md
