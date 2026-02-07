@@ -11,6 +11,7 @@ import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgam
 import { debugLog } from '@/config/debug.js'
 import { HEURISTIC_WEIGHTS, POSITION_WEIGHTS } from './config/heuristicWeights.js'
 import { debugFetchLog } from './config/debugConfig.js'
+import { canPlayerBearOff, isValidMove, createTurnState, countCheckersInRange } from './gameState/index.js'
 import { boardToArray, displayBoard, cloneBoardState, applyMoveToBoardForAnalysis, calculateFinalBoardState, parseXGID } from './utils/boardUtils.js'
 import { identifyBlots, identifyOpponentPositions, getMadePoints, calculatePipCounts, checkForHit } from './utils/boardAnalysis.js'
 import { evaluateMoveHeuristically, buildVerifiedMoveAnalysis, calculateHitProbabilityForDistance, calculateHitImpact, calculateBlotRisk, identifyPointsMade, calculateBuilderCoverage, getMaxStackSize, checkPrimeLength } from './evaluation/moveEvaluation.js'
@@ -25,71 +26,7 @@ import { getRandomLegalMove, findRandomMoveForDie, applyMove } from './moveGener
  */
 
 
-/**
- * Check if a move is valid in array format
- */
-function canPlayerBearOff(board, playerIndex) {
-  // Player can bear off if all their checkers are in their home board
-  // Home board: points 1-6 for white (playerIndex 0), points 19-24 for black (playerIndex 1)
 
-  const homeStart = playerIndex === 0 ? 1 : 19
-  const homeEnd = playerIndex === 0 ? 6 : 24
-
-  // Check if any checkers are outside home board
-  for (let point = 1; point <= 24; point++) {
-    if ((point < homeStart || point > homeEnd) && board[point][playerIndex] > 0) {
-      return false
-    }
-  }
-
-  // Check if any checkers are on the bar
-  if (board[playerIndex === 0 ? 0 : 25][playerIndex] > 0) {
-    return false
-  }
-
-  return true
-}
-
-function isValidMove(board, fromPoint, dieValue, playerIndex) {
-  // Must have at least one checker on the point
-  if (board[fromPoint][playerIndex] === 0) return false
-
-  // Calculate target point based on player direction and move type
-  let toPoint
-  const isBarMove2 = (fromPoint === 0 && playerIndex === 0) || (fromPoint === 25 && playerIndex === 1)
-
-  if (isBarMove2) {
-    // Bar moves: entering the board on opponent's home board
-    if (playerIndex === 0) { // White enters on points 19-24
-      toPoint = 25 - dieValue  // 24-19
-    } else { // Black enters on points 1-6
-      toPoint = dieValue  // 1-6
-    }
-  } else {
-    // Regular moves
-    if (playerIndex === 0) { // White moves toward lower numbers
-      toPoint = fromPoint - dieValue
-    } else { // Black moves toward higher numbers
-      toPoint = fromPoint + dieValue
-    }
-  }
-
-  // Check if this is a bearing off move (moving beyond home board)
-  const isBearingOff = (playerIndex === 0 && toPoint < 1) || (playerIndex === 1 && toPoint > 24)
-
-  if (isBearingOff) {
-    // For bearing off, check if player can bear off (all checkers in home board)
-    const canBearOff = canPlayerBearOff(board, playerIndex)
-    return canBearOff
-  }
-
-  // Regular move - can't move beyond the board boundaries
-  if (toPoint < 1 || toPoint > 24) return false
-
-  // Cannot land on points with 2+ opponent checkers (made point)
-  const targetOpponent = board[toPoint][1 - playerIndex]
-  return targetOpponent < 2  // Can hit single checker, cannot land on made point
-}
 
 /**
  * Apply a move to the board array
@@ -228,7 +165,7 @@ function validateAndReturnMove(hybridAnalysis, moves) {
 
 
 // Export functions for testing (re-export getLegalMoves from module)
-export { parseXGID, createTurnState, getLegalMoves }
+export { parseXGID, getLegalMoves }
 
 export async function POST(request) {
   console.log('=== BACKGAMMON ENGINE API CALLED ===')
@@ -637,31 +574,6 @@ export async function POST(request) {
 /**
  * Create turn state for move validation
  */
-function createTurnState(boardState, player, customDice = null) {
-  const owner = player === 1 ? 'white' : 'black'
-  let dice = []
-
-  // Use custom dice if provided
-  if (customDice && Array.isArray(customDice)) {
-    dice = customDice
-  } else if (boardState.dice && boardState.dice !== '00') {
-    const die1 = parseInt(boardState.dice[0])
-    const die2 = parseInt(boardState.dice[1])
-    if (!isNaN(die1) && !isNaN(die2) && die1 > 0 && die2 > 0) {
-      // Doubles: if both dice are the same, allow 4 moves of that number
-      dice = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2]
-    }
-  }
-
-  return {
-    currentPlayer: owner,
-    dice: dice,
-    usedDice: [],
-    isTurnComplete: false,
-    mustEnterFromBar: (owner === 'black' ? boardState.blackBar : boardState.whiteBar) > 0,
-    noLegalMoves: false
-  }
-}
 
 /**
  * Select diverse top legal move combinations for engine analysis
@@ -705,16 +617,6 @@ function selectTopLegalMoves(allMoves, maxMoves) {
 // CONTEXT CLASSIFICATION - Stage and Game Type for weight adjustments
 // ============================================================================
 
-function countCheckersInRange(boardState, owner, startPoint, endPoint) {
-  let count = 0
-  for (let point = startPoint; point <= endPoint; point++) {
-    const pointData = boardState.points[point - 1]
-    if (pointData.owner === owner && pointData.count > 0) {
-      count += pointData.count
-    }
-  }
-  return count
-}
 
 
 
