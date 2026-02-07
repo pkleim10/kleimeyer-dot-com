@@ -3,6 +3,7 @@
  */
 
 import { debugFetchLog } from '../config/debugConfig.js'
+import { hasPlayerWon } from '../../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 
 /**
  * Convert board state to array format for fast move generation
@@ -297,4 +298,21 @@ export function countCheckersInRange(boardState, owner, startPoint, endPoint) {
     }
   }
   return count
+}
+
+/**
+ * Check if game is over and who won
+ */
+export function isGameOver(boardState, completeGame = false) {
+  // Check if either player has won
+  return hasPlayerWon(boardState, 'white', completeGame) || hasPlayerWon(boardState, 'black', completeGame)
+}
+
+/**
+ * Get the winner of the game, or null if no winner yet
+ */
+export function getWinner(boardState, completeGame = false) {
+  if (hasPlayerWon(boardState, 'white', completeGame)) return 'white'
+  if (hasPlayerWon(boardState, 'black', completeGame)) return 'black'
+  return null
 }
