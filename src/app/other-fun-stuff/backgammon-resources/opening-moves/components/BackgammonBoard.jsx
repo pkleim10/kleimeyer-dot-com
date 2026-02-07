@@ -909,7 +909,7 @@ export default function BackgammonBoard({
         <g id="dice-area">
           {/* Light grey rectangle */}
           <rect
-            x={rightHalfCenterX - dieSize * 0.8}
+            x={rightHalfCenterX - dieSize * 1.2}
             y={diceY - dieSize * 0.4}
             width={dieSize * 2.4}
             height={dieSize * 0.8}
@@ -919,7 +919,7 @@ export default function BackgammonBoard({
           />
           {/* "ROLL" text */}
           <text
-            x={rightHalfCenterX + dieSize * 0.4}
+            x={rightHalfCenterX}
             y={diceY + 2}
             dominantBaseline="middle"
             textAnchor="middle"
@@ -1232,7 +1232,7 @@ export default function BackgammonBoard({
         <g id="dice-area">
           {/* Light grey rectangle */}
           <rect
-            x={rightHalfCenterX - dieSize * 0.8}
+            x={rightHalfCenterX - dieSize * 1.2}
             y={diceY - dieSize * 0.4}
             width={dieSize * 2.4}
             height={dieSize * 0.8}
@@ -1242,7 +1242,7 @@ export default function BackgammonBoard({
           />
           {/* "ROLL" text */}
           <text
-            x={rightHalfCenterX + dieSize * 0.4}
+            x={rightHalfCenterX}
             y={diceY + 2}
             dominantBaseline="middle"
             textAnchor="middle"
