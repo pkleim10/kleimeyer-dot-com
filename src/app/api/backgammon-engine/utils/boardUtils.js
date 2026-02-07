@@ -284,3 +284,17 @@ export function parseXGID(xgid) {
     dice
   }
 }
+
+/**
+ * Count checkers in a range of points for a specific owner
+ */
+export function countCheckersInRange(boardState, owner, startPoint, endPoint) {
+  let count = 0
+  for (let point = startPoint; point <= endPoint; point++) {
+    const pointData = boardState.points[point - 1]
+    if (pointData.owner === owner && pointData.count > 0) {
+      count += pointData.count
+    }
+  }
+  return count
+}
