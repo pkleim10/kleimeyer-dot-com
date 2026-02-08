@@ -187,46 +187,20 @@ export default function BackgammonBoard({
   const [showOptionsDialog, setShowOptionsDialog] = useState(false)
   const [localSettings, setLocalSettings] = useState(null)
   
-  // Dialog drag state - load from localStorage if available
-  const loadDialogPosition = () => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('backgammonBoardDialogPosition')
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch (e) {
-          return { x: 0, y: 0 }
-        }
-      }
-    }
-    return { x: 0, y: 0 }
-  }
-  
-  const [dialogPosition, setDialogPosition] = useState(loadDialogPosition)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  
   // Update editableXGID when xgid prop changes (if not currently editing)
   useEffect(() => {
     if (!isEditable || !draggedChecker) {
       setEditableXGID(xgid)
     }
   }, [xgid, isEditable, draggedChecker])
-  
+
   // Update localEditingMode when prop changes
   useEffect(() => {
     setLocalEditingMode(editingMode)
   }, [editingMode])
-  
+
   // Use local editing mode if in editable mode, otherwise use prop
   const effectiveEditingMode = isEditable ? localEditingMode : editingMode
-  
-  // Save dialog position to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('backgammonBoardDialogPosition', JSON.stringify(dialogPosition))
-    }
-  }, [dialogPosition])
 
   // Open options dialog when openOptionsTrigger changes
   useEffect(() => {
@@ -4681,42 +4655,6 @@ export default function BackgammonBoard({
     setShowOptionsDialog(false)
   }
   
-  // Dialog drag handlers
-  const handleDialogMouseDown = (e) => {
-    if (e.target.closest('button, input, select, textarea')) {
-      return // Don't drag if clicking on interactive elements
-    }
-    setIsDragging(true)
-    setDragStart({
-      x: e.clientX - dialogPosition.x,
-      y: e.clientY - dialogPosition.y
-    })
-  }
-  
-  // Add global mouse event listeners for dragging
-  useEffect(() => {
-    if (!isDragging) return
-    
-    const handleMouseMove = (e) => {
-      setDialogPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      })
-    }
-    
-    const handleMouseUp = () => {
-      setIsDragging(false)
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, dragStart])
-  
   return (
     <div id="component-backgammon-board" className="flex flex-col items-center w-full relative">
       {/* Dragged checker preview - rendered outside SVG when mouse leaves board */}
@@ -4773,23 +4711,23 @@ export default function BackgammonBoard({
       
       {/* Options Dialog */}
       {showOptionsDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={handleCancelSettings}>
+        <>
+          {/* Backdrop */}
           <div
-            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-xs w-full mx-4 max-h-[90vh] overflow-y-auto relative"
+            className="fixed inset-0 z-40 bg-black bg-opacity-50"
+            onClick={handleCancelSettings}
+          ></div>
+
+          {/* Drawer */}
+          <div
+            className="fixed top-0 right-0 h-full z-50 bg-white dark:bg-slate-800 shadow-xl p-6 w-80 max-w-[90vw] overflow-y-auto transition-transform duration-300 ease-in-out"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              transform: `translate(${dialogPosition.x}px, ${dialogPosition.y}px)`,
-              cursor: isDragging ? 'grabbing' : 'default'
-            }}
           >
-            <div 
-              className="flex justify-between items-center mb-4 cursor-grab active:cursor-grabbing select-none"
-              onMouseDown={handleDialogMouseDown}
-            >
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Board Settings</h2>
               <button
                 onClick={handleCancelSettings}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -4905,7 +4843,7 @@ export default function BackgammonBoard({
 
             </div>
             
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-center gap-3 mt-6">
               <button
                 onClick={handleCancelSettings}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
@@ -4920,7 +4858,7 @@ export default function BackgammonBoard({
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
       
       <svg
