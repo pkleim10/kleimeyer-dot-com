@@ -37,6 +37,7 @@ export default function BackgammonBoard({
   onAiDifficultyChange = null, // Callback for engine difficulty changes: (difficulty) => void
   onAiAnalysis = null, // Callback to trigger engine analysis: () => Promise<void>
   onClearAiAnalysis = null, // Callback to clear engine analysis: () => void
+  onCubeOwnerChange = null, // Callback when cube ownership changes: (owner: number) => void, where owner is -1 (black), 0 (nobody), or 1 (white)
   onUsedDiceChange = null, // Callback when used dice changes: (usedDice: number[]) => void
   applyMoveTrigger = null, // When this changes, apply the move from aiAnalysis (for external Apply button)
   maxTopMoves = 6, // Maximum top moves to analyze with MC
@@ -812,7 +813,7 @@ export default function BackgammonBoard({
     } else {
       return null
     }
-    
+
     const cubeX = barCenterX - cubeSize / 2
     
     // Add click handler if editable
@@ -821,7 +822,90 @@ export default function BackgammonBoard({
       style: { cursor: 'pointer' }
     } : {}
     
-    return (
+    // Calculate positions for the three ownership zones
+    const topCubeY = topBorderWidth + 20
+    const centerCubeY = topBorderWidth + innerHeight / 2 - cubeSize / 2
+    const bottomCubeY = topBorderWidth + innerHeight - cubeSize - 20
+
+    const elements = []
+
+    // In EDIT mode, render clickable outline rectangles for ownership control
+    if (isEditable && effectiveEditingMode === 'free') {
+      // Top zone (Black ownership)
+      elements.push(
+        <rect
+          key="cube-zone-black"
+          x={cubeX}
+          y={topCubeY}
+          width={cubeSize}
+          height={cubeSize}
+          rx={cubeSize * 0.1}
+          ry={cubeSize * 0.1}
+          fill="none"
+          stroke={finalEffectiveCubeOwner === -1 ? COLORS.checkerBlack : "#b8b8b8"}
+          strokeWidth={finalEffectiveCubeOwner === -1 ? 3 : 2}
+          strokeDasharray={finalEffectiveCubeOwner === -1 ? "none" : "5,3"}
+          pointerEvents="all"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            if (onCubeOwnerChange) {
+              onCubeOwnerChange(-1) // Black ownership
+            }
+          }}
+        />
+      )
+
+      // Center zone (Nobody ownership)
+      elements.push(
+        <rect
+          key="cube-zone-nobody"
+          x={cubeX}
+          y={centerCubeY}
+          width={cubeSize}
+          height={cubeSize}
+          rx={cubeSize * 0.1}
+          ry={cubeSize * 0.1}
+          fill="none"
+          stroke={finalEffectiveCubeOwner === 0 ? COLORS.checkerBlack : "#b8b8b8"}
+          strokeWidth={finalEffectiveCubeOwner === 0 ? 3 : 2}
+          strokeDasharray={finalEffectiveCubeOwner === 0 ? "none" : "5,3"}
+          pointerEvents="all"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            if (onCubeOwnerChange) {
+              onCubeOwnerChange(0) // Nobody ownership
+            }
+          }}
+        />
+      )
+
+      // Bottom zone (White ownership)
+      elements.push(
+        <rect
+          key="cube-zone-white"
+          x={cubeX}
+          y={bottomCubeY}
+          width={cubeSize}
+          height={cubeSize}
+          rx={cubeSize * 0.1}
+          ry={cubeSize * 0.1}
+          fill="none"
+          stroke={finalEffectiveCubeOwner === 1 ? COLORS.checkerBlack : "#b8b8b8"}
+          strokeWidth={finalEffectiveCubeOwner === 1 ? 3 : 2}
+          strokeDasharray={finalEffectiveCubeOwner === 1 ? "none" : "5,3"}
+          pointerEvents="all"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            if (onCubeOwnerChange) {
+              onCubeOwnerChange(1) // White ownership
+            }
+          }}
+        />
+      )
+    }
+
+    // Always render the actual cube
+    elements.push(
       <g key="doubling-cube" id="doubling-cube-reference" {...cubeHandlers}>
         <rect
           x={cubeX}
@@ -849,6 +933,8 @@ export default function BackgammonBoard({
         </text>
       </g>
     )
+
+    return elements
   }
   
   // Helper: Get pip positions for a die value
@@ -4688,8 +4774,8 @@ export default function BackgammonBoard({
       {/* Options Dialog */}
       {showOptionsDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={handleCancelSettings}>
-          <div 
-            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto relative"
+          <div
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-xs w-full mx-4 max-h-[90vh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
             style={{
               transform: `translate(${dialogPosition.x}px, ${dialogPosition.y}px)`,
@@ -4712,22 +4798,6 @@ export default function BackgammonBoard({
             </div>
             
             <div className="space-y-4">
-              {/* Player */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Player
-                </label>
-                <select
-                  value={dialogSettings.player}
-                  onChange={(e) => handleSettingsChange('player', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  <option value={0}>OPEN</option>
-                  <option value={-1}>Black</option>
-                  <option value={1}>White</option>
-                </select>
-              </div>
-              
               {/* Direction */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -4742,41 +4812,7 @@ export default function BackgammonBoard({
                   <option value={1}>Clockwise</option>
                 </select>
               </div>
-              
-              {/* Cube Owner */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cube Owner
-                </label>
-                <select
-                  value={dialogSettings.cubeOwner}
-                  onChange={(e) => handleSettingsChange('cubeOwner', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  <option value={-1}>Black</option>
-                  <option value={0}>Nobody</option>
-                  <option value={1}>White</option>
-                </select>
-              </div>
-              
-              {/* Cube Value */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cube Value (Exponent: 0-6)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="6"
-                  value={dialogSettings.cubeValue}
-                  onChange={(e) => handleSettingsChange('cubeValue', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Displayed value: {dialogSettings.cubeValue === 0 ? 64 : Math.pow(2, dialogSettings.cubeValue)}
-                </p>
-              </div>
-              
+
               {/* Use Cube */}
               <div className="flex items-center">
                 <input
@@ -4790,49 +4826,7 @@ export default function BackgammonBoard({
                   Show Doubling Cube
                 </label>
               </div>
-              
-              {/* Dice */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Dice (00 = to roll, XY = rolled values)
-                </label>
-                <input
-                  type="text"
-                  pattern="[0-9]{2}"
-                  maxLength={2}
-                  value={dialogSettings.dice}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
-                    handleSettingsChange('dice', value) // Allow empty value during editing
-                  }}
-                  onBlur={(e) => {
-                    // Default to '00' only when field loses focus and is empty
-                    if (!e.target.value || e.target.value.length === 0) {
-                      handleSettingsChange('dice', '00')
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white font-mono"
-                  placeholder="00"
-                />
-              </div>
 
-              {/* AI Difficulty */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  AI Difficulty
-                </label>
-                <select
-                  value={aiDifficulty}
-                  onChange={(e) => onAiDifficultyChange && onAiDifficultyChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                  <option value="grandmaster">Grandmaster</option>
-                </select>
-              </div>
-              
               {/* Show Trays */}
               <div className="flex items-center">
                 <input

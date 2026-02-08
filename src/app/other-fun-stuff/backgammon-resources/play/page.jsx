@@ -633,6 +633,21 @@ export default function PlayPage() {
     setApplyMoveTrigger(0) // Reset trigger to prevent stale triggers
   }
 
+  // Handle cube ownership changes from the board
+  const handleCubeOwnerChange = (newOwner) => {
+    if (!boardXGID) return
+
+    const parts = boardXGID.split(':')
+    if (parts.length >= 3) {
+      // xg3 is cube owner (index 2 in 0-based array)
+      // XGID format: -1 = black, 0 = nobody, 1 = white
+      parts[2] = newOwner.toString() // Convert -1, 0, 1 to string
+      const newXGID = parts.join(':')
+      setBoardXGID(newXGID)
+      setXgidInputValue(newXGID)
+    }
+  }
+
   // Handle engine difficulty changes
   const handleEngineDifficultyChange = (difficulty) => {
     setEngineDifficulty(difficulty)
@@ -1885,6 +1900,7 @@ export default function PlayPage() {
                     onClearGhosts={handleClearGhosts}
                     onShowGhosts={handleShowGhosts}
                     ghostsVisible={showGhosts}
+                    onCubeOwnerChange={handleCubeOwnerChange}
                     dice="00"
                     showTrays={true}
                     onPlayerChange={setCurrentPlayer}
