@@ -200,25 +200,8 @@ export default function PlayPage() {
     
     // Normalize: sort by highest originating point first (in RELATIVE coordinates)
     // This ensures the display order matches the ghost/arrow drawing order
-    // Convert to relative first, then sort by relative from point (highest first)
-    movesToProcess = movesToProcess.map(m => {
-      const fromRel = (m.fromAbs >= 1 && m.fromAbs <= 24) 
-        ? absoluteToRelative(m.fromAbs)
-        : m.fromAbs
-      return {
-        ...m,
-        fromRel,
-        toRel: (m.toAbs >= 1 && m.toAbs <= 24)
-          ? absoluteToRelative(m.toAbs)
-          : m.toAbs
-      }
-    })
-    movesToProcess.sort((a, b) => {
-      // Sort by relative from point (highest first), but handle bar/off positions
-      if (a.fromRel < 1 || a.fromRel > 24) return 1
-      if (b.fromRel < 1 || b.fromRel > 24) return -1
-      return b.fromRel - a.fromRel
-    })
+    // Keep moves in API order for applyMove
+    // applyMove expects moves in the sequence they should be executed
     
     // Now convert normalized moves to move string format
     // IMPORTANT: applyMove expects moves in the MOVING PLAYER's relative coordinates
@@ -247,13 +230,13 @@ export default function PlayPage() {
         }
       }
       
-      // Convert to moving player's relative coordinates
-      const movingPlayerNum = movingPlayer === 'white' ? 1 : -1
-      const fromRel = (fromAbs >= 1 && fromAbs <= 24) 
-        ? (movingPlayerNum === 1 ? fromAbs : 25 - fromAbs)
+      // Convert to moving player's relative coordinates (consistent for applyMove)
+      const playerNum = moveOwner === 'white' ? 1 : -1
+      const fromRel = (fromAbs >= 1 && fromAbs <= 24)
+        ? (playerNum === 1 ? fromAbs : 25 - fromAbs)
         : fromAbs
       const toRel = (singleMove.toAbs >= 1 && singleMove.toAbs <= 24)
-        ? (movingPlayerNum === 1 ? singleMove.toAbs : 25 - singleMove.toAbs)
+        ? (playerNum === 1 ? singleMove.toAbs : 25 - singleMove.toAbs)
         : singleMove.toAbs
 
       // Handle bar moves - bar is represented as 25 or 0 in relative coordinates
@@ -279,6 +262,7 @@ export default function PlayPage() {
       if (fromRel < 1 || fromRel > 24 || toRel < 1 || toRel > 24) continue
 
       // Format as move string (e.g., "24/18" or "13/10*")
+      // IMPORTANT: applyMove expects absolute coordinates
       const asterisk = singleMove.hitBlot ? '*' : ''
       moveParts.push(`${fromRel}/${toRel}${asterisk}`)
     }
@@ -334,7 +318,7 @@ export default function PlayPage() {
         actualMoveOwner = 'black'
       }
     }
-    
+
     // Use applyMove directly (like the Quiz does) with the actual moving player
     const result = applyMove(boardXGID, moveString, actualMoveOwner)
 
@@ -513,11 +497,6 @@ export default function PlayPage() {
       i = j
     }
 
-    console.log('[convertMoveToGhostCheckers] Final result:', {
-      originalGhostCheckers: result.ghostCheckers,
-      updatedGhostCheckers,
-      collapsedMoves
-    })
 
     // Sort collapsedMoves by highest originating point first (matching display order)
     // This ensures arrows are drawn in the same order as displayed (e.g., 8/2 before 6/2)
