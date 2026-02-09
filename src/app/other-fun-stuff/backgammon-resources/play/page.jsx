@@ -770,13 +770,36 @@ export default function PlayPage() {
 
   // Handle paste icon click
   const handlePasteClick = async () => {
+    const input = document.getElementById('xgid-input')
+    if (!input) return
+
     try {
+      // Try modern clipboard API
       const text = await navigator.clipboard.readText()
-      handleXgidInputChange(text)
+      // Validate and apply the XGID directly
+      const validation = validateXGID(text)
+      if (validation.valid) {
+        setBoardXGID(text)
+        setXgidInputValue(text)
+        setXgidError(null)
+      } else {
+        setXgidInputValue(text)
+        setXgidError(validation.error)
+      }
     } catch (err) {
-      // Fallback: focus the input for manual paste
-      const input = document.getElementById('xgid-input')
-      if (input) input.focus()
+      // Clipboard access failed - try alternative methods
+      input.focus()
+      input.select()
+
+      // Try to trigger browser paste (Ctrl+V simulation)
+      try {
+        document.execCommand('paste')
+      } catch (e) {
+        // Show instructions to user
+        setTimeout(() => {
+          alert('Please use Ctrl+V (or Cmd+V on Mac) to paste the XGID, then press Enter to apply it.')
+        }, 100)
+      }
     }
   }
 
