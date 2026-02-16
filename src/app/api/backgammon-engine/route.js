@@ -196,7 +196,7 @@ export async function POST(request) {
       // #region agent log
       debugFetchLog('route.js:327', 'API POST entry', {timestamp:Date.now()})
       // #endregion
-      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], dice, heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false } = requestBody
+      const { xgid, player, difficulty = 'advanced', maxTopMoves = 6, numSimulations = 20, debug = false, usedDice = [], dice, heuristicWeight = 0.50, mcWeight = 0.50, skipLegalMoves = false, bestOfN = 1, earlyTerminationLimit = 400, totalTimeBudgetMs = 5000 } = requestBody
 
       const effectiveNumSimulations = numSimulations
 
@@ -426,13 +426,27 @@ export async function POST(request) {
       debugFetchLog('route.js:378', 'Before analyzeMovesWithHybridEngine', {playerOwner,topMovesLength:topMoves.length})
       // #endregion
       
-      const hybridAnalysis = analyzeMovesWithHybridEngine(boardState, topMoves, playerOwner, effectiveNumSimulations, heuristicWeight, mcWeight)
+      const hybridAnalysis = analyzeMovesWithHybridEngine(
+        boardState, 
+        topMoves, 
+        playerOwner, 
+        effectiveNumSimulations, 
+        heuristicWeight, 
+        mcWeight,
+        { bestOfN, earlyTerminationLimit, totalTimeBudgetMs }
+      )
 
       // Always run a tracked simulation for the first simulated game to show detailed moves and board positions
       let firstGameSimulation = null
       if (topMoves.length > 0) {
         console.log('[MC-Tracking] Running tracked simulation for the first move to show detailed game progression...')
-        firstGameSimulation = runMonteCarloWithMoveTracking(boardState, topMoves[0], playerOwner, true) // Enable enhanced logging
+        firstGameSimulation = runMonteCarloWithMoveTracking(
+          boardState, 
+          topMoves[0], 
+          playerOwner, 
+          true, // Enable enhanced logging
+          { bestOfN, earlyTerminationLimit }
+        )
         console.log(`[MC-Tracking] First game simulation completed: ${firstGameSimulation.totalMoves} moves, winner: ${firstGameSimulation.winner || 'none'}`)
 
         // Log detailed first game simulation to console
@@ -534,8 +548,13 @@ export async function POST(request) {
         totalElapsedMs: Date.now() - startTime,
         parameters: {
           maxTopMoves: maxTopMoves,
-          numSimulations: numSimulations // Monte Carlo simulations per move
-        }
+          numSimulations: effectiveNumSimulations,
+          bestOfN: bestOfN,
+          earlyTerminationLimit: earlyTerminationLimit,
+          totalTimeBudgetMs: totalTimeBudgetMs
+        },
+        actualSimulationsPerformed: hybridAnalysis.totalActualSimulations || (effectiveNumSimulations * topMoves.length),
+        averageSimulationsPerMove: hybridAnalysis.averageSimulationsPerMove || effectiveNumSimulations
       }
 
       return Response.json(result)

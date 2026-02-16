@@ -42,8 +42,16 @@ export default function BackgammonBoard({
   applyMoveTrigger = null, // When this changes, apply the move from aiAnalysis (for external Apply button)
   maxTopMoves = 6, // Maximum top moves to analyze with MC
   numSimulations = 1000, // Number of Monte Carlo simulations per move
+  skillLevel = 'intermediate', // Skill level preset
+  bestOfN = 5, // Best-of-N random move sampling (1 = pure random)
+  earlyTerminationLimit = 100, // Early termination limit for simulations
+  totalTimeBudgetMs = 5000, // Total time budget in ms for all move analysis (0 = no limit)
   onMaxTopMovesChange = null, // Callback when maxTopMoves changes: (value: number) => void
   onNumSimulationsChange = null, // Callback when numSimulations changes: (value: number) => void
+  onSkillLevelChange = null, // Callback when skillLevel changes: (value: string) => void
+  onBestOfNChange = null, // Callback when bestOfN changes: (value: number) => void
+  onEarlyTerminationLimitChange = null, // Callback when earlyTerminationLimit changes: (value: number) => void
+  onTotalTimeBudgetMsChange = null, // Callback when totalTimeBudgetMs changes: (value: number) => void
   openOptionsTrigger = null // When this changes, open the options dialog: (number) => void
 }) {
   // direction: 0 = ccw (counter-clockwise), 1 = cw (clockwise)
@@ -4547,6 +4555,45 @@ export default function BackgammonBoard({
   const displayXGID = getDisplayXGID()
   
   // Get current settings for dialog (use localSettings if overridden, otherwise use XGID/props)
+  // Skill level presets (matching play/page.jsx)
+  const SKILL_LEVELS = {
+    beginner: {
+      label: 'Beginner',
+      description: '5 seconds - Fast analysis',
+      totalTimeBudgetMs: 5000,
+      bestOfN: 3,
+      earlyTerminationLimit: 100
+    },
+    intermediate: {
+      label: 'Intermediate',
+      description: '10 seconds - Balanced quality',
+      totalTimeBudgetMs: 10000,
+      bestOfN: 5,
+      earlyTerminationLimit: 100
+    },
+    advanced: {
+      label: 'Advanced',
+      description: '20 seconds - High quality',
+      totalTimeBudgetMs: 20000,
+      bestOfN: 8,
+      earlyTerminationLimit: 100
+    },
+    expert: {
+      label: 'Expert',
+      description: '40 seconds - Maximum quality',
+      totalTimeBudgetMs: 40000,
+      bestOfN: 12,
+      earlyTerminationLimit: 100
+    },
+    custom: {
+      label: 'Custom',
+      description: 'Configure manually',
+      totalTimeBudgetMs: 5000,
+      bestOfN: 5,
+      earlyTerminationLimit: 100
+    }
+  }
+
   const dialogSettings = localSettings || {
     direction: activeDirection,
     player: finalEffectivePlayer,
@@ -4557,13 +4604,32 @@ export default function BackgammonBoard({
     showTrays: activeShowTrays,
     showBoardLabels: activeShowBoardLabels,
     maxTopMoves: maxTopMoves,
-    numSimulations: numSimulations
+    numSimulations: numSimulations,
+    skillLevel: skillLevel,
+    bestOfN: bestOfN,
+    earlyTerminationLimit: earlyTerminationLimit,
+    totalTimeBudgetMs: totalTimeBudgetMs
   }
   
   const handleSettingsChange = (key, value) => {
     setLocalSettings(prev => {
       const current = prev || dialogSettings
-      return { ...current, [key]: value }
+      const updated = { ...current, [key]: value }
+      
+      // If skill level changes to a preset, update dependent values
+      if (key === 'skillLevel' && value !== 'custom') {
+        const preset = SKILL_LEVELS[value]
+        updated.bestOfN = preset.bestOfN
+        updated.totalTimeBudgetMs = preset.totalTimeBudgetMs
+        updated.earlyTerminationLimit = preset.earlyTerminationLimit
+      }
+      
+      // If user manually changes bestOfN, totalTimeBudgetMs, or earlyTerminationLimit, switch to custom
+      if ((key === 'bestOfN' || key === 'totalTimeBudgetMs' || key === 'earlyTerminationLimit') && current.skillLevel !== 'custom') {
+        updated.skillLevel = 'custom'
+      }
+      
+      return updated
     })
   }
   
@@ -4643,6 +4709,22 @@ export default function BackgammonBoard({
     }
     if (localSettings && onNumSimulationsChange && localSettings.numSimulations !== undefined) {
       onNumSimulationsChange(localSettings.numSimulations)
+    }
+    
+    if (localSettings && onBestOfNChange && localSettings.bestOfN !== undefined) {
+      onBestOfNChange(localSettings.bestOfN)
+    }
+    
+    if (localSettings && onEarlyTerminationLimitChange && localSettings.earlyTerminationLimit !== undefined) {
+      onEarlyTerminationLimitChange(localSettings.earlyTerminationLimit)
+    }
+    
+    if (localSettings && onTotalTimeBudgetMsChange && localSettings.totalTimeBudgetMs !== undefined) {
+      onTotalTimeBudgetMsChange(localSettings.totalTimeBudgetMs)
+    }
+    
+    if (localSettings && onSkillLevelChange && localSettings.skillLevel !== undefined) {
+      onSkillLevelChange(localSettings.skillLevel)
     }
 
     // Settings are now applied via localSettings override
@@ -4797,14 +4879,80 @@ export default function BackgammonBoard({
               {/* Simulation Parameters Section */}
               <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Simulation Parameters
+                  Analysis Strength
                 </h3>
 
+                {/* Skill Level Preset */}
+                <div className="mb-4">
+                  <label htmlFor="skillLevel" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Analysis Quality
+                  </label>
+                  <select
+                    id="skillLevel"
+                    value={dialogSettings.skillLevel}
+                    onChange={(e) => handleSettingsChange('skillLevel', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="beginner">Beginner (5s, best-of-3)</option>
+                    <option value="intermediate">Intermediate (10s, best-of-5)</option>
+                    <option value="advanced">Advanced (20s, best-of-8)</option>
+                    <option value="expert">Expert (40s, best-of-12)</option>
+                    <option value="custom">Custom Settings...</option>
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {SKILL_LEVELS[dialogSettings.skillLevel]?.description || 'Choose analysis quality vs speed'}
+                  </p>
+                </div>
+
+                {/* Show advanced settings only for Custom */}
+                {dialogSettings.skillLevel === 'custom' && (
+                  <div className="space-y-4 pl-4 border-l-2 border-gray-300 dark:border-gray-600">
+                    {/* Total Time Budget */}
+                    <div className="mb-4">
+                      <label htmlFor="totalTimeBudgetMs" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Time Budget (seconds)
+                      </label>
+                      <input
+                        type="number"
+                        id="totalTimeBudgetMs"
+                        min="1"
+                        max="60"
+                        step="1"
+                        value={(dialogSettings.totalTimeBudgetMs || 5000) / 1000}
+                        onChange={(e) => handleSettingsChange('totalTimeBudgetMs', (parseInt(e.target.value) || 5) * 1000)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Total time for all candidate moves
+                      </p>
+                    </div>
+
+                    {/* Best-of-N Sampling */}
+                    <div className="mb-4">
+                      <label htmlFor="bestOfN" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Move Quality (best-of-N)
+                      </label>
+                      <input
+                        type="number"
+                        id="bestOfN"
+                        min="1"
+                        max="20"
+                        step="1"
+                        value={dialogSettings.bestOfN || 5}
+                        onChange={(e) => handleSettingsChange('bestOfN', parseInt(e.target.value) || 5)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Sample N random moves per turn (higher = better quality, slower)
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Max Top Moves */}
-                <div className="mb-4">
+                <div className="mb-4 mt-4">
                   <label htmlFor="maxTopMoves" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Max Top Moves to Analyze
+                    Candidate Moves to Analyze
                   </label>
                   <input
                     type="number"
@@ -4816,14 +4964,14 @@ export default function BackgammonBoard({
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Number of top heuristic moves to analyze with Monte Carlo (default: 6)
+                    Number of top moves to analyze (default: 6)
                   </p>
                 </div>
 
-                {/* Number of Simulations */}
+                {/* Number of Simulations - Info only */}
                 <div className="mb-4">
                   <label htmlFor="numSimulations" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Simulations per Move
+                    Max Simulations per Move
                   </label>
                   <input
                     type="number"
@@ -4836,7 +4984,7 @@ export default function BackgammonBoard({
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Number of Monte Carlo simulations per analyzed move (default: 1000)
+                    Upper limit (time budget controls actual count)
                   </p>
                 </div>
               </div>

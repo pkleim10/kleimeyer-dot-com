@@ -18,16 +18,140 @@ export function getRandomDice() {
 }
 
 /**
- * Run Monte Carlo simulation for a move combination
+ * Quick lightweight heuristic evaluation for move sampling
+ * Much faster than full evaluateMoveHeuristically
  */
-export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20) {
+function evaluateMoveQuickly(boardState, moveCombination, playerOwner) {
+  // Clone and apply moves
+  let board = cloneBoardState(boardState)
+  const moves = moveCombination.moves || [moveCombination]
+  for (const move of moves) {
+    board = applyMoveToBoardForAnalysis(board, move, playerOwner)
+  }
+
+  const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
+  
+  // Count key factors (lightweight)
+  let score = 1.0
+  
+  // Reward hits
+  const hitsCount = moves.filter(m => m.hitBlot).length
+  score += hitsCount * 0.3
+  
+  // Penalize blots
+  let blotCount = 0
+  for (const point of board.points) {
+    if (point.owner === playerOwner && point.count === 1) {
+      blotCount++
+    }
+  }
+  score -= blotCount * 0.15
+  
+  // Reward points made (2+ checkers)
+  let pointsMade = 0
+  for (const point of board.points) {
+    if (point.owner === playerOwner && point.count >= 2) {
+      pointsMade++
+    }
+  }
+  score += pointsMade * 0.05
+  
+  // Simple pip count advantage
+  let playerPips = 0
+  let opponentPips = 0
+  for (let i = 0; i < 24; i++) {
+    const point = board.points[i]
+    const pipValue = playerOwner === 'white' ? (24 - i) : (i + 1)
+    if (point.owner === playerOwner) {
+      playerPips += point.count * pipValue
+    } else if (point.owner === opponentOwner) {
+      opponentPips += point.count * pipValue
+    }
+  }
+  const pipAdvantage = (opponentPips - playerPips) / 100
+  score += pipAdvantage * 0.1
+  
+  return score
+}
+
+/**
+ * Get best-of-N random moves using lightweight heuristic evaluation
+ * @param {Object} boardState - Current board state
+ * @param {Object} turnState - Turn state with dice and player
+ * @param {number} sampleSize - Number of random moves to sample (N)
+ * @returns {Object|null} Best move from the samples
+ */
+export function getBestOfNRandomMoves(boardState, turnState, sampleSize = 2) {
+  if (sampleSize === 1) {
+    // No sampling needed
+    return getRandomLegalMove(boardState, turnState)
+  }
+
+  const samples = []
+  const playerOwner = turnState.currentPlayer
+  
+  // Generate N random moves
+  for (let i = 0; i < sampleSize; i++) {
+    const move = getRandomLegalMove(boardState, turnState)
+    if (move) {
+      const score = evaluateMoveQuickly(boardState, move, playerOwner)
+      samples.push({ move, score })
+    }
+  }
+  
+  if (samples.length === 0) {
+    return null
+  }
+  
+  // Return the move with highest score
+  const best = samples.reduce((best, curr) => 
+    curr.score > best.score ? curr : best
+  )
+  
+  return best.move
+}
+
+/**
+ * Run Monte Carlo simulation for a move combination with configurable sampling
+ * @param {Object} boardState - Current board state
+ * @param {Object} moveCombination - Move to evaluate
+ * @param {string} playerOwner - Player making the move ('white' or 'black')
+ * @param {number} numSimulations - Number of simulations to run
+ * @param {Object} options - Configuration options
+ * @param {number} options.bestOfN - Sample N random moves and pick best (1 = pure random)
+ * @param {number} options.earlyTerminationLimit - Max moves before early termination
+ * @param {number} options.timeBudgetMs - Max time in ms for this move (0 = no limit)
+ * @returns {Object} Result with winRate and actualSimulations
+ */
+export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimulations = 20, options = {}) {
+  const {
+    bestOfN = 1,
+    earlyTerminationLimit = 400,
+    timeBudgetMs = 0
+  } = options
+
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
   let wins = 0
   let losses = 0
   let discards = 0
   let totalSims = 0
+  let earlyTerminations = 0
+  let actualSimulations = 0
+  
+  const startTime = timeBudgetMs > 0 ? Date.now() : 0
 
   for (let i = 0; i < numSimulations; i++) {
+    actualSimulations = i + 1
+    
+    // Check time budget if enabled
+    if (timeBudgetMs > 0 && i > 0) {
+      const elapsed = Date.now() - startTime
+      if (elapsed >= timeBudgetMs) {
+        actualSimulations = i // Don't count the one we didn't complete
+        console.log(`[MC] Time budget reached: ${elapsed}ms / ${timeBudgetMs}ms after ${i} simulations`)
+        break
+      }
+    }
     // Special detailed logging for first simulation
     const detailedLogging = i === 0
     let gameMoves = []
@@ -39,12 +163,11 @@ export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimul
       currentBoard = applyMoveToBoardForAnalysis(currentBoard, move, playerOwner)
     }
 
-    // Simulate random playout until game end or max moves
+    // Simulate playout until game end or early termination limit
     let currentPlayer = opponentOwner
     let movesMade = 0
 
-    const maxMovesForComplete = 400 // Allow longer games for complete evaluation
-    while (!isGameOver(currentBoard, true) && movesMade < maxMovesForComplete) {
+    while (!isGameOver(currentBoard, true) && movesMade < earlyTerminationLimit) {
       const randomDice = getRandomDice()
       const turnState = {
         currentPlayer,
@@ -53,8 +176,11 @@ export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimul
         mustEnterFromBar: (currentPlayer === 'white' ? currentBoard.whiteBar : currentBoard.blackBar) > 0
       }
 
-
-      const randomTurn = getRandomLegalMove(currentBoard, turnState)
+      // Use best-of-N sampling if configured
+      const randomTurn = bestOfN > 1 
+        ? getBestOfNRandomMoves(currentBoard, turnState, bestOfN)
+        : getRandomLegalMove(currentBoard, turnState)
+      
       if (!randomTurn) {
         // No legal moves - pass turn to other player
         currentPlayer = currentPlayer === 'white' ? 'black' : 'white'
@@ -110,14 +236,31 @@ export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimul
       } else {
         losses++
       }
-
-      // Simulation statistics tracking (logging removed)
+    } else if (movesMade >= earlyTerminationLimit) {
+      // Early termination - evaluate final position
+      earlyTerminations++
+      
+      // Use heuristic evaluation to estimate win probability
+      const finalEval = evaluateMoveQuickly(boardState, { moves: [] }, playerOwner)
+      
+      // Convert heuristic score to win probability
+      // Score typically ranges 0.5-2.0, normalize to 0-1
+      const winProb = Math.max(0, Math.min(1, (finalEval - 0.5) / 1.5))
+      
+      totalSims++
+      // Probabilistic win/loss based on position
+      if (Math.random() < winProb) {
+        wins++
+      } else {
+        losses++
+      }
     } else {
       // Game didn't complete within move limit - discard
       discards++
     }
+    
     // For complete games, log detailed moves for discarded first simulation
-    if (!winner && detailedLogging) {
+    if (!winner && detailedLogging && movesMade < earlyTerminationLimit) {
       console.log('')
       console.log('Game 1')
 
@@ -126,24 +269,49 @@ export function runMonteCarlo(boardState, moveCombination, playerOwner, numSimul
         console.log(`${m + 1}. ${gameMoves[m]}`)
       }
 
-      console.log(`\nGame discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+      console.log(`\nGame discarded after ${movesMade} moves (exceeded ${earlyTerminationLimit} move limit)`)
       console.log('Complete move sequence shown above.')
       console.log('')
     }
   }
 
-  return totalSims > 0 ? wins / totalSims : 0.5
+  // Log sampling statistics if using best-of-N
+  if (bestOfN > 1 || timeBudgetMs > 0) {
+    const timeLimitInfo = timeBudgetMs > 0 ? `, ${timeBudgetMs}ms budget` : ''
+    console.log(`[MC] Best-of-${bestOfN} sampling${timeLimitInfo}: ${actualSimulations}/${numSimulations} sims, ${earlyTerminations} early terminations (${((earlyTerminations/Math.max(1, actualSimulations))*100).toFixed(1)}%)`)
+  }
+
+  return {
+    winRate: totalSims > 0 ? wins / totalSims : 0.5,
+    actualSimulations: actualSimulations
+  }
 }
 
 /**
  * Run Monte Carlo simulation with detailed move tracking
  */
-export function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner, enableLogging = true) {
+/**
+ * Run Monte Carlo simulation with detailed move tracking
+ * @param {Object} boardState - Current board state
+ * @param {Object} moveCombination - Move to evaluate
+ * @param {string} playerOwner - Player making the move
+ * @param {boolean} enableLogging - Whether to log details
+ * @param {Object} options - Configuration options
+ * @param {number} options.bestOfN - Sample N random moves and pick best (1 = pure random)
+ * @param {number} options.earlyTerminationLimit - Max moves before early termination
+ * @returns {Object} Detailed simulation results
+ */
+export function runMonteCarloWithMoveTracking(boardState, moveCombination, playerOwner, enableLogging = true, options = {}) {
+  const {
+    bestOfN = 1,
+    earlyTerminationLimit = 400
+  } = options
+
   const opponentOwner = playerOwner === 'white' ? 'black' : 'white'
 
   const gameMoves = []
 
-  if (enableLogging) console.log(`[MC-Tracking] Starting move tracking simulation`)
+  if (enableLogging) console.log(`[MC-Tracking] Starting move tracking simulation with best-of-${bestOfN}, limit ${earlyTerminationLimit}`)
 
   // Prepare the moves array
   const movesArray = moveCombination.moves || [moveCombination]
@@ -205,13 +373,11 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
   // Add opening move to the game moves
   gameMoves.push(openingMoveEntry)
 
-  // Simulate random playout until game end or max moves
+  // Simulate random playout until game end or early termination limit
   let currentPlayer = opponentOwner
   let movesMade = 0
 
-  const maxMovesForComplete = 400 // Allow longer games for complete evaluation
-
-  while (!isGameOver(currentBoard, true) && movesMade < maxMovesForComplete) {
+  while (!isGameOver(currentBoard, true) && movesMade < earlyTerminationLimit) {
     const randomDice = getRandomDice()
     const turnState = {
       currentPlayer,
@@ -220,8 +386,10 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
       mustEnterFromBar: (currentPlayer === 'white' ? currentBoard.whiteBar : currentBoard.blackBar) > 0
     }
 
-    // Get one random legal complete turn for this dice roll using fast sampling
-    const randomTurn = getRandomLegalMove(currentBoard, turnState)
+    // Use best-of-N sampling if configured
+    const randomTurn = bestOfN > 1
+      ? getBestOfNRandomMoves(currentBoard, turnState, bestOfN)
+      : getRandomLegalMove(currentBoard, turnState)
 
 
       if (!randomTurn) {
@@ -301,7 +469,7 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
       if (winner) {
         console.log(`[MC-Tracking] Game completed in ${movesMade} moves. Winner: ${winner}`)
       } else {
-        console.log(`[MC-Tracking] Game discarded after ${movesMade} moves (exceeded ${maxMovesForComplete} move limit)`)
+        console.log(`[MC-Tracking] Game terminated after ${movesMade} moves (limit: ${earlyTerminationLimit})`)
       }
 
       console.log('[MC-Tracking] Complete game sequence:')
@@ -320,12 +488,21 @@ export function runMonteCarloWithMoveTracking(boardState, moveCombination, playe
 
 /**
  * Evaluate move using hybrid heuristic + Monte Carlo approach
+ * @param {Object} boardState - Current board state
+ * @param {Object} move - Move to evaluate
+ * @param {string} playerOwner - Player making the move
+ * @param {number} numSimulations - Number of MC simulations
+ * @param {number} heuristicWeight - Weight for heuristic score (0-1)
+ * @param {number} mcWeight - Weight for MC score (0-1)
+ * @param {Object} mcOptions - Monte Carlo options (bestOfN, earlyTerminationLimit)
+ * @returns {Object} Evaluation with heuristic, MC, and hybrid scores
  */
-export function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50) {
+export function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50, mcOptions = {}) {
   const heuristicResult = evaluateMoveHeuristically(boardState, move, playerOwner)
   const heuristicScore = heuristicResult.score
   console.log(`[MC] 🚀 About to call runMonteCarlo for move: ${move.description}`)
-  const mcScore = runMonteCarlo(boardState, move, playerOwner, numSimulations)
+  const mcResult = runMonteCarlo(boardState, move, playerOwner, numSimulations, mcOptions)
+  const mcScore = mcResult.winRate
 
   // Normalize HE score to 0-1 range to match MC score range
   // HE typically ranges from ~0.5 (bad) to ~2.5 (good)
@@ -341,15 +518,62 @@ export function evaluateMoveHybrid(boardState, move, playerOwner, numSimulations
     heuristicScore,
     heuristicBreakdown: heuristicResult.breakdown,
     mcScore,
-    hybridScore
+    hybridScore,
+    actualSimulations: mcResult.actualSimulations
   }
 }
 
 /**
  * Analyze moves using hybrid engine (heuristic + Monte Carlo)
+ * @param {Object} boardState - Current board state
+ * @param {Array} moves - Array of candidate moves
+ * @param {string} playerOwner - Player making the move
+ * @param {number} numSimulations - Number of MC simulations per move
+ * @param {number} heuristicWeight - Weight for heuristic score (0-1)
+ * @param {number} mcWeight - Weight for MC score (0-1)
+ * @param {Object} mcOptions - Monte Carlo options
+ * @param {number} mcOptions.bestOfN - Sample N random moves and pick best (1 = pure random)
+ * @param {number} mcOptions.earlyTerminationLimit - Max moves before early termination
+ * @param {number} mcOptions.totalTimeBudgetMs - Total time budget in ms for all moves (0 = no limit)
+ * @returns {Object} Analysis with best move and evaluations
  */
-export function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50) {
-  const evaluations = moves.map(move => evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight))
+export function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, numSimulations = 20, heuristicWeight = 0.50, mcWeight = 0.50, mcOptions = {}) {
+  const {
+    bestOfN = 1,
+    earlyTerminationLimit = 400,
+    totalTimeBudgetMs = 0
+  } = mcOptions
+
+  const analysisStartTime = Date.now()
+  
+  // Calculate time budget per move if total budget is set
+  const timeBudgetPerMove = totalTimeBudgetMs > 0 ? Math.floor(totalTimeBudgetMs / moves.length) : 0
+  
+  console.log(`[HybridEngine] Starting analysis with ${numSimulations} sims/move, best-of-${bestOfN} sampling, ${earlyTerminationLimit} move limit${totalTimeBudgetMs > 0 ? `, ${totalTimeBudgetMs}ms total (${timeBudgetPerMove}ms/move)` : ''}`)
+
+  let totalActualSimulations = 0
+
+  const evaluations = moves.map((move, index) => {
+    const moveStartTime = Date.now()
+    
+    // Pass time budget to individual move evaluation
+    const moveOptions = {
+      ...mcOptions,
+      timeBudgetMs: timeBudgetPerMove
+    }
+    
+    const result = evaluateMoveHybrid(boardState, move, playerOwner, numSimulations, heuristicWeight, mcWeight, moveOptions)
+    
+    totalActualSimulations += result.actualSimulations
+    
+    const moveElapsed = Date.now() - moveStartTime
+    if (totalTimeBudgetMs > 0) {
+      const totalElapsed = Date.now() - analysisStartTime
+      console.log(`[HybridEngine] Move ${index + 1}/${moves.length} completed in ${moveElapsed}ms (${result.actualSimulations} sims, total: ${totalElapsed}ms/${totalTimeBudgetMs}ms)`)
+    }
+    
+    return result
+  })
 
   // Log all heuristic scores with detailed breakdowns
   console.log('[HeuristicEngine] All move scores:')
@@ -511,6 +735,8 @@ export function analyzeMovesWithHybridEngine(boardState, moves, playerOwner, num
       hybridScore: evaluations[0].hybridScore.toFixed(3),
       heuristicScore: evaluations[0].heuristicScore.toFixed(3),
       mcScore: evaluations[0].mcScore.toFixed(3),
+      totalActualSimulations: totalActualSimulations,
+      averageSimulationsPerMove: Math.round(totalActualSimulations / moves.length),
       factorScores: evaluations.map((evaluation, idx) => {
         // Check if this is the winning move
         const isWinner = bestEvaluation.move.description === evaluation.move.description

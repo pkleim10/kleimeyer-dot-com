@@ -78,6 +78,86 @@ export default function PlayPage() {
     return 1000
   })
 
+  // Skill level presets
+  const SKILL_LEVELS = {
+    beginner: {
+      label: 'Beginner',
+      description: '5 seconds - Fast analysis',
+      totalTimeBudgetMs: 5000,
+      bestOfN: 3,
+      earlyTerminationLimit: 100
+    },
+    intermediate: {
+      label: 'Intermediate',
+      description: '10 seconds - Balanced quality',
+      totalTimeBudgetMs: 10000,
+      bestOfN: 5,
+      earlyTerminationLimit: 100
+    },
+    advanced: {
+      label: 'Advanced',
+      description: '20 seconds - High quality',
+      totalTimeBudgetMs: 20000,
+      bestOfN: 8,
+      earlyTerminationLimit: 100
+    },
+    expert: {
+      label: 'Expert',
+      description: '40 seconds - Maximum quality',
+      totalTimeBudgetMs: 40000,
+      bestOfN: 12,
+      earlyTerminationLimit: 100
+    },
+    custom: {
+      label: 'Custom',
+      description: 'Configure manually',
+      totalTimeBudgetMs: 5000,
+      bestOfN: 5,
+      earlyTerminationLimit: 100
+    }
+  }
+
+  const [skillLevel, setSkillLevel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('backgammonSkillLevel') || 'intermediate'
+    }
+    return 'intermediate'
+  })
+
+  const [bestOfN, setBestOfN] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedLevel = localStorage.getItem('backgammonSkillLevel') || 'intermediate'
+      return parseInt(localStorage.getItem('backgammonBestOfN')) || SKILL_LEVELS[savedLevel].bestOfN
+    }
+    return 5
+  })
+
+  const [earlyTerminationLimit, setEarlyTerminationLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return parseInt(localStorage.getItem('backgammonEarlyTerminationLimit')) || 100
+    }
+    return 100
+  })
+
+  const [totalTimeBudgetMs, setTotalTimeBudgetMs] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedLevel = localStorage.getItem('backgammonSkillLevel') || 'intermediate'
+      return parseInt(localStorage.getItem('backgammonTotalTimeBudgetMs')) || SKILL_LEVELS[savedLevel].totalTimeBudgetMs
+    }
+    return 10000
+  })
+
+  // Handler for skill level changes
+  const handleSkillLevelChange = (newLevel) => {
+    setSkillLevel(newLevel)
+    if (newLevel !== 'custom') {
+      const preset = SKILL_LEVELS[newLevel]
+      setBestOfN(preset.bestOfN)
+      setTotalTimeBudgetMs(preset.totalTimeBudgetMs)
+      setEarlyTerminationLimit(preset.earlyTerminationLimit)
+    }
+  }
+
   // Get engine move analysis
   const handleEngineAnalysis = async () => {
     if (editingMode !== 'play') return
@@ -102,6 +182,9 @@ export default function PlayPage() {
           difficulty: engineDifficulty,
           maxTopMoves: maxTopMoves,
           numSimulations: numSimulations,
+          bestOfN: bestOfN,
+          earlyTerminationLimit: earlyTerminationLimit,
+          totalTimeBudgetMs: totalTimeBudgetMs,
           debug: true, // Request debug information
           usedDice: usedDice // Pass used dice so API knows which dice are still available
         })
@@ -717,6 +800,31 @@ export default function PlayPage() {
       localStorage.setItem('backgammonNumSimulations', numSimulations.toString())
     }
   }, [numSimulations])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonSkillLevel', skillLevel)
+    }
+  }, [skillLevel])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonBestOfN', bestOfN.toString())
+    }
+  }, [bestOfN])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonEarlyTerminationLimit', earlyTerminationLimit.toString())
+    }
+  }, [earlyTerminationLimit])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('backgammonTotalTimeBudgetMs', totalTimeBudgetMs.toString())
+    }
+  }, [totalTimeBudgetMs])
+
 
 
   // Validate XGID string components
@@ -1934,8 +2042,16 @@ export default function PlayPage() {
                     openOptionsTrigger={openOptionsTrigger}
                     maxTopMoves={maxTopMoves}
                     numSimulations={numSimulations}
+                    skillLevel={skillLevel}
+                    bestOfN={bestOfN}
+                    earlyTerminationLimit={earlyTerminationLimit}
+                    totalTimeBudgetMs={totalTimeBudgetMs}
                     onMaxTopMovesChange={setMaxTopMoves}
                     onNumSimulationsChange={setNumSimulations}
+                    onSkillLevelChange={handleSkillLevelChange}
+                    onBestOfNChange={setBestOfN}
+                    onEarlyTerminationLimitChange={setEarlyTerminationLimit}
+                    onTotalTimeBudgetMsChange={setTotalTimeBudgetMs}
                   />
                 </div>
               </div>
@@ -2011,8 +2127,17 @@ export default function PlayPage() {
                       <div className="bg-white dark:bg-slate-800 rounded p-3 border">
                         <div className="text-sm">
                           <div>
-                            <span className="text-gray-600 dark:text-gray-400">Number of Simulations:</span>
-                            <span className="ml-2 font-mono text-gray-900 dark:text-white">{numSimulations.toLocaleString()}</span>
+                            <span className="text-gray-600 dark:text-gray-400">Simulations Performed:</span>
+                            <span className="ml-2 font-mono text-gray-900 dark:text-white">
+                              {(() => {
+                                const total = engineAnalysis.performance?.actualSimulationsPerformed
+                                const avg = engineAnalysis.performance?.averageSimulationsPerMove
+                                if (total && avg) {
+                                  return `${total.toLocaleString()} (avg ${avg.toLocaleString()})`
+                                }
+                                return 'N/A'
+                              })()}
+                            </span>
                           </div>
                         </div>
                       </div>
