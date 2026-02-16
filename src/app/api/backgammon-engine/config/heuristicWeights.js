@@ -4,16 +4,20 @@
 
 // Heuristic weights for move evaluation
 export const HEURISTIC_WEIGHTS = {
-  blots: -0.22,    // Negative for safety (matches actual calculation)
+  blots: -0.22,    // Negative for safety (context-aware calculation)
   hits: 0.24,       // Positive for aggression
-  pointsMade: 0.22, // Positive for development (reduced from 0.4)
+  pointsMade: 0.22, // Positive for development
   pipGain: 0.20,    // Positive for efficiency
   homeBoard: 0.07,  // Positive for home board strength
   primeLength: 0.12, // Positive for blocking
-  builderCoverage: 0.25, // Positive for outer board coverage (increased)
+  builderCoverage: 0.25, // Positive for outer board coverage
   stackPenalty: -0.08, // Negative penalty for excessive stacking
   opponentBlotCount: 0.08, // Positive for opponent vulnerabilities
-  highRollBonus: 0.07 // Positive for high pip gain and deep runs
+  highRollBonus: 0.07, // Positive for high pip gain and deep runs
+  // NEW FACTORS
+  escapeProgress: 0.30, // Positive for moving back checkers forward
+  anchorValue: 0.18,    // Positive for defensive anchors
+  connectivity: 0.10    // Positive for checker clusters
 }
 
 /**

@@ -13,16 +13,31 @@ import { countCheckersInRange, calculateFinalBoardState, applyMoveToBoardForAnal
 export function evaluateMoveHeuristically(boardState, move, playerOwner) {
   const analysis = buildVerifiedMoveAnalysis(boardState, move, playerOwner)
 
-  const blotsScore = analysis.blots.combinedWeightedRisk * -0.25
+  // Use refined blot risk calculation
+  const blots = identifyBlots(analysis.finalState, playerOwner)
+  const opponentPositions = identifyOpponentPositions(analysis.finalState, playerOwner)
+  const playerMadePoints = getMadePoints(analysis.finalState, playerOwner)
+  
+  let refinedBlotRisks = []
+  let combinedWeightedRisk = 0
+  
+  for (const blotPoint of blots) {
+    const refinedRisk = calculateBlotRiskRefined(blotPoint, opponentPositions, playerMadePoints, playerOwner, analysis.finalState)
+    refinedBlotRisks.push(refinedRisk)
+    combinedWeightedRisk = Math.min(1, combinedWeightedRisk + refinedRisk.weightedRisk * (1 - combinedWeightedRisk))
+  }
+  
+  const blotsScore = combinedWeightedRisk * -0.25  // Use refined risk
   const hitsScore = analysis.hits.count * HEURISTIC_WEIGHTS.hits
+  
   // Enhanced Points Made scoring with quality bonuses
   let basePoints = analysis.pointsMade.newlyMade.length || 0;
   let pointQualityBonus = 0;
 
   for (const pt of analysis.pointsMade.newlyMade || []) {
-    if (pt === 5 || pt === 4) {
+    if (pt === 5 || pt === 4 || pt === 20 || pt === 21) {
       pointQualityBonus += 1.0;          // golden points bonus
-    } else if (pt === 7 || pt === 3) {   // bar-point + 3-point
+    } else if (pt === 7 || pt === 3 || pt === 18 || pt === 22) {   // bar-points
       pointQualityBonus += 0.25;
     } else {
       pointQualityBonus += 0.1;          // other points
@@ -30,7 +45,7 @@ export function evaluateMoveHeuristically(boardState, move, playerOwner) {
   }
 
   const pointsRaw = basePoints + pointQualityBonus;
-  const pointsMadeScore = pointsRaw * 0.3;  // 0.3 weighting (HEURISTIC_WEIGHTS.pointsMade)
+  const pointsMadeScore = pointsRaw * HEURISTIC_WEIGHTS.pointsMade;
   const pipGainScore = analysis.pips.gain * HEURISTIC_WEIGHTS.pipGain
 
   // Simple home board strength: count checkers in home board AFTER move
@@ -71,7 +86,21 @@ export function evaluateMoveHeuristically(boardState, move, playerOwner) {
 
   const highRollScore = HEURISTIC_WEIGHTS.highRollBonus * highRollBonus;
 
-  const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore + highRollScore
+  // NEW FACTORS
+  
+  // Escape Progress: Explicitly reward moving back checkers forward
+  const escapeProgress = calculateEscapeProgress(boardState, analysis.finalState, playerOwner)
+  const escapeScore = escapeProgress * HEURISTIC_WEIGHTS.escapeProgress
+  
+  // Anchor Value: Reward defensive anchors in opponent's board
+  const anchorValue = calculateAnchorValue(analysis.finalState, playerOwner)
+  const anchorScore = anchorValue * HEURISTIC_WEIGHTS.anchorValue
+  
+  // Connectivity: Reward checker clusters that can make points
+  const connectivity = calculateConnectivity(analysis.finalState, playerOwner)
+  const connectivityScore = connectivity * HEURISTIC_WEIGHTS.connectivity
+
+  const totalScore = blotsScore + hitsScore + pointsMadeScore + pipGainScore + homeBoardScore + primeScore + builderCoverageScore + stackPenaltyScore + opponentBlotScore + highRollScore + escapeScore + anchorScore + connectivityScore
 
   return {
     score: totalScore,
@@ -85,7 +114,10 @@ export function evaluateMoveHeuristically(boardState, move, playerOwner) {
       builderCoverage: { bonus: builderBonus, score: builderCoverageScore },
       stackPenalty: { maxStack, rawPenalty: stackRaw, score: stackPenaltyScore },
       opponentBlotCount: { count: opponentBlots, score: opponentBlotScore },
-      highRollBonus: { rawBonus: highRollBonus, score: highRollScore }
+      highRollBonus: { rawBonus: highRollBonus, score: highRollScore },
+      escapeProgress: { value: escapeProgress, score: escapeScore },
+      anchorValue: { value: anchorValue, score: anchorScore },
+      connectivity: { value: connectivity, score: connectivityScore }
     }
   }
 }
@@ -455,6 +487,156 @@ export function checkPrimeLength(boardState, playerOwner) {
     }
   }
   return maxPrime
+}
+
+/**
+ * Calculate escape progress - rewards moving back checkers forward
+ */
+export function calculateEscapeProgress(beforeState, afterState, playerOwner) {
+  const isWhite = playerOwner === 'white'
+  
+  // Define opponent's home board
+  const opponentHomeStart = isWhite ? 19 : 1
+  const opponentHomeEnd = isWhite ? 24 : 6
+  
+  // Count back checkers before and after
+  const beforeBackCheckers = countCheckersInRange(beforeState, playerOwner, opponentHomeStart, opponentHomeEnd)
+  const afterBackCheckers = countCheckersInRange(afterState, playerOwner, opponentHomeStart, opponentHomeEnd)
+  
+  let bonus = 0
+  
+  // Reward for reducing number of back checkers
+  if (afterBackCheckers < beforeBackCheckers) {
+    bonus += (beforeBackCheckers - afterBackCheckers) * 1.0  // Major reward for each checker escaped
+  }
+  
+  // Additional reward for partial escape (moving back checkers forward even if still in danger)
+  // Check for checkers on the 24-point (most trapped) that moved forward
+  const deepestPoint = isWhite ? 24 : 1
+  const beforeDeepest = beforeState.points[deepestPoint - 1]
+  const afterDeepest = afterState.points[deepestPoint - 1]
+  
+  if (beforeDeepest?.owner === playerOwner && afterDeepest?.owner === playerOwner) {
+    if (afterDeepest.count < beforeDeepest.count) {
+      // Moved some checkers off the deepest point
+      bonus += (beforeDeepest.count - afterDeepest.count) * 0.5  // Partial escape reward
+    }
+  }
+  
+  // Penalty for having multiple back checkers trapped
+  const trappedPenalty = afterBackCheckers > 2 ? (afterBackCheckers - 2) * 0.15 : 0
+  bonus -= trappedPenalty
+  
+  return bonus
+}
+
+/**
+ * Calculate anchor value - rewards defensive anchors in opponent's board
+ */
+export function calculateAnchorValue(boardState, playerOwner) {
+  const isWhite = playerOwner === 'white'
+  let anchorBonus = 0
+  
+  // Define anchor zones (opponent's home board)
+  const anchorPoints = isWhite 
+    ? [24, 23, 22, 21, 20] // White anchors in Black's home
+    : [1, 2, 3, 4, 5]      // Black anchors in White's home
+  
+  // Point values by position (deeper = more valuable)
+  const anchorValues = {
+    24: 0.8, 23: 0.7, 22: 0.6, 21: 0.5, 20: 0.4,  // White anchors
+    1: 0.8,  2: 0.7,  3: 0.6,  4: 0.5,  5: 0.4    // Black anchors
+  }
+  
+  for (const point of anchorPoints) {
+    const pointData = boardState.points[point - 1]
+    if (pointData?.owner === playerOwner && pointData.count >= 2) {
+      anchorBonus += anchorValues[point]
+      
+      // Bonus for multiple checkers on anchor (stronger anchor)
+      if (pointData.count >= 3) {
+        anchorBonus += 0.2
+      }
+    }
+  }
+  
+  return anchorBonus
+}
+
+/**
+ * Calculate connectivity - rewards checkers positioned to work together
+ */
+export function calculateConnectivity(boardState, playerOwner) {
+  let connectivityBonus = 0
+  
+  // Find all player-owned points
+  const playerPoints = []
+  for (let i = 1; i <= 24; i++) {
+    const point = boardState.points[i - 1]
+    if (point?.owner === playerOwner && point.count > 0) {
+      playerPoints.push({ point: i, count: point.count })
+    }
+  }
+  
+  // Reward checkers within 6 pips of each other (can make point next roll)
+  for (let i = 0; i < playerPoints.length; i++) {
+    for (let j = i + 1; j < playerPoints.length; j++) {
+      const distance = Math.abs(playerPoints[i].point - playerPoints[j].point)
+      
+      if (distance >= 1 && distance <= 6) {
+        // Close enough to form point on next roll
+        connectivityBonus += 0.3
+        
+        // Extra bonus if both are builders (single checkers)
+        if (playerPoints[i].count === 1 && playerPoints[j].count === 1) {
+          connectivityBonus += 0.2
+        }
+      }
+    }
+  }
+  
+  return Math.min(connectivityBonus, 2.0)  // Cap to prevent over-weighting
+}
+
+/**
+ * Calculate context-aware blot risk (refined version)
+ */
+export function calculateBlotRiskRefined(blotPoint, opponentPositions, playerMadePoints, playerOwner, boardState) {
+  // Get base risk calculation
+  const baseRisk = calculateBlotRisk(blotPoint, opponentPositions, playerMadePoints, playerOwner)
+  
+  const isWhite = playerOwner === 'white'
+  
+  // Determine blot context
+  let contextModifier = 1.0
+  
+  // Escaping blots (on opponent's home board edge) are less bad
+  const opponentHomeEdge = isWhite ? [19, 20, 21, 22, 23] : [6, 5, 4, 3, 2]
+  if (opponentHomeEdge.includes(blotPoint)) {
+    contextModifier *= 0.7  // 30% less penalty for escaping blots
+  }
+  
+  // Builder blots (9-11 for white, 16-14 for black) are strategic
+  const builderPoints = isWhite ? [9, 10, 11] : [16, 15, 14]
+  if (builderPoints.includes(blotPoint)) {
+    contextModifier *= 0.8  // 20% less penalty for builder slots
+  }
+  
+  // Home board blots (1-6 for white, 19-24 for black) are very vulnerable
+  const homeStart = isWhite ? 1 : 19
+  const homeEnd = isWhite ? 6 : 24
+  if (blotPoint >= homeStart && blotPoint <= homeEnd) {
+    contextModifier *= 1.3  // 30% more penalty for home board blots
+  }
+  
+  return {
+    ...baseRisk,
+    weightedRisk: baseRisk.weightedRisk * contextModifier,
+    contextModifier,
+    context: opponentHomeEdge.includes(blotPoint) ? 'escaping' : 
+             builderPoints.includes(blotPoint) ? 'builder' :
+             (blotPoint >= homeStart && blotPoint <= homeEnd) ? 'home' : 'midfield'
+  }
 }
 
 /**
