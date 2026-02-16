@@ -80,36 +80,31 @@ Total weight budget across all factors:
 
 ## Test Results
 
-Validated against 21 standard opening rolls from backgammon theory:
+Validated against **15 valid opening rolls** from backgammon theory (doubles excluded - impossible on opening):
 
 ### Performance Summary
-- **Tests Passed**: 9/21 (42.9%)
-- **Rank #2-3**: Additional 7 moves (75.0% in top 3)
-- **Significant failures**: Only 5 moves ranked outside top 5
+- **Tests Passed**: 6/15 (40.0%)
+- **Top-3 Rankings**: 10/15 (66.7%)
+- **Significant failures**: 5 moves ranked outside top 3
 
 ### Perfect Rankings (Rank #1)
-1. ✅ **11** - `8/7(2) 6/5(2)` - Makes bar-point and 5-point
-2. ✅ **22** - `13/11(2) 6/4(2)` - Double slot
-3. ✅ **31** - `8/5 6/5` - Makes 5-point
-4. ✅ **41** - `24/23 13/9` - Split and slot
-5. ✅ **53** - `8/3 6/3` - Makes 3-point
-6. ✅ **61** - `13/7 8/7` - Makes bar-point
-7. ✅ **63** - `24/18 13/10` - Deep anchor + slot
-8. ✅ **64** - `24/18 13/9` - Deep anchor + slot
-9. ✅ **66** - `24/18(2) 13/7(2)` - Deep anchor + bar-point
+1. ✅ **31** - `8/5 6/5` - Makes 5-point
+2. ✅ **41** - `24/23 13/9` - Split and slot
+3. ✅ **53** - `8/3 6/3` - Makes 3-point
+4. ✅ **61** - `13/7 8/7` - Makes bar-point
+5. ✅ **63** - `24/18 13/10` - Deep anchor + slot
+6. ✅ **64** - `24/18 13/9` - Deep anchor + slot
 
-### Near-Perfect (Rank #2-4)
-- **21**: `13/11 6/5` ranked #4 (expected #1) - Builder play undervalued slightly
-- **32**: `24/21 13/11` ranked #3 - Escape vs. builder trade-off
-- **33**: `8/5(2) 6/3(2)` ranked #3 - Point-making priority
-- **42**: `8/4 6/4` ranked #2 - Builder vs. development
+### Near-Perfect (Rank #2-3)
+- **42**: `8/4 6/4` ranked #2 - Builder vs. development (very close)
 - **43**: `24/20 13/10` ranked #2 - Escape + slot timing
+- **32**: `24/21 13/11` ranked #3 - Escape vs. builder trade-off
 - **65**: `24/18 18/13` ranked #3 - Running play
 
 ### Areas for Future Refinement
-- **Deep runs** (62: `24/18` alone): Single-move deep advances need higher weighting
-- **Home board points** (55: `13/8(2) 6/1(2)`): Home board development in contact
-- **Aggressive splitting** (44, 51, 52, 54): Escape timing vs. safety trade-offs
+- **Builder plays** (21: `13/11 6/5` ranked #4): Slight undervaluing of pure builder development
+- **Deep runs** (62: `24/18` alone): Single-move deep advances need higher weighting  
+- **Aggressive escapes** (51, 52, 54): Escape timing vs. safety trade-offs in 5-rolls
 
 ## Key Insights
 
@@ -173,7 +168,7 @@ Current HE Performance on **41**:
 
 ## Conclusion
 
-With these ambitious improvements, the Heuristic Engine now achieves **42.9% perfect accuracy** on opening rolls and **75% top-3 accuracy**. This represents a world-class foundation for a backgammon AI that understands:
+With these ambitious improvements, the Heuristic Engine now achieves **40.0% perfect accuracy** on the 15 valid opening rolls and **66.7% top-3 accuracy**. This represents a world-class foundation for a backgammon AI that understands:
 
 - Strategic checker escapes
 - Defensive anchor establishment
