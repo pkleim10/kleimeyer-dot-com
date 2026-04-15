@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS leased_vehicles (
   lease_period_months INTEGER NOT NULL CHECK (lease_period_months >= 1 AND lease_period_months <= 120),
   initial_odometer INTEGER NOT NULL CHECK (initial_odometer >= 0),
   annual_allocated_miles INTEGER NULL CHECK (annual_allocated_miles IS NULL OR annual_allocated_miles > 0),
+  mileage_allocation_basis TEXT NOT NULL DEFAULT 'total' CHECK (mileage_allocation_basis IN ('total', 'annual')),
   total_allocated_miles INTEGER NOT NULL CHECK (total_allocated_miles > 0),
   overage_cost_per_mile NUMERIC(12, 4) NOT NULL CHECK (overage_cost_per_mile >= 0),
   created_at TIMESTAMPTZ DEFAULT NOW(),

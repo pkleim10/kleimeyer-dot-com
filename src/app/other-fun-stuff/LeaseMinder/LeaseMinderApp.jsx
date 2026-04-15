@@ -1,10 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/utils/supabase'
 import { computeLeaseProjection, leaseEndExclusive, totalMilesFromAnnual } from './leaseProjection'
+
+/** Read DB-shaped row with snake_case or camelCase keys. Use `in` (not hasOwnProperty) — some clients omit own-property flags. */
+function rowVal(row, snakeKey) {
+  if (row == null || typeof row !== 'object') return undefined
+  const camel = snakeKey.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+  if (snakeKey in row) return row[snakeKey]
+  if (camel in row) return row[camel]
+  return undefined
+}
 
 function emptyForm() {
   return {
@@ -19,17 +28,50 @@ function emptyForm() {
   }
 }
 
+function leaseFormSnapshot(f) {
+  return JSON.stringify({
+    vehicleName: f.vehicleName,
+    leaseStartDate: f.leaseStartDate,
+    leasePeriodMonths: f.leasePeriodMonths,
+    initialOdometer: f.initialOdometer,
+    allocationMode: f.allocationMode,
+    annualMiles: f.annualMiles,
+    totalAllocatedMiles: f.totalAllocatedMiles,
+    overageCostPerMile: f.overageCostPerMile,
+  })
+}
+
 function rowToForm(row) {
-  const hasAnnual = row.annual_allocated_miles != null && row.annual_allocated_miles > 0
+  const rawBasis = rowVal(row, 'mileage_allocation_basis')
+  let allocationMode = null
+  if (typeof rawBasis === 'string') {
+    const s = rawBasis.trim().toLowerCase()
+    if (s === 'annual' || s === 'total') allocationMode = s
+  }
+
+  const annual = rowVal(row, 'annual_allocated_miles')
+  const hasAnnual = annual != null && Number(annual) > 0
+
+  if (allocationMode == null) {
+    allocationMode = hasAnnual ? 'annual' : 'total'
+  }
+  // DB default is 'total'; rows can have annual miles while basis stayed 'total'.
+  if (allocationMode === 'total' && hasAnnual) {
+    allocationMode = 'annual'
+  }
+  // If the DB says 'annual', keep it — do not force 'total' when annual miles is missing from
+  // the row payload (e.g. partial select) or zero; the radio must match Supabase.
+
+  const showAnnualFields = allocationMode === 'annual'
   return {
-    vehicleName: row.vehicle_name ?? '',
-    leaseStartDate: row.lease_start_date ?? '',
-    leasePeriodMonths: String(row.lease_period_months ?? 36),
-    initialOdometer: String(row.initial_odometer ?? ''),
-    allocationMode: hasAnnual ? 'annual' : 'total',
-    annualMiles: hasAnnual ? String(row.annual_allocated_miles) : '',
-    totalAllocatedMiles: String(row.total_allocated_miles ?? ''),
-    overageCostPerMile: String(row.overage_cost_per_mile ?? ''),
+    vehicleName: rowVal(row, 'vehicle_name') ?? '',
+    leaseStartDate: rowVal(row, 'lease_start_date') ?? '',
+    leasePeriodMonths: String(rowVal(row, 'lease_period_months') ?? 36),
+    initialOdometer: String(rowVal(row, 'initial_odometer') ?? ''),
+    allocationMode,
+    annualMiles: showAnnualFields ? String(annual ?? '') : '',
+    totalAllocatedMiles: String(rowVal(row, 'total_allocated_miles') ?? ''),
+    overageCostPerMile: String(rowVal(row, 'overage_cost_per_mile') ?? ''),
   }
 }
 
@@ -48,6 +90,10 @@ function leaseLastDayInclusive(leaseStartYmd, periodMonths) {
 function formatMoney(n) {
   if (n == null || Number.isNaN(n)) return '—'
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+}
+
+function leaseMinderSelectedStorageKey(userId) {
+  return `leaseMinder_selectedId_${userId}`
 }
 
 export default function LeaseMinderApp() {
@@ -78,7 +124,26 @@ export default function LeaseMinderApp() {
       )
       setLeases([])
     } else {
-      setLeases(data || [])
+      const list = data || []
+      setLeases(list)
+      // Restore selection in the same async turn as setLeases so React batches one commit.
+      // Otherwise a paint can occur with leases loaded + selectedId still null → wrong radios until useLayoutEffect.
+      if (typeof window !== 'undefined' && user?.id) {
+        try {
+          const saved = sessionStorage.getItem(leaseMinderSelectedStorageKey(user.id))
+          if (saved) {
+            const row = list.find((r) => r.id === saved)
+            if (row) {
+              setSelectedId(saved)
+              setForm(rowToForm(row))
+            } else {
+              sessionStorage.removeItem(leaseMinderSelectedStorageKey(user.id))
+            }
+          }
+        } catch (_) {
+          /* ignore */
+        }
+      }
     }
     setLoading(false)
   }, [user])
@@ -88,6 +153,18 @@ export default function LeaseMinderApp() {
     if (!authLoading && !user) {
       setLeases([])
       setLoading(false)
+      setSelectedId(null)
+      setForm(emptyForm())
+      try {
+        if (typeof window !== 'undefined') {
+          for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i)
+            if (k?.startsWith('leaseMinder_selectedId_')) sessionStorage.removeItem(k)
+          }
+        }
+      } catch (_) {
+        /* ignore quota / private mode */
+      }
     }
   }, [authLoading, user, loadLeases])
 
@@ -96,9 +173,67 @@ export default function LeaseMinderApp() {
     [leases, selectedId]
   )
 
-  const selectLease = (row) => {
-    setSelectedId(row.id)
+  /** Fingerprint server row so we re-hydrate the form when Supabase data changes, without clobbering on every render. */
+  const selectedLeaseSnapshot = useMemo(() => {
+    if (!selectedId) return null
+    const row = leases.find((r) => r.id === selectedId)
+    if (!row) return null
+    return JSON.stringify({
+      id: row.id,
+      basis: rowVal(row, 'mileage_allocation_basis'),
+      annual: rowVal(row, 'annual_allocated_miles'),
+      total: rowVal(row, 'total_allocated_miles'),
+      months: rowVal(row, 'lease_period_months'),
+      start: rowVal(row, 'lease_start_date'),
+      initial: rowVal(row, 'initial_odometer'),
+      overage: rowVal(row, 'overage_cost_per_mile'),
+      updated_at: rowVal(row, 'updated_at'),
+    })
+  }, [leases, selectedId])
+
+  const isLeaseFormDirty = useMemo(() => {
+    if (selectedId != null && !selected) return false
+    const baseline = !selectedId ? leaseFormSnapshot(emptyForm()) : leaseFormSnapshot(rowToForm(selected))
+    return leaseFormSnapshot(form) !== baseline
+  }, [form, selectedId, selected])
+
+  // Only persist when a lease is selected. Do not remove on selectedId === null here — that runs on
+  // initial mount before restore and would erase the saved id. Clear storage in handleNew / logout.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id || !selectedId) return
+    try {
+      sessionStorage.setItem(leaseMinderSelectedStorageKey(user.id), selectedId)
+    } catch (_) {
+      /* ignore */
+    }
+  }, [selectedId, user?.id])
+
+  // useLayoutEffect: keep form in sync with the selected row before paint. A keyed fieldset remounting
+  // radios could otherwise show the wrong checked state while form state was already correct.
+  useLayoutEffect(() => {
+    if (!selectedId) return
+    const row = leases.find((r) => r.id === selectedId)
+    if (!row) {
+      if (loading) return
+      try {
+        if (typeof window !== 'undefined' && user?.id) {
+          sessionStorage.removeItem(leaseMinderSelectedStorageKey(user.id))
+        }
+      } catch (_) {
+        /* ignore */
+      }
+      setSelectedId(null)
+      setForm(emptyForm())
+      return
+    }
     setForm(rowToForm(row))
+  }, [selectedId, selectedLeaseSnapshot, loading, user?.id])
+
+  const selectLease = (row) => {
+    const next = rowToForm(row)
+    setSelectedId(row.id)
+    // Same-tick as click so first paint matches DB (useEffect runs after paint — was leaving allocationMode on default 'total').
+    setForm(next)
   }
 
   const currentOdoInput = selectedId ? currentOdometerByLease[selectedId] ?? '' : ''
@@ -177,7 +312,8 @@ export default function LeaseMinderApp() {
       lease_start_date: form.leaseStartDate,
       lease_period_months: months,
       initial_odometer: initial,
-      annual_allocated_miles: annual,
+      mileage_allocation_basis: form.allocationMode,
+      annual_allocated_miles: form.allocationMode === 'annual' ? annual : null,
       total_allocated_miles: total,
       overage_cost_per_mile: overage,
     }
@@ -230,7 +366,15 @@ export default function LeaseMinderApp() {
       return
     }
     setLeases((prev) => prev.filter((r) => r.id !== selectedId))
+    try {
+      if (typeof window !== 'undefined' && user?.id) {
+        sessionStorage.removeItem(leaseMinderSelectedStorageKey(user.id))
+      }
+    } catch (_) {
+      /* ignore */
+    }
     setSelectedId(null)
+    setForm(emptyForm())
     setCurrentOdometerByLease((m) => {
       const { [selectedId]: _, ...rest } = m
       return rest
@@ -238,6 +382,13 @@ export default function LeaseMinderApp() {
   }
 
   const handleNew = () => {
+    try {
+      if (typeof window !== 'undefined' && user?.id) {
+        sessionStorage.removeItem(leaseMinderSelectedStorageKey(user.id))
+      }
+    } catch (_) {
+      /* ignore */
+    }
     setSelectedId(null)
     setForm(emptyForm())
   }
@@ -382,7 +533,8 @@ export default function LeaseMinderApp() {
                 <label className="inline-flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    name="alloc"
+                    name="leaseMinder-allocation-mode"
+                    value="total"
                     checked={form.allocationMode === 'total'}
                     onChange={() => updateField('allocationMode', 'total')}
                   />
@@ -391,7 +543,8 @@ export default function LeaseMinderApp() {
                 <label className="inline-flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    name="alloc"
+                    name="leaseMinder-allocation-mode"
+                    value="annual"
                     checked={form.allocationMode === 'annual'}
                     onChange={() => updateField('allocationMode', 'annual')}
                   />
@@ -443,7 +596,7 @@ export default function LeaseMinderApp() {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !isLeaseFormDirty}
               onClick={handleSave}
               className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
             >
