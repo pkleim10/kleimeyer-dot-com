@@ -43,7 +43,9 @@ next-env.d.ts
 
 #cursor
 conversation_summary.md
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # debug and test files
 server.log
@@ -54,3 +56,6 @@ test_debug.js
 
 # documentation
 PROJECT_STATUS.md
+
+# VideoMaster DMG is large; upload via host or remove this line to commit
+/public/downloads/*.dmg

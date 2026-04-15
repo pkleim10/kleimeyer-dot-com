@@ -1,0 +1,22 @@
+---
+description: When the user says "release", stage, commit, then run the version release scripts
+alwaysApply: true
+---
+
+# Release workflow ("release")
+
+When the user says **release** (or **ship a release**) without only meaning "bump version files", assume this **end-to-end** flow:
+
+1. **Stage** changes that belong in the release (default: all modified/tracked intent to ship). If something must stay out (local-only files), exclude it explicitly or ask once.
+2. **Commit** with a clear message describing what is shipping (project often uses conventional prefixes for changelog tooling).
+3. **Release** using the repo scripts: working tree must be clean and branch should be **`main`** before `scripts/release.js` runs. After the commit above, run the appropriate command:
+   - `npm run release:patch` — patch
+   - `npm run release:minor` — minor
+   - `npm run release:major` — major  
+   - `npm run release:auto` — only if the user asked for auto-detect from commits  
+
+If the user does **not** say patch / minor / major / auto, **ask which bump** before running `release.js` (do not guess).
+
+**Do not** run `npm run release:*` on a dirty tree; it will fail by design. Order is always: **stage → commit → release script** (which bumps `package.json`, updates `CHANGELOG.md` when applicable, commits the bump, pushes, and pushes tags).
+
+`npm run version:*` alone only bumps files and creates a local tag; prefer the full **`release:*`** flow after commits unless the user only wants a local version file edit.
