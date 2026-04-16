@@ -81,6 +81,27 @@ function formatShortDate(d) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+/** Canonical YYYY-MM-DD for save; also used after manual ISO entry if we add text fallback again. */
+function tryNormalizeLeaseStartYmd(s) {
+  const t = String(s ?? '').trim()
+  if (!t) return ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
+  const [y, mo, d] = t.split('-').map(Number)
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return t
+  const dt = new Date(y, mo - 1, d)
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return t
+  return `${String(y).padStart(4, '0')}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function isValidCalendarYmd(s) {
+  const t = String(s ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return false
+  const [y, mo, d] = t.split('-').map(Number)
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return false
+  const dt = new Date(y, mo - 1, d)
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d
+}
+
 /** Human-readable age for a saved odometer timestamp (calendar-day based). Omits when saved date is today. */
 function formatReadingAge(iso) {
   if (iso == null || iso === '') return null
@@ -427,14 +448,18 @@ export default function LeaseMinderApp() {
       if (!Number.isFinite(total) || total <= 0) throw new Error('Enter a valid total allocated miles.')
     }
     if (!form.vehicleName.trim()) throw new Error('Vehicle name is required.')
-    if (!form.leaseStartDate) throw new Error('Lease start date is required.')
+    const leaseStartTrim = String(form.leaseStartDate ?? '').trim()
+    if (!leaseStartTrim) throw new Error('Lease start date is required.')
+    if (!isValidCalendarYmd(leaseStartTrim)) {
+      throw new Error('Lease start date must be a valid calendar day as YYYY-MM-DD.')
+    }
     if (!Number.isFinite(months) || months < 1) throw new Error('Lease period (months) must be at least 1.')
     if (!Number.isFinite(initial) || initial < 0) throw new Error('Initial odometer must be zero or positive.')
     if (!Number.isFinite(overage) || overage < 0) throw new Error('Overage cost per mile must be zero or positive.')
 
     return {
       vehicle_name: form.vehicleName.trim(),
-      lease_start_date: form.leaseStartDate,
+      lease_start_date: tryNormalizeLeaseStartYmd(leaseStartTrim),
       lease_period_months: months,
       initial_odometer: initial,
       mileage_allocation_basis: form.allocationMode,

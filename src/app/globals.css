@@ -10,11 +10,14 @@
 
 @layer components {
   /**
-   * LeaseMinder — WebKit (iOS Safari / Brave): native <input type="date"> uses an
-   * intrinsic min-width; sizing the internal datetime-edit layer makes width:100%
-   * match other fields without overflow clipping.
+   * LeaseMinder — WebKit temporal inputs (Safari / iOS Brave):
+   * - iOS 26+ can force content-box when appearance is auto; appearance:none restores
+   *   border-box so width/padding match other inputs (see WebKit discussions / community fixes).
+   * - Sizing ::-webkit-datetime-edit* helps older WebKit width quirks.
    */
   .lease-minder-date-field {
+    -webkit-appearance: none;
+    appearance: none;
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
