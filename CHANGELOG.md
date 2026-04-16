@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.44.4] - 2026-04-16
 
 ### Fixed
-- Fix(lease-minder): full-width contract rows for date and period on sm+: Add sm:col-span-2 to lease start date and lease period labels so both
-- Docs(changelog): tighten 1.44.3 entry: Made-with: Cursor
+- LeaseMinder: `sm:col-span-2` on lease start date and lease period so both fields use full grid width from `sm` up (layout / WebKit date alignment)
 
 ## [1.44.3] - 2026-04-16
 
