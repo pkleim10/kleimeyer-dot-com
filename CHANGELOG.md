@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.44.3] - 2026-04-16
 
 ### Fixed
-- Fix(lease-minder): use fieldset instead of div for contract form grid: Replace the wrapper around contract fields (including the date input) with
-- Docs(changelog): tighten 1.44.2 entry: Made-with: Cursor
+- LeaseMinder: replace contract-area grid `<div>` with a borderless `<fieldset>` (`aria-labelledby` the section heading) so the date input is no longer under a generic div wrapper
 
 ## [1.44.2] - 2026-04-16
 
