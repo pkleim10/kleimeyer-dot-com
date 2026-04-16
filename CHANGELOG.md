@@ -7,9 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.44.6] - 2026-04-16
 
-### Fixed
-- Docs(lease-minder): simplify hub and detail copy: Drop the Track each… hub paragraph and Supabase line; shorten the lease
-- Docs(changelog): tighten 1.44.5 entry: Made-with: Cursor
+### Changed
+- LeaseMinder: shorter hub (removed Track each… paragraph and Supabase line); trimmed lease-detail intro under the heading
 
 ## [1.44.5] - 2026-04-16
 
