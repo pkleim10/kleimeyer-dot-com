@@ -805,7 +805,7 @@ export default function LeaseMinderApp() {
                 placeholder="e.g. 2024 Outback"
               />
             </label>
-            <label className="block min-w-0">
+            <label className="block min-w-0 sm:col-span-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease start date</span>
               <input
                 type="date"
@@ -814,7 +814,7 @@ export default function LeaseMinderApp() {
                 onChange={(e) => updateField('leaseStartDate', e.target.value)}
               />
             </label>
-            <label className="block min-w-0">
+            <label className="block min-w-0 sm:col-span-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease period (months)</span>
               <input
                 type="number"
