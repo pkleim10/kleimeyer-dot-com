@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.44.5] - 2026-04-16
 
 ### Fixed
-- Fix(lease-minder): WebKit date input appearance:none + native date everywhere: Restore type=date on all viewports; apply appearance:none on lease-minder-date-field
-- Docs(changelog): tighten 1.44.4 entry: Made-with: Cursor
+- LeaseMinder: native `type="date"` on all viewports again; `appearance: none` on `.lease-minder-date-field` for WebKit box-sizing (iOS/Safari); save-time YYYY-MM-DD validation unchanged
 
 ## [1.44.4] - 2026-04-16
 
