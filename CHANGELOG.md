@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.44.0] - 2026-04-16
 
-### Fixed
-- Feat(lease-minder): mobile hub/detail routes and LeaseMinder shell: Add dynamic lease routes, responsive list/detail below lg, migrations for
+### Added
+- LeaseMinder: mobile hub/detail routes below `lg`, shell split, dynamic `[leaseId]` pages, and leased-vehicle odometer migration support
 
 ## [1.43.1] - 2026-04-15
 
