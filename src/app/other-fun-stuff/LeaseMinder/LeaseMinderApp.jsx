@@ -556,14 +556,14 @@ export default function LeaseMinderApp() {
       : null
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {error && (
         <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-800 dark:text-red-200">
           {error}
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 min-h-[480px]">
+      <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:gap-8 min-h-[480px]">
         {/* Left column — lease list */}
         <aside
           className={`w-full lg:w-[min(100%,320px)] lg:flex-shrink-0 flex flex-col rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm overflow-hidden ${
@@ -789,7 +789,7 @@ export default function LeaseMinderApp() {
             {selectedId ? 'Lease contract & allowance' : 'Vehicle & lease terms'}
           </h3>
 
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <label className="block min-w-0 sm:col-span-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Vehicle name</span>
               <input
@@ -799,17 +799,14 @@ export default function LeaseMinderApp() {
                 placeholder="e.g. 2024 Outback"
               />
             </label>
-            <label className="block min-w-0 w-full max-w-full">
+            <label className="block min-w-0">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease start date</span>
-              {/* Flex column lets WebKit date inputs respect width like other fields (no overflow clipping). */}
-              <div className="mt-1 flex w-full min-w-0 max-w-full flex-col">
-                <input
-                  type="date"
-                  className="box-border w-full min-w-0 max-w-full cursor-pointer rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                  value={form.leaseStartDate}
-                  onChange={(e) => updateField('leaseStartDate', e.target.value)}
-                />
-              </div>
+              <input
+                type="date"
+                className="lease-minder-date-field mt-1 w-full min-w-0 max-w-full cursor-pointer rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                value={form.leaseStartDate}
+                onChange={(e) => updateField('leaseStartDate', e.target.value)}
+              />
             </label>
             <label className="block min-w-0">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease period (months)</span>

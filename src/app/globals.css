@@ -8,6 +8,43 @@
   }
 }
 
+@layer components {
+  /**
+   * LeaseMinder — WebKit (iOS Safari / Brave): native <input type="date"> uses an
+   * intrinsic min-width; sizing the internal datetime-edit layer makes width:100%
+   * match other fields without overflow clipping.
+   */
+  .lease-minder-date-field {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .lease-minder-date-field::-webkit-datetime-edit-fields-wrapper {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0;
+  }
+
+  .lease-minder-date-field::-webkit-datetime-edit {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .lease-minder-date-field::-webkit-calendar-picker-indicator {
+    flex-shrink: 0;
+    margin-inline-start: 0.25rem;
+  }
+}
+
 /* Obscurity Slider Styling */
 .obscurity-slider {
   -webkit-appearance: none;
