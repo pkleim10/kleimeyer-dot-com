@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/utils/supabase'
 import { computeLeaseProjection, leaseEndExclusive, totalMilesFromAnnual } from './leaseProjection'
@@ -80,6 +81,20 @@ function formatShortDate(d) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+/** Human-readable age for a saved odometer timestamp (calendar-day based). Omits when saved date is today. */
+function formatReadingAge(iso) {
+  if (iso == null || iso === '') return null
+  const recorded = new Date(iso)
+  if (Number.isNaN(recorded.getTime())) return null
+  const startRecorded = new Date(recorded.getFullYear(), recorded.getMonth(), recorded.getDate())
+  const now = new Date()
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((startNow - startRecorded) / 86400000)
+  if (days <= 0) return null
+  if (days === 1) return 'as of yesterday'
+  return `as of ${days} days ago`
+}
+
 function leaseLastDayInclusive(leaseStartYmd, periodMonths) {
   const ex = leaseEndExclusive(leaseStartYmd, periodMonths)
   const last = new Date(ex)
@@ -96,7 +111,26 @@ function leaseMinderSelectedStorageKey(userId) {
   return `leaseMinder_selectedId_${userId}`
 }
 
+const LEASE_MINDER_PATH = '/other-fun-stuff/LeaseMinder'
+
+function subscribeLeaseMinderLg(cb) {
+  const mq = window.matchMedia('(min-width: 1024px)')
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function getLeaseMinderLgSnapshot() {
+  return window.matchMedia('(min-width: 1024px)').matches
+}
+function getLeaseMinderLgServerSnapshot() {
+  return true
+}
+
 export default function LeaseMinderApp() {
+  const params = useParams()
+  const router = useRouter()
+  const isLg = useSyncExternalStore(subscribeLeaseMinderLg, getLeaseMinderLgSnapshot, getLeaseMinderLgServerSnapshot)
+  const routeLeaseIdRaw = params?.leaseId
+  const routeLeaseId = Array.isArray(routeLeaseIdRaw) ? routeLeaseIdRaw[0] : routeLeaseIdRaw
   const { user, loading: authLoading } = useAuth()
   const [leases, setLeases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -104,7 +138,9 @@ export default function LeaseMinderApp() {
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [currentOdometerByLease, setCurrentOdometerByLease] = useState({})
+  /** Draft value for "current odometer" (saved to DB on blur). */
+  const [currentOdoDraft, setCurrentOdoDraft] = useState('')
+  const [odometerSaving, setOdometerSaving] = useState(false)
 
   const loadLeases = useCallback(async () => {
     if (!user) return
@@ -128,7 +164,7 @@ export default function LeaseMinderApp() {
       setLeases(list)
       // Restore selection in the same async turn as setLeases so React batches one commit.
       // Otherwise a paint can occur with leases loaded + selectedId still null → wrong radios until useLayoutEffect.
-      if (typeof window !== 'undefined' && user?.id) {
+      if (typeof window !== 'undefined' && user?.id && window.matchMedia('(min-width: 1024px)').matches) {
         try {
           const saved = sessionStorage.getItem(leaseMinderSelectedStorageKey(user.id))
           if (saved) {
@@ -187,6 +223,8 @@ export default function LeaseMinderApp() {
       start: rowVal(row, 'lease_start_date'),
       initial: rowVal(row, 'initial_odometer'),
       overage: rowVal(row, 'overage_cost_per_mile'),
+      current_odometer: rowVal(row, 'current_odometer'),
+      current_odometer_recorded_at: rowVal(row, 'current_odometer_recorded_at'),
       updated_at: rowVal(row, 'updated_at'),
     })
   }, [leases, selectedId])
@@ -234,13 +272,100 @@ export default function LeaseMinderApp() {
     setSelectedId(row.id)
     // Same-tick as click so first paint matches DB (useEffect runs after paint — was leaving allocationMode on default 'total').
     setForm(next)
+    setCurrentOdoDraft(String(rowVal(row, 'current_odometer') ?? ''))
   }
 
-  const currentOdoInput = selectedId ? currentOdometerByLease[selectedId] ?? '' : ''
+  useEffect(() => {
+    if (routeLeaseId === 'new') {
+      setSelectedId(null)
+      setForm(emptyForm())
+      setCurrentOdoDraft('')
+      return
+    }
+    if (!routeLeaseId) return
+    const row = leases.find((r) => r.id === routeLeaseId)
+    if (row) {
+      setSelectedId(row.id)
+      setForm(rowToForm(row))
+      setCurrentOdoDraft(String(rowVal(row, 'current_odometer') ?? ''))
+      return
+    }
+    if (loading) return
+    router.replace(LEASE_MINDER_PATH)
+  }, [routeLeaseId, leases, loading, router])
+
+  useEffect(() => {
+    if (!selectedId || !selected) {
+      setCurrentOdoDraft('')
+      return
+    }
+    setCurrentOdoDraft(String(rowVal(selected, 'current_odometer') ?? ''))
+  }, [selectedId, selected, selectedLeaseSnapshot])
+
+  const savedCurrentOdo = selected != null ? rowVal(selected, 'current_odometer') : undefined
+  const savedCurrentOdoAt = selected != null ? rowVal(selected, 'current_odometer_recorded_at') : undefined
+
+  const currentOdoForProjection = useMemo(() => {
+    if (!selected) return ''
+    const d = String(currentOdoDraft ?? '').trim()
+    if (d !== '') return currentOdoDraft
+    const s = savedCurrentOdo
+    return s != null && s !== '' ? String(s) : ''
+  }, [selected, currentOdoDraft, savedCurrentOdo])
+
+  const persistCurrentOdometer = useCallback(async () => {
+    if (!user || !selectedId || !selected) return
+    const trimmed = String(currentOdoDraft ?? '').trim()
+    const savedNum =
+      savedCurrentOdo != null && String(savedCurrentOdo).trim() !== ''
+        ? Number(String(savedCurrentOdo).replace(/,/g, ''))
+        : null
+
+    let nextOdo = null
+    let nextAt = null
+
+    if (trimmed === '') {
+      if (savedNum == null || !Number.isFinite(savedNum)) return
+    } else {
+      const n = parseInt(trimmed.replace(/,/g, ''), 10)
+      if (!Number.isFinite(n) || n < 0) {
+        setError('Current odometer must be a valid non-negative number.')
+        setCurrentOdoDraft(savedNum != null && Number.isFinite(savedNum) ? String(savedNum) : '')
+        return
+      }
+      if (savedNum != null && Number.isFinite(savedNum) && n === savedNum) return
+      nextOdo = n
+      nextAt = new Date().toISOString()
+    }
+
+    setOdometerSaving(true)
+    setError(null)
+    try {
+      const { data, error: uErr } = await supabase
+        .from('leased_vehicles')
+        .update({
+          current_odometer: nextOdo,
+          current_odometer_recorded_at: nextAt,
+        })
+        .eq('id', selectedId)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+      if (uErr) throw uErr
+      setLeases((prev) => prev.map((r) => (r.id === selectedId ? data : r)).sort((a, b) => a.vehicle_name.localeCompare(b.vehicle_name)))
+      setCurrentOdoDraft(String(rowVal(data, 'current_odometer') ?? ''))
+    } catch (e) {
+      console.error(e)
+      setError(e.message || 'Could not save odometer reading.')
+      setCurrentOdoDraft(savedNum != null && Number.isFinite(savedNum) ? String(savedNum) : '')
+    } finally {
+      setOdometerSaving(false)
+    }
+  }, [user, selectedId, selected, savedCurrentOdo, currentOdoDraft])
 
   const projection = useMemo(() => {
-    if (!selected || currentOdoInput === '' || currentOdoInput == null) return null
-    const current = Number(String(currentOdoInput).replace(/,/g, ''))
+    if (!selected || currentOdoForProjection === '' || currentOdoForProjection == null) return null
+    const current = Number(String(currentOdoForProjection).replace(/,/g, ''))
     if (!Number.isFinite(current)) return null
     const total = Number(form.totalAllocatedMiles)
     const initial = Number(form.initialOdometer)
@@ -257,7 +382,7 @@ export default function LeaseMinderApp() {
       currentOdometer: current,
       overageCostPerMile: overage,
     })
-  }, [selected, currentOdoInput, form])
+  }, [selected, currentOdoForProjection, form])
 
   const updateField = (key, value) => {
     setForm((f) => {
@@ -375,10 +500,10 @@ export default function LeaseMinderApp() {
     }
     setSelectedId(null)
     setForm(emptyForm())
-    setCurrentOdometerByLease((m) => {
-      const { [selectedId]: _, ...rest } = m
-      return rest
-    })
+    setCurrentOdoDraft('')
+    if (routeLeaseId) {
+      router.push(LEASE_MINDER_PATH)
+    }
   }
 
   const handleNew = () => {
@@ -389,13 +514,21 @@ export default function LeaseMinderApp() {
     } catch (_) {
       /* ignore */
     }
+    if (!isLg) {
+      router.push(`${LEASE_MINDER_PATH}/new`)
+      return
+    }
     setSelectedId(null)
     setForm(emptyForm())
+    setCurrentOdoDraft('')
   }
 
   const afterSaveSelect = (row) => {
     setSelectedId(row.id)
     setForm(rowToForm(row))
+    if (!isLg) {
+      router.replace(`${LEASE_MINDER_PATH}/${row.id}`)
+    }
   }
 
   if (authLoading) {
@@ -432,16 +565,29 @@ export default function LeaseMinderApp() {
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 min-h-[480px]">
         {/* Left column — lease list */}
-        <aside className="w-full lg:w-[min(100%,320px)] lg:flex-shrink-0 flex flex-col rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm overflow-hidden">
+        <aside
+          className={`w-full lg:w-[min(100%,320px)] lg:flex-shrink-0 flex flex-col rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm overflow-hidden ${
+            routeLeaseId ? 'max-lg:hidden' : ''
+          }`}
+        >
           <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Leases</h2>
-            <button
-              type="button"
-              onClick={handleNew}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              + New
-            </button>
+            {isLg ? (
+              <button
+                type="button"
+                onClick={handleNew}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                + New
+              </button>
+            ) : (
+              <Link
+                href={`${LEASE_MINDER_PATH}/new`}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                + New
+              </Link>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto max-h-[60vh] lg:max-h-none">
             {loading ? (
@@ -453,185 +599,118 @@ export default function LeaseMinderApp() {
               </p>
             ) : (
               <ul className="divide-y divide-gray-100 dark:divide-slate-700">
-                {leases.map((row) => (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      onClick={() => selectLease(row)}
-                      className={`w-full text-left px-4 py-3 transition-colors ${
-                        row.id === selectedId
-                          ? 'bg-indigo-50 dark:bg-indigo-950/40 border-l-4 border-indigo-600'
-                          : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 border-l-4 border-transparent'
-                      }`}
-                    >
-                      <span className="block font-medium text-gray-900 dark:text-white">{row.vehicle_name}</span>
-                      <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        Started {row.lease_start_date} · {row.lease_period_months} mo
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {leases.map((row) => {
+                  const rowActive = isLg ? row.id === selectedId : routeLeaseId === row.id
+                  const rowClasses = `w-full text-left px-4 py-3 transition-colors flex items-center gap-3 min-w-0 ${
+                    rowActive
+                      ? 'bg-indigo-50 dark:bg-indigo-950/40 border-l-4 border-indigo-600'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 border-l-4 border-transparent'
+                  }`
+                  return (
+                    <li key={row.id}>
+                      {isLg ? (
+                        <button type="button" onClick={() => selectLease(row)} className={rowClasses}>
+                          <span className="flex-1 min-w-0">
+                            <span className="block font-medium text-gray-900 dark:text-white">{row.vehicle_name}</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Started {row.lease_start_date} · {row.lease_period_months} mo
+                            </span>
+                          </span>
+                        </button>
+                      ) : (
+                        <Link href={`${LEASE_MINDER_PATH}/${row.id}`} className={rowClasses}>
+                          <span className="flex-1 min-w-0">
+                            <span className="block font-medium text-gray-900 dark:text-white">{row.vehicle_name}</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Started {row.lease_start_date} · {row.lease_period_months} mo
+                            </span>
+                          </span>
+                          <svg
+                            className="h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
         </aside>
 
         {/* Right column — detail & projection */}
-        <section className="flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm p-5 sm:p-6">
+        <section
+          className={`flex-1 min-w-0 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm p-5 sm:p-6 ${
+            !routeLeaseId ? 'max-lg:hidden' : ''
+          }`}
+        >
+          {routeLeaseId && (
+            <div className="mb-4 lg:hidden">
+              <Link
+                href={LEASE_MINDER_PATH}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to leases
+              </Link>
+            </div>
+          )}
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
             {selectedId ? 'Lease details' : 'New lease'}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Save the contract numbers here, then enter a current odometer reading to see projected turn-in mileage and
-            overage cost.
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {selectedId
+              ? 'Log your latest odometer and review pace and projected overage first. Lease contract fields are below if you need to change them.'
+              : 'Enter the vehicle and lease terms, then save. After the lease exists, you can track odometer readings and mileage projections here.'}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Vehicle name</span>
-              <input
-                className="mt-1 w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                value={form.vehicleName}
-                onChange={(e) => updateField('vehicleName', e.target.value)}
-                placeholder="e.g. 2024 Outback"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease start date</span>
-              <input
-                type="date"
-                className="mt-1 w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                value={form.leaseStartDate}
-                onChange={(e) => updateField('leaseStartDate', e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease period (months)</span>
-              <input
-                type="number"
-                min={1}
-                max={120}
-                className="mt-1 w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                value={form.leasePeriodMonths}
-                onChange={(e) => updateField('leasePeriodMonths', e.target.value)}
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Initial odometer (at lease start)</span>
-              <input
-                type="number"
-                min={0}
-                className="mt-1 w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                value={form.initialOdometer}
-                onChange={(e) => updateField('initialOdometer', e.target.value)}
-              />
-            </label>
-
-            <fieldset className="sm:col-span-2 rounded-lg border border-gray-200 dark:border-slate-600 p-4">
-              <legend className="text-xs font-semibold text-gray-700 dark:text-gray-200 px-1">Allocated miles</legend>
-              <div className="flex flex-wrap gap-4 mt-2">
-                <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="leaseMinder-allocation-mode"
-                    value="total"
-                    checked={form.allocationMode === 'total'}
-                    onChange={() => updateField('allocationMode', 'total')}
-                  />
-                  <span className="text-sm text-gray-800 dark:text-gray-200">Total miles for entire lease</span>
-                </label>
-                <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="leaseMinder-allocation-mode"
-                    value="annual"
-                    checked={form.allocationMode === 'annual'}
-                    onChange={() => updateField('allocationMode', 'annual')}
-                  />
-                  <span className="text-sm text-gray-800 dark:text-gray-200">Annual miles (cap is prorated)</span>
-                </label>
-              </div>
-              {form.allocationMode === 'annual' ? (
-                <label className="block mt-3">
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Miles per year</span>
-                  <input
-                    type="number"
-                    min={1}
-                    className="mt-1 w-full max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                    value={form.annualMiles}
-                    onChange={(e) => updateField('annualMiles', e.target.value)}
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Stored total cap:{' '}
-                    <strong>{form.totalAllocatedMiles || '—'}</strong> mi (rounded from annual × lease months ÷ 12)
-                  </p>
-                </label>
-              ) : (
-                <label className="block mt-3">
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Total allocated miles</span>
-                  <input
-                    type="number"
-                    min={1}
-                    className="mt-1 w-full max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                    value={form.totalAllocatedMiles}
-                    onChange={(e) => updateField('totalAllocatedMiles', e.target.value)}
-                  />
-                </label>
-              )}
-            </fieldset>
-
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Overage cost per mile ($)</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                value={form.overageCostPerMile}
-                onChange={(e) => updateField('overageCostPerMile', e.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={saving || !isLeaseFormDirty}
-              onClick={handleSave}
-              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : selectedId ? 'Save changes' : 'Save lease'}
-            </button>
-            {selectedId && (
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleDelete}
-                className="inline-flex items-center justify-center rounded-lg border border-red-300 dark:border-red-800 px-5 py-2.5 text-sm font-semibold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
-              >
-                Delete
-              </button>
-            )}
-          </div>
-
           {selectedId && (
-            <div className="mt-10 pt-8 border-t border-gray-200 dark:border-slate-700">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Current odometer & projection</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Linear trend from lease start through today — rough planning tool, not a substitute for your contract.
-              </p>
-              <label className="block max-w-xs">
+            <div className="mb-8 min-w-0 pb-8 border-b border-gray-200 dark:border-slate-700">
+              <label className="block w-full min-w-0 max-w-full sm:max-w-xs">
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Current odometer</span>
                 <input
                   type="number"
                   min={0}
-                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
-                  value={currentOdoInput}
-                  onChange={(e) =>
-                    setCurrentOdometerByLease((m) => ({ ...m, [selectedId]: e.target.value }))
-                  }
+                  className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 selection:bg-indigo-100 dark:selection:bg-indigo-900/60"
+                  value={currentOdoDraft}
+                  onChange={(e) => setCurrentOdoDraft(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={() => {
+                    void persistCurrentOdometer()
+                  }}
                   placeholder="e.g. 28420"
+                  disabled={odometerSaving}
                 />
+                {savedCurrentOdo != null && String(savedCurrentOdo).trim() !== '' && (
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500/90">
+                    {Number(savedCurrentOdo).toLocaleString()} mi
+                    {formatReadingAge(savedCurrentOdoAt) ? (
+                      <>
+                        {' '}
+                        · <span className="italic">{formatReadingAge(savedCurrentOdoAt)}</span>
+                      </>
+                    ) : savedCurrentOdoAt == null ? (
+                      <>
+                        {' '}
+                        · <span className="italic">recorded (date not stored)</span>
+                      </>
+                    ) : null}
+                    {odometerSaving ? <span className="ml-2 text-gray-400">Saving…</span> : null}
+                  </p>
+                )}
+                {(!savedCurrentOdo || String(savedCurrentOdo).trim() === '') && (
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500/80">
+                    No saved reading yet. Tab out or click away after entering miles to save.
+                  </p>
+                )}
               </label>
 
               {form.leaseStartDate && form.leasePeriodMonths && (
@@ -705,6 +784,138 @@ export default function LeaseMinderApp() {
               )}
             </div>
           )}
+
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">
+            {selectedId ? 'Lease contract & allowance' : 'Vehicle & lease terms'}
+          </h3>
+
+          <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="block min-w-0 sm:col-span-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Vehicle name</span>
+              <input
+                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                value={form.vehicleName}
+                onChange={(e) => updateField('vehicleName', e.target.value)}
+                placeholder="e.g. 2024 Outback"
+              />
+            </label>
+            <label className="block min-w-0">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease start date</span>
+              <input
+                type="date"
+                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400"
+                value={form.leaseStartDate}
+                onChange={(e) => updateField('leaseStartDate', e.target.value)}
+              />
+            </label>
+            <label className="block min-w-0">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease period (months)</span>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                value={form.leasePeriodMonths}
+                onChange={(e) => updateField('leasePeriodMonths', e.target.value)}
+              />
+            </label>
+            <label className="block min-w-0 sm:col-span-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Initial odometer (at lease start)</span>
+              <input
+                type="number"
+                min={0}
+                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                value={form.initialOdometer}
+                onChange={(e) => updateField('initialOdometer', e.target.value)}
+              />
+            </label>
+
+            <fieldset className="min-w-0 sm:col-span-2 rounded-lg border border-gray-200 dark:border-slate-600 p-4">
+              <legend className="text-xs font-semibold text-gray-700 dark:text-gray-200 px-1">Allocated miles</legend>
+              <div className="flex flex-wrap gap-4 mt-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="leaseMinder-allocation-mode"
+                    value="total"
+                    checked={form.allocationMode === 'total'}
+                    onChange={() => updateField('allocationMode', 'total')}
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">Total miles for entire lease</span>
+                </label>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="leaseMinder-allocation-mode"
+                    value="annual"
+                    checked={form.allocationMode === 'annual'}
+                    onChange={() => updateField('allocationMode', 'annual')}
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">Annual miles (cap is prorated)</span>
+                </label>
+              </div>
+              {form.allocationMode === 'annual' ? (
+                <label className="block min-w-0 mt-3">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Miles per year</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full min-w-0 max-w-full sm:max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                    value={form.annualMiles}
+                    onChange={(e) => updateField('annualMiles', e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Stored total cap:{' '}
+                    <strong>{form.totalAllocatedMiles || '—'}</strong> mi (rounded from annual × lease months ÷ 12)
+                  </p>
+                </label>
+              ) : (
+                <label className="block min-w-0 mt-3">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Total allocated miles</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className="mt-1 w-full min-w-0 max-w-full sm:max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                    value={form.totalAllocatedMiles}
+                    onChange={(e) => updateField('totalAllocatedMiles', e.target.value)}
+                  />
+                </label>
+              )}
+            </fieldset>
+
+            <label className="block min-w-0 sm:col-span-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Overage cost per mile ($)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="mt-1 w-full min-w-0 max-w-full sm:max-w-xs rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                value={form.overageCostPerMile}
+                onChange={(e) => updateField('overageCostPerMile', e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={saving || !isLeaseFormDirty}
+              onClick={handleSave}
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : selectedId ? 'Save changes' : 'Save lease'}
+            </button>
+            {selectedId && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleDelete}
+                className="inline-flex items-center justify-center rounded-lg border border-red-300 dark:border-red-800 px-5 py-2.5 text-sm font-semibold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </section>
       </div>
     </div>
