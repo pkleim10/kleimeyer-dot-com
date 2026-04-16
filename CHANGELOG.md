@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.44.1] - 2026-04-16
 
 ### Fixed
-- Fix(lease-minder): align lease start date on iOS without clipping: Use minmax grid tracks and flex sizing for WebKit date inputs; remove
-- Docs(changelog): correct 1.44.0 entry under Added: Made-with: Cursor
+- LeaseMinder: align lease start date on iOS with other contract fields (minmax grid tracks + flex sizing for WebKit); no overflow clipping on section or field
 
 ## [1.44.0] - 2026-04-16
 
