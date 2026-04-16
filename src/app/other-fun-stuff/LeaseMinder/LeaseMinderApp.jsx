@@ -789,7 +789,7 @@ export default function LeaseMinderApp() {
             {selectedId ? 'Lease contract & allowance' : 'Vehicle & lease terms'}
           </h3>
 
-          <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <label className="block min-w-0 sm:col-span-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Vehicle name</span>
               <input
@@ -799,14 +799,17 @@ export default function LeaseMinderApp() {
                 placeholder="e.g. 2024 Outback"
               />
             </label>
-            <label className="block min-w-0">
+            <label className="block min-w-0 w-full max-w-full">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease start date</span>
-              <input
-                type="date"
-                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400"
-                value={form.leaseStartDate}
-                onChange={(e) => updateField('leaseStartDate', e.target.value)}
-              />
+              {/* Flex column lets WebKit date inputs respect width like other fields (no overflow clipping). */}
+              <div className="mt-1 flex w-full min-w-0 max-w-full flex-col">
+                <input
+                  type="date"
+                  className="box-border w-full min-w-0 max-w-full cursor-pointer rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white"
+                  value={form.leaseStartDate}
+                  onChange={(e) => updateField('leaseStartDate', e.target.value)}
+                />
+              </div>
             </label>
             <label className="block min-w-0">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Lease period (months)</span>
