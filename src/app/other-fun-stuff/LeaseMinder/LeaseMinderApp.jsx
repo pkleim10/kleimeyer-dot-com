@@ -785,11 +785,17 @@ export default function LeaseMinderApp() {
             </div>
           )}
 
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">
+          <h3
+            id="lease-minder-contract-heading"
+            className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3"
+          >
             {selectedId ? 'Lease contract & allowance' : 'Vehicle & lease terms'}
           </h3>
 
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <fieldset
+            aria-labelledby="lease-minder-contract-heading"
+            className="min-w-0 grid grid-cols-[minmax(0,1fr)] gap-4 border-0 p-0 m-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+          >
             <label className="block min-w-0 sm:col-span-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Vehicle name</span>
               <input
@@ -894,7 +900,7 @@ export default function LeaseMinderApp() {
                 onChange={(e) => updateField('overageCostPerMile', e.target.value)}
               />
             </label>
-          </div>
+          </fieldset>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
