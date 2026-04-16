@@ -16,29 +16,23 @@ export default function LeaseMinderPageInner() {
           </svg>
           Back to Other Fun Stuff
         </Link>
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-sky-600 flex items-center justify-center shadow-lg">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-400">
-                kleimeyer.com · Other Fun Stuff
-              </p>
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">LeaseMinder</h1>
-            </div>
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-sky-600 flex items-center justify-center shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+              />
+            </svg>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 sm:max-w-xl sm:ml-auto sm:text-right text-sm sm:text-base leading-relaxed">
-            Track each vehicle&apos;s lease allowance, enter your current odometer, and estimate projected mileage and
-            overage at turn-in. Data is saved to your account (Supabase).
-          </p>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-400">
+              kleimeyer.com · Other Fun Stuff
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">LeaseMinder</h1>
+          </div>
         </div>
       </div>
 

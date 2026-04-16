@@ -693,7 +693,7 @@ export default function LeaseMinderApp() {
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {selectedId
-              ? 'Log your latest odometer and review pace and projected overage first. Lease contract fields are below if you need to change them.'
+              ? 'Log your latest odometer and review pace and projected overage.'
               : 'Enter the vehicle and lease terms, then save. After the lease exists, you can track odometer readings and mileage projections here.'}
           </p>
 
