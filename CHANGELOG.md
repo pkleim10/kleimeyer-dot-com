@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.4] - 2026-04-16
+
+### Fixed
+- Fix(lease-minder): full-width contract rows for date and period on sm+: Add sm:col-span-2 to lease start date and lease period labels so both
+- Docs(changelog): tighten 1.44.3 entry: Made-with: Cursor
+
 ## [1.44.3] - 2026-04-16
 
 ### Fixed
