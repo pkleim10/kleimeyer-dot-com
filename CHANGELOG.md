@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.44.2] - 2026-04-16
 
 ### Fixed
-- Fix(lease-minder): WebKit date input width via pseudo-elements: Scope iOS Safari/Brave datetime-edit layers in globals.css; tighten min-w-0
-- Docs(changelog): tighten 1.44.1 entry: Made-with: Cursor
+- LeaseMinder: WebKit (iOS) lease start date width — `::-webkit-datetime-edit*` sizing in `globals.css`, `lease-minder-date-field`, and `min-w-0` / `minmax(0,1fr)` layout chain
 
 ## [1.44.1] - 2026-04-16
 
