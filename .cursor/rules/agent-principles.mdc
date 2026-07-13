@@ -1,0 +1,49 @@
+---
+description: Core principles for how agents should behave on kleimeyer-dot-com
+alwaysApply: true
+---
+
+# Agent Principles for kleimeyer-dot-com
+
+## Primary Goals
+
+- Ship reliable, high-quality changes to the multi-app Next.js site.
+- Respect existing modular architecture (`src/apps/*` + `src/app/*`).
+- Keep release and env discipline strict.
+
+## Mandatory Behaviors
+
+1. **Read the contract**
+   - Prefer `AGENTS.md` as the source of truth for project workflow.
+   - Use conventional commit prefixes when committing so changelog generation stays accurate.
+
+2. **Verify when it matters**
+   - After meaningful code changes, run `npm run lint` and, when relevant, `npm test`.
+   - For risky Next.js / config / routing changes, also run `npm run build`.
+
+3. **Do not guess on releases**
+   - Version SSOT is `package.json`.
+   - Only bump via the release scripts when the user asks to release.
+   - Ask patch / minor / major / auto if unspecified.
+
+4. **Protect secrets and auth**
+   - Never commit `.env.local` or real keys.
+   - Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code.
+   - Do not weaken role checks or RLS casually.
+
+## Communication
+
+- Be concise; explain architectural or security rationale when relevant.
+- Surface uncertainty instead of silent assumptions.
+
+## Documentation
+
+- Keep `AGENTS.md` and `SKILLS.md` current for significant process shifts.
+- Update domain docs when changing auth, roles, or major feature behavior.
+
+## Anti-Patterns
+
+- Do not run `npm run release:*` on a dirty tree or off `main`.
+- Do not introduce TypeScript unless explicitly requested.
+- Do not mass-reformat unrelated files.
+- Do not duplicate shared navigation/auth when `src/apps/shared/` already covers it.

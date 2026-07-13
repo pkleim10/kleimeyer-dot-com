@@ -1,0 +1,46 @@
+---
+description: Day-to-day verify and develop workflow for kleimeyer-dot-com (lint, test, env, architecture)
+alwaysApply: true
+---
+
+# Dev Workflow
+
+## Local development
+
+```bash
+npm install
+cp .env.example .env.local   # fill real values locally
+npm run dev
+```
+
+Other useful scripts:
+
+- `npm run dev:turbo` — Turbopack
+- `npm run dev:clean` / `npm run dev:clean:build` — clear stuck / stale Next state
+- `npm run build` / `npm start` — production build
+- `npm run lint` — ESLint via Next
+- `npm test` / `npm run test:coverage` — Jest
+
+## After code changes
+
+1. Prefer the lightest useful verification (`lint`, focused tests, or `build` when routing/config is involved).
+2. Keep changes scoped to the feature area (`src/apps/<app>/` for UI/logic; thin routes in `src/app/`).
+3. Do not commit unless the user asked (except as part of an explicit release flow).
+
+## Changelog
+
+`CHANGELOG.md` is maintained by `scripts/version-bump.js` / `scripts/release.js` from conventional commits since the last tag.
+
+- During normal development: write clear commit messages (`feat:`, `fix:`, `chore:`, …).
+- Do **not** hand-edit release history unless fixing a clear release-script mistake.
+- Live `## Unreleased` editing (Skagway-style) is **not** the process here.
+
+## Environment
+
+- Template: `.env.example`
+- Local secrets: `.env.local` (gitignored)
+- Required categories: Supabase (URL, anon, service role), optional Spotify / xAI / Groq for specific features
+
+## Relationship to release
+
+Release keyword handling lives in `release-workflow.mdc`. That flow requires a clean tree on `main` before `npm run release:*`.

@@ -1,7 +1,10 @@
 {
-  "name": "recipes",
+  "name": "kleimeyer-dot-com",
   "version": "1.44.6",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:clean": "pkill -f 'next dev' || true && sleep 1 && next dev",

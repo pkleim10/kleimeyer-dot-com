@@ -33,6 +33,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -56,6 +57,3 @@ test_debug.js
 
 # documentation
 PROJECT_STATUS.md
-
-# VideoMaster DMG is large; upload via host or remove this line to commit
-/public/downloads/*.dmg

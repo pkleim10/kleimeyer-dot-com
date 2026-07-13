@@ -25,8 +25,6 @@ const getNavigationContext = (pathname) => {
   if (pathname.startsWith('/other-fun-stuff/medication/group/')) return { app: 'otherFunStuff', section: 'medication', page: 'medication-group' }
   if (pathname.startsWith('/other-fun-stuff/medication')) return { app: 'otherFunStuff', section: 'medication', page: 'medication' }
   if (pathname.startsWith('/other-fun-stuff/magic-playlists')) return { app: 'otherFunStuff', section: 'magic-playlists', page: 'magic-playlists' }
-  if (pathname.startsWith('/other-fun-stuff/VideoMaster/guide')) return { app: 'otherFunStuff', section: 'videomaster', page: 'videomaster-guide' }
-  if (pathname.startsWith('/other-fun-stuff/VideoMaster')) return { app: 'otherFunStuff', section: 'videomaster', page: 'videomaster' }
   if (pathname.startsWith('/other-fun-stuff/LeaseMinder')) return { app: 'otherFunStuff', section: 'leaseminder', page: 'leaseminder' }
   if (pathname.startsWith('/other-fun-stuff/backgammon-resources/opening-moves')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'opening-moves' }
   if (pathname.startsWith('/other-fun-stuff/backgammon-resources/play')) return { app: 'otherFunStuff', section: 'backgammon-resources', page: 'play' }
@@ -131,11 +129,6 @@ const generateBreadcrumbs = (pathname, searchParams, selectedGroup) => {
         }
       } else if (context.section === 'magic-playlists') {
         breadcrumbs.push({ name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: true })
-      } else if (context.section === 'videomaster') {
-        breadcrumbs.push({ name: 'VideoMaster', href: '/other-fun-stuff/VideoMaster', current: context.page !== 'videomaster-guide' })
-        if (context.page === 'videomaster-guide') {
-          breadcrumbs.push({ name: 'User guide', href: '/other-fun-stuff/VideoMaster/guide', current: true })
-        }
       } else if (context.section === 'leaseminder') {
         breadcrumbs.push({ name: 'LeaseMinder', href: '/other-fun-stuff/LeaseMinder', current: true })
       } else if (context.section === 'backgammon-resources') {
@@ -189,7 +182,6 @@ const getAppNavigation = (context, user, canManageUsers) => {
         { name: 'Medication Management', href: '/other-fun-stuff/medication', current: context.section === 'medication' },
         { name: 'Magic Playlists', href: '/other-fun-stuff/magic-playlists', current: context.section === 'magic-playlists' },
         { name: 'LeaseMinder', href: '/other-fun-stuff/LeaseMinder', current: context.section === 'leaseminder' },
-        { name: 'VideoMaster', href: '/other-fun-stuff/VideoMaster', current: context.section === 'videomaster' },
         { name: 'Backgammon Resources', href: '/other-fun-stuff/backgammon-resources', current: context.section === 'backgammon-resources' },
         { name: 'Select Background', href: '/other-fun-stuff?action=select-background', current: false, isAction: true }
       ]
