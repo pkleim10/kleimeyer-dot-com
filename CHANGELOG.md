@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] - 2026-07-28
+
+### Added
+- Feat(deadpool): add the Dead Pool app at /deadpool: An unlisted celebrity dead pool for a private group of friends. Participants
+
+### Changed
+- Isolate site routes under a (site) route group: Moves every existing route into src/app/(site)/ so a new, unlisted app can own
+
 ## [1.45.0] - 2026-07-13
 
 ### Added
