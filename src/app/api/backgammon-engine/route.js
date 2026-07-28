@@ -7,7 +7,7 @@
 
 import { getLegalMoves } from './moveGeneration/getLegalMoves.js'
 import { formatMove, rebuildDescription, sortMoves } from '../../../utils/moveFormatter'
-import { hasPlayerWon, hasContactSituation } from '../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
+import { hasPlayerWon, hasContactSituation } from '@/app/(site)/other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 import { debugLog } from '@/config/debug.js'
 import { HEURISTIC_WEIGHTS, POSITION_WEIGHTS } from './config/heuristicWeights.js'
 import { debugFetchLog } from './config/debugConfig.js'

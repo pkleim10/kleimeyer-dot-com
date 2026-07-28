@@ -1,5 +1,5 @@
 import { Inter } from 'next/font/google'
-import './globals.css'
+import '../globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { GroupProvider } from '@/contexts/GroupContext'
 import { SpotifyProvider } from '@/contexts/SpotifyContext'
@@ -12,7 +12,7 @@ export const metadata = {
   description: 'Your digital hub for family favorites and more',
 }
 
-export default function RootLayout({ children }) {
+export default function SiteLayout({ children }) {
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full`}>
@@ -37,4 +37,4 @@ export default function RootLayout({ children }) {
       </body>
     </html>
   )
-} 
+}

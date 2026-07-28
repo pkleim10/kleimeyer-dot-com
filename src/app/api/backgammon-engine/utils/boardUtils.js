@@ -3,7 +3,7 @@
  */
 
 import { debugFetchLog } from '../config/debugConfig.js'
-import { hasPlayerWon } from '../../../other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
+import { hasPlayerWon } from '@/app/(site)/other-fun-stuff/backgammon-resources/opening-moves/utils/gameLogic.js'
 
 /**
  * Convert board state to array format for fast move generation
