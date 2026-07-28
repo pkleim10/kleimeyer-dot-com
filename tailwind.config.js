@@ -8,7 +8,12 @@ module.exports = {
   ],
   darkMode: 'media',
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        // Display face for the Dead Pool app (loaded in its root layout).
+        display: ['var(--font-deadpool-display)', 'serif'],
+      },
+    },
   },
   plugins: [],
 } 

@@ -68,6 +68,26 @@ This document defines how AI agents (Cursor, Claude, etc.) should work on this p
 - Production build: `npm run build` then `npm start`.
 - Node: use a current LTS that satisfies Next.js 15.
 
+### Restarting the dev server
+
+"Restart the dev server" means **kill the process that is already running and start a
+new one** — not "make sure something is listening." A server started by another
+process (an earlier session, a watcher, the user's own terminal) will not pick up
+config-level changes, so leaving it running defeats the purpose of the restart.
+
+1. Find every dev-server process for **this** project, not just the port listener:
+   `ps aux | grep "next dev" | grep -v grep` and `lsof -ti:3000 -sTCP:LISTEN`.
+2. Kill them, then confirm nothing remains before starting: an `npm run dev` wrapper
+   can outlive the `next dev` child it spawned.
+3. Scope kills to this project's path. Avoid a bare `pkill -f "next dev"` — it can
+   match sibling projects' servers (and even the agent's own command line). This has
+   already killed an unrelated project's dev server once.
+4. After starting, verify the server you started is the one answering. A near-instant
+   ready response is a red flag: a cold Next.js dev boot takes several seconds, so
+   sub-second success usually means an **old process** is still serving and the new
+   one failed to bind. Check the log you redirected to (e.g. for `EADDRINUSE`) rather
+   than trusting an HTTP 200.
+
 ## Documentation & Planning
 
 | Doc | Purpose |
@@ -92,6 +112,7 @@ See `SKILLS.md` for recommended skills and when to invoke specialized subagents.
 - Be direct and precise.
 - When proposing changes, briefly explain *why*.
 - Surface uncertainty instead of guessing (especially around auth, migrations, and releases).
+- Notify the user by mobile push every time a task takes longer than 1 minute to finish.
 
 ## Common Pitfalls to Avoid
 

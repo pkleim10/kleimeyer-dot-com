@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:lan": "bash scripts/dev.sh",
     "dev:clean": "pkill -f 'next dev' || true && sleep 1 && next dev",
     "dev:turbo": "next dev --turbopack",
     "dev:clean:build": "rm -rf .next && next dev",
