@@ -26,7 +26,7 @@ async function countTotalPicks(seasonYear) {
 export default async function DeadSoFarPage() {
   const participant = await getCurrentParticipant()
   if (!participant) {
-    redirect('/deadpool/register')
+    redirect('/deadpool/signin')
   }
 
   const seasonYear = await getActiveSeasonYear()

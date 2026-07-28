@@ -25,13 +25,15 @@ export default async function DeadpoolNav() {
             </>
           ) : (
             <>
-              <Link href="/deadpool/signin" className="text-gray-400 transition hover:text-white">
-                Sign In
-              </Link>
+              {/* Sign In is the primary control: most visitors are returning
+                  participants, and registering is the one-time exception. */}
               <Link
-                href="/deadpool/register"
+                href="/deadpool/signin"
                 className="rounded-md border border-red-800/70 px-2.5 py-1 text-red-400 transition hover:border-red-600 hover:text-red-300"
               >
+                Sign In
+              </Link>
+              <Link href="/deadpool/register" className="text-gray-400 transition hover:text-white">
                 Register
               </Link>
             </>

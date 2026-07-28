@@ -15,7 +15,7 @@ export const metadata = {
 export default async function ListsPage() {
   const participant = await getCurrentParticipant()
   if (!participant) {
-    redirect('/deadpool/register')
+    redirect('/deadpool/signin')
   }
 
   const seasonYear = await getActiveSeasonYear()

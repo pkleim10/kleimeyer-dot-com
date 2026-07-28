@@ -14,7 +14,7 @@ export const metadata = {
 export default async function LeaderboardPage() {
   const participant = await getCurrentParticipant()
   if (!participant) {
-    redirect('/deadpool/register')
+    redirect('/deadpool/signin')
   }
 
   const leaderboard = await getLeaderboard(await getActiveSeasonYear(), 20)

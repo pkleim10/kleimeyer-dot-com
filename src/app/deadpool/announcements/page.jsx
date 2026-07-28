@@ -14,7 +14,7 @@ export const metadata = {
 export default async function AnnouncementsPage() {
   const participant = await getCurrentParticipant()
   if (!participant) {
-    redirect('/deadpool/register')
+    redirect('/deadpool/signin')
   }
 
   const items = await getAnnouncementFeed(await getActiveSeasonYear())
