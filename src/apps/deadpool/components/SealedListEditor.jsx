@@ -138,7 +138,7 @@ export default function SealedListEditor({ seasonYear, canSeal, initialSeal, rev
             rows={10}
             value={listText}
             onChange={(e) => setListText(e.target.value)}
-            placeholder={'1. Keith Richards\n2. Willie Nelson\n…'}
+            placeholder={'1. Harry Truman\n2. Julius Caesar\n…'}
             className={`${inputClass} font-mono text-sm`}
           />
           <p className="mt-1.5 text-xs text-zinc-600">
