@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.49.2] - 2026-07-30
+
+### Fixed
+- Chore(deadpool): use deceased figures in the pick-list placeholder: Keith Richards and Willie Nelson are live picks, so the example doubled
+
 ## [1.49.1] - 2026-07-30
 
 ### Fixed
