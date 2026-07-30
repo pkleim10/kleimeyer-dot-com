@@ -4,7 +4,11 @@ import SeasonPicker from '@/apps/deadpool/components/SeasonPicker'
 import { Divider, Panel } from '@/apps/deadpool/components/ui'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
-import { getAvailableSeasonYears, getSeasonNow } from '@/apps/deadpool/server/season'
+import {
+  getAvailableSeasonYears,
+  getScheduledSeasonYear,
+  getSeasonNow,
+} from '@/apps/deadpool/server/season'
 import {
   getAnnouncementsSeenAt,
   getLatestAnnouncementPostedAt,
@@ -31,10 +35,11 @@ export default async function DeadpoolPage() {
     }
   }
 
+  const nextSeasonYear = getScheduledSeasonYear(getSeasonNow())
   const registrationMailto = `mailto:admin@kleimeyer.com?subject=${encodeURIComponent(
-    'Registration Request'
+    `${nextSeasonYear} Dead Pool Registration`
   )}&body=${encodeURIComponent(
-    `Please reply with a registration code for the ${seasonYear} Flaming Red Head's Dead Pool`
+    `Please reply with a registration code for the ${nextSeasonYear} Flaming Red Head's Dead Pool`
   )}`
 
   return (
