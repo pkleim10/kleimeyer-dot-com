@@ -14,6 +14,7 @@ import {
   getLatestAnnouncementPostedAt,
   hasUnseenAnnouncements,
 } from '@/apps/deadpool/server/announcements'
+import { buildRegistrationMailto } from '@/apps/deadpool/shared/registration'
 
 export default async function DeadpoolPage() {
   const seasonYear = await getSelectedSeasonYear()
@@ -36,11 +37,7 @@ export default async function DeadpoolPage() {
   }
 
   const nextSeasonYear = getScheduledSeasonYear(getSeasonNow())
-  const registrationMailto = `mailto:admin@kleimeyer.com?subject=${encodeURIComponent(
-    `${nextSeasonYear} Dead Pool Registration`
-  )}&body=${encodeURIComponent(
-    `Please reply with a registration code for the ${nextSeasonYear} Flaming Red Head's Dead Pool`
-  )}`
+  const registrationMailto = buildRegistrationMailto(nextSeasonYear)
 
   return (
     <div className="flex flex-col items-center text-gray-100">

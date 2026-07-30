@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getPicksForParticipant } from '@/apps/deadpool/server/picks'
-import { isPicksEditable, getPickDeadline } from '@/apps/deadpool/server/season'
+import { isPicksEditable } from '@/apps/deadpool/server/season'
 import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
 import { getActiveSeal } from '@/apps/deadpool/server/seals'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
@@ -21,7 +21,6 @@ export default async function PicksPage() {
 
   const seasonYear = await getSelectedSeasonYear()
   const canSeal = isPicksEditable(seasonYear)
-  const deadline = getPickDeadline(seasonYear).toISOString()
   const seal = await getActiveSeal(participant.id, seasonYear)
 
   // Picks only exist server-side once revealed; before then there is nothing
@@ -56,7 +55,6 @@ export default async function PicksPage() {
         <SealedListEditor
           seasonYear={seasonYear}
           canSeal={canSeal}
-          deadline={deadline}
           initialSeal={seal}
           revealed={picks.length > 0}
         />

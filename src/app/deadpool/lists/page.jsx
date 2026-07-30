@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
+import { getPicksForParticipant } from '@/apps/deadpool/server/picks'
 import { getAllListsAnnotated } from '@/apps/deadpool/server/scoring'
 import { areListsPublic } from '@/apps/deadpool/server/season'
 import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
@@ -20,6 +21,12 @@ export default async function ListsPage() {
 
   const seasonYear = await getSelectedSeasonYear()
   const seasonStarted = areListsPublic(seasonYear)
+  const myPicks = await getPicksForParticipant(participant.id, seasonYear)
+  // Match the nav: no peeking at peers until this player has revealed.
+  if (seasonStarted && myPicks.length === 0) {
+    redirect('/deadpool/picks')
+  }
+
   const lists = await getAllListsAnnotated(seasonYear)
 
   // Lists stay private to their owner until the season starts.

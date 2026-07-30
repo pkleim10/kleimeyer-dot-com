@@ -64,7 +64,7 @@ export default async function RulesPage() {
               </p>
             </div>
             <ol className="space-y-5">
-              <Step n="1" title="Write your list, somewhere of your own">
+              <Step n="1" title="Write your list">
                 <p>
                   Up to <span className="font-semibold text-white">20 names</span> of people you
                   predict will die during the season. Keep it in your own file — a note, a document,
@@ -99,7 +99,7 @@ export default async function RulesPage() {
                 </p>
               </Step>
 
-              <Step n="3" title="Paste it again after January 1">
+              <Step n="3" title="Submit again after January 1">
                 <p>
                   <span className="font-semibold text-white">
                     You must come back after the season opens and paste the same list and secret word

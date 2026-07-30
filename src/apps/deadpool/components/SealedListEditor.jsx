@@ -8,7 +8,7 @@ import { validatePickList, MAX_PICKS } from '@/apps/deadpool/server/validation'
 // Before the lock this component never sends the list anywhere: it hashes in
 // the browser and posts only the fingerprint. After the lock it sends the
 // plaintext once, to be verified against that fingerprint.
-export default function SealedListEditor({ seasonYear, canSeal, deadline, initialSeal, revealed }) {
+export default function SealedListEditor({ seasonYear, canSeal, initialSeal, revealed }) {
   const [listText, setListText] = useState('')
   const [secret, setSecret] = useState('')
   const [parsed, setParsed] = useState({ names: [], fingerprint: '' })
@@ -238,9 +238,9 @@ export default function SealedListEditor({ seasonYear, canSeal, deadline, initia
         <Panel className="border-amber-900/50 p-4">
           <p className="text-sm text-amber-200/80">
             <span className="font-display uppercase tracking-[0.14em] text-amber-300">Important</span>{' '}
-            — your list is never uploaded before{' '}
-            {new Date(deadline).toLocaleDateString()}; only its fingerprint is. Keep your list and
-            secret in your own file. If you lose them you cannot enter, because nobody has a copy.
+            — your list is never uploaded before January 1, {seasonYear}; only its fingerprint is.
+            Keep your list and secret in your own file. If you lose them you cannot enter, because
+            nobody has a copy.
           </p>
         </Panel>
       ) : (

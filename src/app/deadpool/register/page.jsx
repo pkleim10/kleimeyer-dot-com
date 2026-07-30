@@ -1,6 +1,7 @@
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
 import RegisterForm from '@/apps/deadpool/components/RegisterForm'
 import { PageHeader } from '@/apps/deadpool/components/ui'
+import { getScheduledSeasonYear, getSeasonNow } from '@/apps/deadpool/server/season'
 
 export const metadata = {
   title: 'Dead Pool — Register',
@@ -16,7 +17,8 @@ export default function RegisterPage() {
           title="Join the Pool"
           subtitle="You'll need the registration code the commissioner sent you."
         />
-        <RegisterForm />
+        {/* Same season the home page's "request a code" link uses. */}
+        <RegisterForm seasonYear={getScheduledSeasonYear(getSeasonNow())} />
       </div>
     </div>
   )

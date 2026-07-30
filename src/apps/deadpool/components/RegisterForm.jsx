@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Panel, inputClass, labelClass, primaryButtonClass } from './ui.jsx'
+import { buildRegistrationMailto } from '../shared/registration'
 
-export default function RegisterForm() {
+export default function RegisterForm({ seasonYear }) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -83,6 +84,16 @@ export default function RegisterForm() {
             onChange={(e) => setInviteCode(e.target.value)}
             className={inputClass}
           />
+          <p className="mt-2 text-xs text-zinc-500">
+            If you don&apos;t have a registration code yet, you can request one from{' '}
+            <a
+              href={buildRegistrationMailto(seasonYear)}
+              className="text-red-400 underline hover:text-red-300"
+            >
+              The Commissioner
+            </a>
+            .
+          </p>
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
