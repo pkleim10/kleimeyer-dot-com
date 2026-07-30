@@ -1,17 +1,59 @@
 import Link from 'next/link'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
+import SeasonPicker from '@/apps/deadpool/components/SeasonPicker'
 import { Divider, Panel } from '@/apps/deadpool/components/ui'
+import { getCurrentParticipant } from '@/apps/deadpool/server/session'
+import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
+import { getAvailableSeasonYears, getSeasonNow } from '@/apps/deadpool/server/season'
+import {
+  getAnnouncementsSeenAt,
+  getLatestAnnouncementPostedAt,
+  hasUnseenAnnouncements,
+} from '@/apps/deadpool/server/announcements'
 
-const REGISTRATION_CODE_MAILTO = `mailto:admin@kleimeyer.com?subject=${encodeURIComponent(
-  'Registration Request'
-)}&body=${encodeURIComponent(
-  "Please reply with a registration code for the 2027 Flaming Red Head's Dead Pool"
-)}`
+export default async function DeadpoolPage() {
+  const seasonYear = await getSelectedSeasonYear()
+  const availableYears = getAvailableSeasonYears(getSeasonNow())
+  const participant = await getCurrentParticipant()
+  let showAnnouncementsLink = !participant
 
-export default function DeadpoolPage() {
+  if (participant) {
+    try {
+      const [latestAt, seenAt] = await Promise.all([
+        getLatestAnnouncementPostedAt(seasonYear),
+        getAnnouncementsSeenAt(participant.id),
+      ])
+      showAnnouncementsLink = hasUnseenAnnouncements(latestAt, seenAt)
+    } catch (error) {
+      console.error('Failed to check unseen announcements:', error)
+      // Prefer showing the callout over silently hiding new notices.
+      showAnnouncementsLink = true
+    }
+  }
+
+  const registrationMailto = `mailto:admin@kleimeyer.com?subject=${encodeURIComponent(
+    'Registration Request'
+  )}&body=${encodeURIComponent(
+    `Please reply with a registration code for the ${seasonYear} Flaming Red Head's Dead Pool`
+  )}`
+
   return (
     <div className="flex flex-col items-center text-gray-100">
       <DeadpoolNav />
+
+      <div className="mx-auto flex w-full max-w-3xl items-start justify-between gap-4 px-4 pt-3">
+        <div className="min-w-0 flex-1">
+          {showAnnouncementsLink && (
+            <Link
+              href="/deadpool/announcements"
+              className="inline-block font-display text-sm uppercase tracking-[0.14em] text-red-500 transition hover:text-red-400"
+            >
+              Latest Announcements →
+            </Link>
+          )}
+        </div>
+        <SeasonPicker seasonYear={seasonYear} availableYears={availableYears} />
+      </div>
 
       {/* Heraldic crest: skull crowns the wordmark as one brand mark.
           Soft radial mask kills the video rectangle; modest negative margin
@@ -69,8 +111,8 @@ export default function DeadpoolPage() {
         <p className="font-display text-[0.95rem] leading-[1.85] text-gray-200">
           Great news, everyone! The Flaming Red Head is back with an all-new reincarnation of The
           Flaming Red Head&apos;s Dead Pool. For the uninitiated: a dead pool is a game where players
-          predict which well-known people will pass away in 2027. Sounds easy? It&apos;s harder than
-          you think. The rules have been refined for 2027, so check out the{' '}
+          predict which well-known people will pass away in {seasonYear}. Sounds easy? It&apos;s harder
+          than you think. The rules have been refined for {seasonYear}, so check out the{' '}
           <Link href="/deadpool/rules" className="text-red-500 hover:text-red-400 underline">
             Rules
           </Link>{' '}
@@ -80,7 +122,7 @@ export default function DeadpoolPage() {
           January 1, and have fun.
         </p>
         <a
-          href={REGISTRATION_CODE_MAILTO}
+          href={registrationMailto}
           className="mt-5 inline-block font-display text-sm uppercase tracking-[0.14em] text-red-500 transition hover:text-red-400"
         >
           Request a Registration Code →

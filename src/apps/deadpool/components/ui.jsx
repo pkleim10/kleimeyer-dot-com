@@ -16,9 +16,25 @@ export function Divider({ className = '' }) {
   )
 }
 
-export function PageHeader({ title, subtitle, children }) {
+// Centered throughout, so the title and subtitle sit on the crest's vertical axis.
+export function PageHeader({ title, subtitle, children, showCrest = true }) {
   return (
-    <header className="relative mb-8">
+    <header className="relative mb-8 text-center">
+      {showCrest && (
+        <div className="mb-6 flex justify-center">
+          <img
+            src="/deadpool/crest.png"
+            alt="The Flaming Red Head"
+            className="block w-36 sm:w-44"
+            style={{
+              WebkitMaskImage:
+                'radial-gradient(ellipse 62% 62% at 50% 50%, #000 45%, transparent 78%)',
+              maskImage:
+                'radial-gradient(ellipse 62% 62% at 50% 50%, #000 45%, transparent 78%)',
+            }}
+          />
+        </div>
+      )}
       {/* Ambient red wash behind the title, tying interior pages back to the
           lit-from-within look of the masthead. */}
       <div
@@ -49,9 +65,10 @@ export function SectionTitle({ children, className = '' }) {
   )
 }
 
-export function Panel({ children, className = '', as: Tag = 'div' }) {
+export function Panel({ children, className = '', as: Tag = 'div', id }) {
   return (
     <Tag
+      id={id}
       className={`rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/80 to-zinc-950/90 shadow-[0_0_40px_-18px_rgba(220,38,38,0.45)] ${className}`}
     >
       {children}

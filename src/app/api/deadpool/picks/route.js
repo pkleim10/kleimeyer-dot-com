@@ -3,7 +3,7 @@ import { getServiceClient } from '@/apps/deadpool/server/db'
 import { getParticipantFromRequest } from '@/apps/deadpool/server/session'
 import { getPicksForParticipant } from '@/apps/deadpool/server/picks'
 import { isPicksEditable, getPickDeadline } from '@/apps/deadpool/server/season'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYearFromRequest } from '@/apps/deadpool/server/selectedSeason'
 import { validatePickList } from '@/apps/deadpool/server/validation'
 
 export async function GET(request) {
@@ -12,7 +12,7 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
   }
 
-  const seasonYear = await getActiveSeasonYear()
+  const seasonYear = getSelectedSeasonYearFromRequest(request)
   const picks = await getPicksForParticipant(participant.id, seasonYear)
 
   return NextResponse.json({
@@ -31,7 +31,7 @@ export async function PUT(request) {
     return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
   }
 
-  const seasonYear = await getActiveSeasonYear()
+  const seasonYear = getSelectedSeasonYearFromRequest(request)
   if (!isPicksEditable(seasonYear)) {
     return NextResponse.json({ error: 'Picks are locked for this season' }, { status: 403 })
   }

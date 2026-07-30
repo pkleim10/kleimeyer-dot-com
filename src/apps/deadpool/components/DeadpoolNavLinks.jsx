@@ -3,20 +3,27 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+// `afterReveal` pages have nothing to show until the season opens: no list is
+// public, the leaderboard has nothing to rank, and no death can be recorded
+// before Jan 1 (validateHit rejects earlier dates), so tips have nothing to
+// report. Hiding them keeps the pre-season nav to what's actionable.
 const LINKS = [
   { href: '/deadpool/rules', label: 'Rules' },
   { href: '/deadpool/picks', label: 'My Picks' },
-  { href: '/deadpool/lists', label: "Everyone's Lists" },
-  { href: '/deadpool/leaderboard', label: 'Leaderboard' },
+  { href: '/deadpool/seals', label: 'Sealed Lists' },
   { href: '/deadpool/announcements', label: 'Announcements' },
-  { href: '/deadpool/dead-so-far', label: 'Dead So Far' },
-  { href: '/deadpool/submit', label: 'Submit a Tip' },
+  { href: '/deadpool/lists', label: "Everyone's Lists", afterReveal: true },
+  { href: '/deadpool/leaderboard', label: 'Leaderboard', afterReveal: true },
+  { href: '/deadpool/dead-so-far', label: 'Dead So Far', afterReveal: true },
+  { href: '/deadpool/submit', label: 'Submit a Tip', afterReveal: true },
 ]
 
-// Split out from DeadpoolNav (a Server Component, since it reads the
-// session) purely so the active-link highlight can use usePathname.
-export default function DeadpoolNavLinks() {
+// Split out from DeadpoolNav (a Server Component, since it reads the session
+// and the active season) purely so the active-link highlight can use
+// usePathname.
+export default function DeadpoolNavLinks({ revealed = true }) {
   const pathname = usePathname()
+  const links = LINKS.filter((link) => revealed || !link.afterReveal)
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -26,7 +33,7 @@ export default function DeadpoolNavLinks() {
       >
         Dead Pool
       </Link>
-      {LINKS.map((link) => {
+      {links.map((link) => {
         const isActive = pathname === link.href
         return (
           <Link

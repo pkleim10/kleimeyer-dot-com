@@ -1,11 +1,11 @@
 import { getServiceClient } from './db'
+import { getScheduledSeasonYear, getSeasonNow } from './season'
 
-// The season new registrations and admin views operate on. This is an
-// explicit, admin-controlled setting (see migrations/add_deadpool_settings.sql)
-// rather than derived from the real calendar date — the pool is often
-// recruited for a season that hasn't started yet, and deriving it from
-// "today's year" breaks the moment the calendar rolls into that year.
-export async function getActiveSeasonYear() {
+// Admin-tools season scope (hit recording, tips queue, etc.).
+// Player-facing pages use the sticky per-user selection in selectedSeason.js —
+// not this value — so this year's scoring and next year's sealing can coexist.
+
+export async function getSeasonSettings() {
   const supabase = getServiceClient()
   const { data, error } = await supabase
     .from('deadpool_settings')
@@ -14,10 +14,17 @@ export async function getActiveSeasonYear() {
     .maybeSingle()
 
   if (error) throw error
-  // Falls back to the real calendar year only if the settings row is
-  // somehow missing (e.g. migration not yet applied) — this should not
-  // happen in normal operation, since the migration seeds the row.
-  return data ? data.season_year : new Date().getUTCFullYear()
+
+  const scheduledSeasonYear = getScheduledSeasonYear(getSeasonNow())
+  return {
+    seasonYear: data ? data.season_year : scheduledSeasonYear,
+    scheduledSeasonYear,
+  }
+}
+
+export async function getActiveSeasonYear() {
+  const { seasonYear } = await getSeasonSettings()
+  return seasonYear
 }
 
 export async function setActiveSeasonYear(seasonYear) {

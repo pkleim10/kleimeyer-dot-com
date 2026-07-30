@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getAllListsAnnotated } from '@/apps/deadpool/server/scoring'
-import { hasSeasonStarted } from '@/apps/deadpool/server/season'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { areListsPublic } from '@/apps/deadpool/server/season'
+import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
 import AllListsView from '@/apps/deadpool/components/AllListsView'
 import { PageHeader } from '@/apps/deadpool/components/ui'
@@ -18,8 +18,8 @@ export default async function ListsPage() {
     redirect('/deadpool/signin')
   }
 
-  const seasonYear = await getActiveSeasonYear()
-  const seasonStarted = hasSeasonStarted(seasonYear)
+  const seasonYear = await getSelectedSeasonYear()
+  const seasonStarted = areListsPublic(seasonYear)
   const lists = await getAllListsAnnotated(seasonYear)
 
   // Lists stay private to their owner until the season starts.

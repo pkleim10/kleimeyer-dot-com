@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getParticipantFromRequest } from '@/apps/deadpool/server/session'
 import { getHitsWithPickers } from '@/apps/deadpool/server/scoring'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYearFromRequest } from '@/apps/deadpool/server/selectedSeason'
 
 // Shared data source for the Announcements and Dead So Far pages.
 export async function GET(request) {
@@ -10,6 +10,6 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
   }
 
-  const hits = await getHitsWithPickers(await getActiveSeasonYear())
+  const hits = await getHitsWithPickers(getSelectedSeasonYearFromRequest(request))
   return NextResponse.json({ hits })
 }

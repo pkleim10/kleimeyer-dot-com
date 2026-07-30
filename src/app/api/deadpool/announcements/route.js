@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getParticipantFromRequest } from '@/apps/deadpool/server/session'
 import { getAnnouncementFeed } from '@/apps/deadpool/server/announcements'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYearFromRequest } from '@/apps/deadpool/server/selectedSeason'
 
 // The combined feed: recorded deaths plus the commissioner's general notices,
 // interleaved chronologically. (/api/deadpool/hits stays deaths-only, since
@@ -12,6 +12,6 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
   }
 
-  const items = await getAnnouncementFeed(await getActiveSeasonYear())
+  const items = await getAnnouncementFeed(getSelectedSeasonYearFromRequest(request))
   return NextResponse.json({ items })
 }

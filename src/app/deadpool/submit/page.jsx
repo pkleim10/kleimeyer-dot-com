@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getServiceClient } from '@/apps/deadpool/server/db'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
 import SubmissionForm from '@/apps/deadpool/components/SubmissionForm'
 import { PageHeader } from '@/apps/deadpool/components/ui'
@@ -22,7 +22,7 @@ export default async function SubmitPage() {
     .from('deadpool_submissions')
     .select('id, name, note, status, created_at, reviewed_at')
     .eq('participant_id', participant.id)
-    .eq('season_year', await getActiveSeasonYear())
+    .eq('season_year', await getSelectedSeasonYear())
     .order('created_at', { ascending: false })
 
   return (

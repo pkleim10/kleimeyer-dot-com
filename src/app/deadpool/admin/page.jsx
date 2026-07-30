@@ -23,6 +23,7 @@ export default function DeadpoolAdminPage() {
   const [participants, setParticipants] = useState([])
   const [announcements, setAnnouncements] = useState([])
   const [seasonYear, setSeasonYear] = useState(null)
+  const [scheduledSeasonYear, setScheduledSeasonYear] = useState(null)
   const [prefill, setPrefill] = useState(null)
   const [loadError, setLoadError] = useState(null)
 
@@ -72,6 +73,7 @@ export default function DeadpoolAdminPage() {
       setSubmissions(submissionsData.submissions || [])
       setParticipants(participantsData.participants || [])
       setSeasonYear(settingsData.seasonYear)
+      setScheduledSeasonYear(settingsData.scheduledSeasonYear)
       setAnnouncements(announcementsData.announcements || [])
     } catch {
       setLoadError('Failed to load admin data')
@@ -146,6 +148,7 @@ export default function DeadpoolAdminPage() {
         <section>
           <AdminSeasonYearSetting
             seasonYear={seasonYear}
+            scheduledSeasonYear={scheduledSeasonYear}
             accessToken={accessToken}
             onChanged={handleSeasonYearChanged}
           />

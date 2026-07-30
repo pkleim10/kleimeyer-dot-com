@@ -1,5 +1,19 @@
 import '@testing-library/jest-dom'
 
+// jsdom omits two web globals that both real browsers and the Node server
+// runtime provide: crypto.subtle and TextEncoder/TextDecoder. Borrow Node's
+// implementations so tests exercise the exact same code path that ships,
+// rather than a second test-only implementation.
+if (!globalThis.crypto?.subtle) {
+  const { webcrypto } = require('node:crypto')
+  Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
+}
+if (typeof globalThis.TextEncoder === 'undefined') {
+  const { TextEncoder, TextDecoder } = require('node:util')
+  globalThis.TextEncoder = TextEncoder
+  globalThis.TextDecoder = TextDecoder
+}
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {

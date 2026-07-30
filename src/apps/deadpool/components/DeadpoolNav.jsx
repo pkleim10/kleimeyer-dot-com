@@ -1,10 +1,15 @@
 import Link from 'next/link'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
+import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
+import { areListsPublic } from '@/apps/deadpool/server/season'
 import DeadpoolNavLinks from './DeadpoolNavLinks.jsx'
 import SignOutButton from './SignOutButton.jsx'
 
 export default async function DeadpoolNav() {
   const participant = await getCurrentParticipant()
+  // Resolved here rather than in the links component, which is a Client
+  // Component and can't read the season itself.
+  const revealed = areListsPublic(await getSelectedSeasonYear())
 
   return (
     <nav className="sticky top-0 z-20 border-b border-zinc-800/80 bg-black/85 backdrop-blur-sm">
@@ -13,7 +18,7 @@ export default async function DeadpoolNav() {
           third, left-aligned line. */}
       <div className="mx-auto flex max-w-3xl items-start justify-between gap-x-6 px-4 py-3 text-sm">
         <div className="min-w-0 flex-1">
-          <DeadpoolNavLinks />
+          <DeadpoolNavLinks revealed={revealed} />
         </div>
         <div className="flex shrink-0 items-center gap-x-4">
           {participant ? (

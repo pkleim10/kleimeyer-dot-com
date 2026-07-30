@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '@/apps/deadpool/server/db'
 import { getParticipantFromRequest } from '@/apps/deadpool/server/session'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYearFromRequest } from '@/apps/deadpool/server/selectedSeason'
 
 export async function GET(request) {
   const participant = await getParticipantFromRequest(request)
@@ -14,7 +14,7 @@ export async function GET(request) {
     .from('deadpool_submissions')
     .select('id, name, note, status, created_at, reviewed_at')
     .eq('participant_id', participant.id)
-    .eq('season_year', await getActiveSeasonYear())
+    .eq('season_year', getSelectedSeasonYearFromRequest(request))
     .order('created_at', { ascending: false })
 
   if (error) {

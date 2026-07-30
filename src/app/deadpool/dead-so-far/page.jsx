@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getHitsWithPickers } from '@/apps/deadpool/server/scoring'
 import { getServiceClient } from '@/apps/deadpool/server/db'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
 import DeadSoFarRecap from '@/apps/deadpool/components/DeadSoFarRecap'
 import { PageHeader } from '@/apps/deadpool/components/ui'
@@ -29,7 +29,7 @@ export default async function DeadSoFarPage() {
     redirect('/deadpool/signin')
   }
 
-  const seasonYear = await getActiveSeasonYear()
+  const seasonYear = await getSelectedSeasonYear()
   const [hits, totalPicks] = await Promise.all([
     getHitsWithPickers(seasonYear),
     countTotalPicks(seasonYear),

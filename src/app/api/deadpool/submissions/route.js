@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServiceClient } from '@/apps/deadpool/server/db'
 import { getParticipantFromRequest } from '@/apps/deadpool/server/session'
 import { validateSubmission } from '@/apps/deadpool/server/validation'
-import { getActiveSeasonYear } from '@/apps/deadpool/server/settings'
+import { getSelectedSeasonYearFromRequest } from '@/apps/deadpool/server/selectedSeason'
 
 export async function POST(request) {
   const participant = await getParticipantFromRequest(request)
@@ -27,7 +27,7 @@ export async function POST(request) {
     .from('deadpool_submissions')
     .insert({
       participant_id: participant.id,
-      season_year: await getActiveSeasonYear(),
+      season_year: getSelectedSeasonYearFromRequest(request),
       name: result.name,
       note: result.note,
     })
