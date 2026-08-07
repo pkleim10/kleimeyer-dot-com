@@ -9,12 +9,18 @@ import { usePathname } from 'next/navigation'
 // report. Hiding them keeps the pre-season nav to what's actionable.
 //
 // `beforeUnseal` / `afterUnseal` track the player's own reveal: until they
-// paste their list, My Picks and Sealed Lists stay available and Everyone's
-// Lists stays hidden so they can't browse peers before committing.
+// paste their list, My Picks stays available and Everyone's Lists stays hidden
+// so they can't browse peers before committing.
+//
+// Sealed Lists is deliberately NOT gated either way. It was `beforeUnseal`,
+// which dropped it from the nav the moment a player revealed — precisely when
+// its Verified column becomes populated and the fingerprints can finally be
+// checked against the published lists. Public witnessing matters most after the
+// reveal, so this link stays up all season.
 const LINKS = [
   { href: '/deadpool/rules', label: 'Rules' },
   { href: '/deadpool/picks', label: 'My Picks', beforeUnseal: true },
-  { href: '/deadpool/seals', label: 'Sealed Lists', beforeUnseal: true },
+  { href: '/deadpool/seals', label: 'Sealed Lists' },
   { href: '/deadpool/announcements', label: 'Announcements' },
   { href: '/deadpool/lists', label: "Everyone's Lists", afterReveal: true, afterUnseal: true },
   { href: '/deadpool/leaderboard', label: 'Leaderboard', afterReveal: true },

@@ -45,22 +45,28 @@ export default async function RulesPage() {
             <SectionTitle className="mb-4">How to enter — the three steps</SectionTitle>
             <div className="mb-5 space-y-3 text-sm leading-relaxed text-gray-300">
               <p>
-                Dead Pool lists should stay secret until they can be revealed to every player at the
-                same time. That stops anyone from peeking at other players&apos; lists before January
-                1 — and from copying picks for the{' '}
+                Your Dead Pool list should stay secret until after the official start of the Dead
+                Pool on January 1, so that no player is influenced by another&apos;s list — including
+                the picks that earn a{' '}
                 <a href="#scoring" className="text-red-500 underline hover:text-red-400">
                   uniqueness bonus
                 </a>
-                . To keep that fair, the site uses a silent-bid process: think of it like sealing a
-                letter. You write your list at home. Before the season starts you leave a wax seal on
-                the site — proof you locked your list in, without showing anyone what&apos;s inside.
-                Even The Commissioner cannot see anyone&apos;s lists before the other players can.
+                .
               </p>
               <p>
-                After January 1 you open the letter: paste the same list again. The site checks it
-                against your seal on the{' '}
-                <span className="font-semibold text-white">Sealed Lists</span> page. If it matches,
-                you&apos;re in.
+                We therefore use a{' '}
+                <span className="font-semibold text-white">silent-bid</span> submission process that
+                requires you to submit your list twice — once before the deadline, and once after
+                the season starts. The first submission does not reveal your list to the other
+                players, or even to The Commissioner; it takes only a{' '}
+                <span className="font-semibold text-white">fingerprint</span>, which must match the
+                fingerprint of your second submission. That proves you had your list before the
+                deadline, and that the list you posted afterwards is the{' '}
+                <span className="font-semibold text-white">same list</span>.
+              </p>
+              <p>
+                Not nearly as complicated as it sounds. Just follow these three steps and your
+                submission will be complete and secure.
               </p>
             </div>
             <ol className="space-y-5">
@@ -70,10 +76,13 @@ export default async function RulesPage() {
                   predict will die during the season. Keep it in your own file — a note, a document,
                   a scrap of paper — together with a{' '}
                   <span className="font-semibold text-white">secret word</span> you make up.
+                  Choose something dull: once you submit in January, that word is stored and visible
+                  to other players so they can check your fingerprint for themselves. Don&apos;t use a
+                  password or anything you wouldn&apos;t want posted next to your team name.
                 </p>
                 <p>
-                  The site will never store this list for you before the {seasonYear} season starts, so keep
-                  it somewhere you won&apos;t lose it.
+                  The site never even sees your actual list before January 1, so it cannot share it
+                  with you or anyone else. Keep it somewhere you won&apos;t lose it.
                 </p>
               </Step>
 
@@ -105,8 +114,9 @@ export default async function RulesPage() {
                     You must come back after the season opens and paste the same list and secret word
                     again.
                   </span>{' '}
-                  They&apos;re checked against the fingerprint you sealed. If they match, your list is
-                  entered and becomes public.
+                  They&apos;re checked against the fingerprint you sealed. If they match, your list
+                  is entered and becomes public — along with your secret word, so others can verify
+                  the seal.
                 </p>
                 <p>
                   This step is not optional. A sealed fingerprint on its own is{' '}
@@ -116,20 +126,7 @@ export default async function RulesPage() {
                 </p>
               </Step>
             </ol>
-            <p className="mt-5 text-sm leading-relaxed text-gray-400">
-              It sounds a little more complicated than it is. Don&apos;t worry — follow the three steps
-              and you&apos;ll be fine.
-            </p>
           </Panel>
-
-          <Rule title="The Kobayashi Maru">
-            <p>
-              The Flaming Red Head stands behind the silent-bid seal and calls it unbeatable. You are
-              welcome to prove him wrong — peek, forge, tamper, or break it any way you like. There is
-              no penalty for trying. That is how sure he is that you will fail. He laughs in Hell at
-              your pathetic attempts.
-            </p>
-          </Rule>
 
           <Rule title="Season">
             <p>
@@ -201,6 +198,15 @@ export default async function RulesPage() {
               </a>
               , before midnight Mountain Standard Time on January 5, {nextYear}. Announcement of the winner
               may be postponed while a dispute is being investigated.
+            </p>
+          </Rule>
+
+          <Rule title="The Kobayashi Maru">
+            <p>
+              The Flaming Red Head stands behind the silent-bid seal and declares it unbeatable. You are
+              welcome to prove him wrong — peek, forge, tamper, or break it any way you like. There is
+              no penalty for trying. That&apos;s how sure the Flaming Red Head is that you will fail.
+              He laughs in Hell at your pathetic attempts.
             </p>
           </Rule>
         </div>

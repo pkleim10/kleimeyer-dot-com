@@ -3,6 +3,7 @@ import { getCurrentParticipant } from '@/apps/deadpool/server/session'
 import { getPicksForParticipant } from '@/apps/deadpool/server/picks'
 import { getAllListsAnnotated } from '@/apps/deadpool/server/scoring'
 import { areListsPublic } from '@/apps/deadpool/server/season'
+import { getSeals } from '@/apps/deadpool/server/seals'
 import { getSelectedSeasonYear } from '@/apps/deadpool/server/selectedSeason'
 import DeadpoolNav from '@/apps/deadpool/components/DeadpoolNav'
 import AllListsView from '@/apps/deadpool/components/AllListsView'
@@ -34,6 +35,13 @@ export default async function ListsPage() {
     ? lists
     : lists.filter((entry) => entry.participantId === participant.id)
 
+  // The sealed fingerprint per team, shown beside the name so a player can
+  // cross-check it against the Sealed Lists page without leaving this one.
+  const seals = await getSeals(seasonYear)
+  const fingerprints = Object.fromEntries(
+    seals.map((seal) => [seal.participantId, seal.fingerprint])
+  )
+
   return (
     <div className="min-h-screen bg-black text-gray-100">
       <DeadpoolNav />
@@ -42,7 +50,11 @@ export default async function ListsPage() {
           title="Everyone's Lists"
           subtitle={`Every team's picks for the ${seasonYear} season.`}
         />
-        <AllListsView lists={visibleLists} seasonStarted={seasonStarted} />
+        <AllListsView
+          lists={visibleLists}
+          seasonStarted={seasonStarted}
+          fingerprints={fingerprints}
+        />
       </div>
     </div>
   )

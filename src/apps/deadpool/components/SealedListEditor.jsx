@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Panel, SectionTitle, inputClass, labelClass, primaryButtonClass } from './ui.jsx'
 import { fingerprintPastedList, shortFingerprint } from '@/apps/deadpool/shared/sealedList'
 import { validatePickList, MAX_PICKS } from '@/apps/deadpool/server/validation'
@@ -9,6 +10,7 @@ import { validatePickList, MAX_PICKS } from '@/apps/deadpool/server/validation'
 // the browser and posts only the fingerprint. After the lock it sends the
 // plaintext once, to be verified against that fingerprint.
 export default function SealedListEditor({ seasonYear, canSeal, initialSeal, revealed }) {
+  const router = useRouter()
   const [listText, setListText] = useState('')
   const [secret, setSecret] = useState('')
   const [parsed, setParsed] = useState({ names: [], fingerprint: '' })
@@ -77,6 +79,11 @@ export default function SealedListEditor({ seasonYear, canSeal, initialSeal, rev
         type: 'success',
         message: `Revealed — ${data.picks.length} picks are now public and locked.`,
       })
+      // Revealing changes state the SERVER renders: the nav gains Everyone's
+      // Lists (DeadpoolNav computes that from the session), this page gains the
+      // revealed-list panel, and the editor flips to its opened state. Without
+      // this the player has to reload before any of it appears.
+      router.refresh()
     } catch {
       setStatus({ type: 'error', message: 'Failed to reveal' })
     } finally {
@@ -159,8 +166,9 @@ export default function SealedListEditor({ seasonYear, canSeal, initialSeal, rev
             className={inputClass}
           />
           <p className="mt-1.5 text-xs text-zinc-600">
-            Keep this with your list. Without it nobody — including you — can prove which list you
-            sealed.
+            Keep this with your list. After you reveal, this word is stored and shown to other players
+            so they can verify your seal — pick something dull, not a password or anything
+            embarrassing.
           </p>
         </div>
 
