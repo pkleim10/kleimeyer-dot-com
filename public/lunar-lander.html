@@ -159,14 +159,18 @@
         const rotationRate = ROTATION_RATE;
 
         // Approach zoom: wide view is a fixed camera (ship moves, terrain does not
-        // scroll). Below ZOOM_START altitude we scale about a locked world point
-        // so the landscape stays put and the ship drifts within the close-up.
-        const ZOOM_START_ALT_HUD = 280;   // still wide at ~350 (arcade stills)
+        // scroll). Below ZOOM_START altitude we scale about a locked world X so the
+        // landscape stays put and the ship drifts within the close-up.
+        const ZOOM_START_ALT_HUD = 280;   // engage zoom below this altitude
+        const ZOOM_END_ALT_HUD = 340;     // hysteresis: fully disengage only above this
         const ZOOM_MAX = 3.8;
         let viewZoom = 1;
         let zoomAnchorX = 0;
-        let zoomAnchorY = 0;
         let zoomAnchored = false;
+        let zoomWanted = false;          // hysteresis latch for altitude engage/disengage
+        let zoomTargetSmooth = 1;        // low-passed target to avoid terrain flicker
+        let prevLanderX = 0;             // detect world wrap while zoomed
+
 
         // Landing thresholds (displayed HUD speeds). Manual crash cutoffs: V>15 or H>31.
         // Great/good are stricter scoring bands under that ceiling.
@@ -426,6 +430,8 @@
             messageTimer = 0;
             viewZoom = 1;
             zoomAnchored = false;
+            zoomWanted = false;
+            zoomTargetSmooth = 1;
             clearHeldKeys();
             impactSpeeds = null;
             // Esc abandons the run without HIGH SCORES entry
@@ -610,6 +616,9 @@
             lander.thrusting = false;
             viewZoom = 1;
             zoomAnchored = false;
+            zoomWanted = false;
+            zoomTargetSmooth = 1;
+            prevLanderX = lander.x;
             paused = false;
             pauseStartedAt = 0;
             impactSpeeds = null;
@@ -625,32 +634,67 @@
         }
 
         function targetZoom() {
-            if (gameState === 'attract') return 1;
+            if (gameState === 'attract' || gameState === 'initials') return 1;
             const alt = altitudeHud();
-            if (alt >= ZOOM_START_ALT_HUD) return 1;
-            const t = 1 - alt / ZOOM_START_ALT_HUD;
-            // Ease-in: mostly wide until close, then tightens quickly
+
+            // Hysteresis: engage below START, stay engaged until above END.
+            // Prevents rapid in/out when altitude hovers near the threshold.
+            if (!zoomWanted) {
+                if (alt >= ZOOM_START_ALT_HUD) return 1;
+                zoomWanted = true;
+            } else if (alt >= ZOOM_END_ALT_HUD) {
+                zoomWanted = false;
+                return 1;
+            }
+
+            const t = 1 - Math.min(1, Math.max(0, alt / ZOOM_START_ALT_HUD));
+            // Ease-in: mostly wide until close, then tightens
             const eased = t * t;
             let z = 1 + (ZOOM_MAX - 1) * eased;
-            // Don't zoom so tight that ship + pad can't fit on screen
-            const span = Math.max(36, getTerrainHeight(lander.x) - lander.y + 24);
-            const maxFit = (H * 0.7) / span;
-            return Math.min(z, Math.max(1.15, maxFit));
+
+            // Vertical fit: never zoom past what keeps ship + surface on screen
+            const topMargin = 100;
+            const bottomMargin = 40;
+            const span = Math.max(40, altitudePx() + landerFootDepth() + 48);
+            const maxFitY = (H - topMargin - bottomMargin) / span;
+            z = Math.min(z, Math.max(1, maxFitY));
+
+            // Horizontal fit: fixed X-anchor — ship must stay in frame as it drifts
+            if (zoomAnchored) {
+                const distX = Math.abs(lander.x - zoomAnchorX);
+                const sideMargin = 36;
+                const maxFitX = (W / 2 - sideMargin) / Math.max(8, distX + landerHalfWidth());
+                z = Math.min(z, Math.max(1, maxFitX));
+            }
+
+            return z;
         }
 
         function updateZoom(f) {
+            // World wrap (0↔W) would put the ship a full width from the anchor
+            if (zoomAnchored && Math.abs(lander.x - prevLanderX) > W * 0.5) {
+                zoomAnchorX = lander.x;
+            }
+            prevLanderX = lander.x;
+
             const tz = targetZoom();
-            // Lock only horizontal anchor — no landscape H-scroll.
-            // Vertical framing is recomputed each draw so the pad stays on-screen.
-            if (tz > 1.02 && !zoomAnchored) {
+            // Low-pass the target so jagged terrain altitude spikes don't pump zoom
+            const kTarget = 1 - Math.pow(0.85, f == null ? 1 : f);
+            zoomTargetSmooth += (tz - zoomTargetSmooth) * kTarget;
+
+            // Lock horizontal anchor when we first leave 1× (landscape stays put)
+            if (zoomTargetSmooth > 1.02 && !zoomAnchored) {
                 zoomAnchorX = lander.x;
                 zoomAnchored = true;
             }
-            if (tz <= 1 && viewZoom < 1.05) {
+            // Only drop the anchor once fully zoomed out (no transform cliff)
+            if (zoomTargetSmooth <= 1.001 && viewZoom <= 1.001) {
                 zoomAnchored = false;
             }
+
             const k = 1 - Math.pow(0.9, f == null ? 1 : f);
-            viewZoom += (tz - viewZoom) * k;
+            viewZoom += (zoomTargetSmooth - viewZoom) * k;
+            if (viewZoom < 1.001) viewZoom = 1;
         }
 
         function beginNextRound() {
@@ -1191,32 +1235,35 @@
         }
 
         function worldCameraTransform() {
-            if (viewZoom <= 1.02 || !zoomAnchored) return '';
+            // Stay in zoomed transform for any zoom > 1 while anchored — no 1.02 snap cliff
+            if (viewZoom <= 1.001 || !zoomAnchored) return '';
             const z = viewZoom;
             const ax = zoomAnchorX;
             const shipY = lander.y;
             const groundY = getTerrainHeight(lander.x);
-            // Focus between ship and surface so both stay in frame
-            const focusY = shipY * 0.45 + groundY * 0.55;
 
-            // Prefer ship in upper-middle; pull up if pad would fall off the bottom
-            const topMargin = 110;
-            const bottomMargin = 36;
-            let screenFocusY = H * 0.40;
+            // Fit ship→surface into the viewport with fixed margins (single pass, no fighting clamps)
+            const topMargin = 100;
+            const bottomMargin = 40;
+            const worldSpan = Math.max(1, groundY - shipY);
+            const screenSpan = z * worldSpan;
+            const available = H - topMargin - bottomMargin;
 
-            let screenGround = screenFocusY + z * (groundY - focusY);
-            if (screenGround > H - bottomMargin) {
-                screenFocusY -= screenGround - (H - bottomMargin);
+            // Prefer ship near topMargin; if surface would clip, shift the pair up together
+            let screenShip = topMargin;
+            if (screenSpan <= available) {
+                // Extra room: bias slightly toward upper-middle so HUD doesn't crowd the ship
+                const slack = available - screenSpan;
+                screenShip = topMargin + slack * 0.15;
+            } else {
+                // Over-zoom residual (shouldn't be common after maxFitY): keep surface on-screen
+                screenShip = (H - bottomMargin) - screenSpan;
             }
-            let screenShip = screenFocusY + z * (shipY - focusY);
-            if (screenShip < topMargin) {
-                screenFocusY += topMargin - screenShip;
-            }
-            // Prefer keeping the pad visible if both clamps fight
-            screenGround = screenFocusY + z * (groundY - focusY);
-            if (screenGround > H - bottomMargin) {
-                screenFocusY -= screenGround - (H - bottomMargin);
-            }
+
+            // Derive focus / screenFocus from desired ship screen Y
+            // screenY = screenFocusY + z * (worldY - focusY)
+            const focusY = shipY * 0.4 + groundY * 0.6;
+            const screenFocusY = screenShip - z * (shipY - focusY);
 
             return `translate(${ax} ${screenFocusY}) scale(${z}) translate(${-ax} ${-focusY})`;
         }
