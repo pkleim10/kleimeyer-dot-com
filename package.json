@@ -1,6 +1,6 @@
 {
   "name": "kleimeyer-dot-com",
-  "version": "1.50.1",
+  "version": "1.50.2",
   "private": true,
   "engines": {
     "node": ">=20"
