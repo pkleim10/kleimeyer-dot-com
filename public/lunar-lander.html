@@ -191,6 +191,50 @@
         const HARD_POINTS = 15;          // manual ~15 (× pad multiplier)
         const BASE_LAND_POINTS = 50;     // manual ~50 for good/great (× pad multiplier)
 
+        // End-of-round copy (slash in source notes = new line; blank = empty line)
+        const SAFE_LAND_MSGS = [
+            ['CONGRATULATIONS', 'THE COLUMBIA HAS LANDED'],
+            ['CONGRATULATIONS', 'THE EAGLE HAS LANDED'],
+            ['CONGRATULATIONS', 'YOU HAVE LANDED'],
+            ['CONGRATULATIONS', 'THAT WAS A GREAT LANDING']
+        ];
+        const HARD_LAND_MSGS = [
+            ['YOU LANDED HARD', 'YOU ARE HOPELESSLY MAROONED'],
+            ['YOU LANDED HARD', 'YOUR TRIP IS ONE WAY']
+        ];
+        // ### → fuel units lost at crash time
+        const CRASH_MSGS = [
+            [
+                'AUXILIARY FUEL TANKS DESTROYED',
+                '### FUEL UNITS LOST',
+                '',
+                'YOU JUST DESTROYED A 100 MEGABUCK LANDER'
+            ],
+            [
+                'AUXILIARY FUEL TANKS DESTROYED',
+                '### FUEL UNITS LOST',
+                '',
+                'YOU CREATED A TWO MILE CRATER'
+            ],
+            [
+                'AUXILIARY FUEL TANKS DESTROYED',
+                '### FUEL UNITS LOST',
+                '',
+                'DESTROYED'
+            ]
+        ];
+
+        function pickMessage(pool) {
+            return pool[Math.floor(Math.random() * pool.length)].slice();
+        }
+
+        function crashMessageLines(fuelLost) {
+            if (fuelLost <= 0) return ['DESTROYED'];
+            return pickMessage(CRASH_MSGS).map((line) =>
+                line.replace('###', String(fuelLost))
+            );
+        }
+
         const terrain = [];
         const landingPads = [];
 
@@ -877,11 +921,7 @@
                 lander.vx = 0;
                 lander.vy = 0;
                 lander.rotation = 0;
-                showMessage([
-                    'CONGRATULATIONS',
-                    'THAT WAS A GREAT LANDING',
-                    pts + ' POINTS'
-                ], 200);
+                showMessage(pickMessage(SAFE_LAND_MSGS).concat(pts + ' POINTS'), 200);
                 return;
             }
 
@@ -892,11 +932,7 @@
                 lander.vx = 0;
                 lander.vy = 0;
                 lander.rotation = 0;
-                showMessage([
-                    'CONGRATULATIONS',
-                    'YOU HAVE LANDED',
-                    pts + ' POINTS'
-                ], 200);
+                showMessage(pickMessage(SAFE_LAND_MSGS).concat(pts + ' POINTS'), 200);
                 return;
             }
 
@@ -905,11 +941,7 @@
                 score += pts;
                 lander.vx = 0;
                 lander.vy = 0;
-                showMessage([
-                    'YOU LANDED HARD',
-                    'YOU ARE HOPELESSLY MAROONED',
-                    pts + ' POINTS'
-                ], 200);
+                showMessage(pickMessage(HARD_LAND_MSGS).concat(pts + ' POINTS'), 200);
                 return;
             }
 
@@ -920,12 +952,7 @@
             lander.fuel = 0;
             lander.vx = 0;
             lander.vy = 0;
-            showMessage([
-                'AUXILIARY FUEL TANKS DESTROYED',
-                lost + ' FUEL UNITS LOST',
-                'THERE WERE NO SURVIVORS',
-                CRASH_POINTS + ' POINTS'
-            ], 220);
+            showMessage(crashMessageLines(lost).concat(CRASH_POINTS + ' POINTS'), 220);
         }
 
 
@@ -1044,6 +1071,9 @@
             return Math.max(0, now - startTime);
         }
 
+        // Dev/debug HUD: center precision timer + impact H/V — only with ?extra=on
+        const showExtraHud = new URLSearchParams(location.search).get('extra') === 'on';
+
         function drawHudVectors() {
             svgClear(el.hudVectors);
             const s = 1.55;
@@ -1068,16 +1098,18 @@
             drawVectorText(el.hudVectors, fuelDisp, valueCol, y0 + dy * 2, s);
             svgClear(el.landerIcon); // no duplicate craft on the playfield
 
-            // Center: precise count-up for physics timing (hundredths; freezes when paused)
-            const em = elapsedMs();
-            const centis = Math.floor(em / 10); // total hundredths of a second
-            const whole = Math.floor(centis / 100);
-            const frac = (centis % 100).toString().padStart(2, '0');
-            const timerStr = whole + '.' + frac;
-            drawVectorText(el.hudVectors, timerStr, W / 2, y0, s, { align: 'center' });
-            if (impactSpeeds) {
-                const crashStr = 'H ' + impactSpeeds.h + '  V ' + impactSpeeds.v;
-                drawVectorText(el.hudVectors, crashStr, W / 2, y0 + dy, s, { align: 'center' });
+            if (showExtraHud) {
+                // Center: precise count-up for physics timing (hundredths; freezes when paused)
+                const em = elapsedMs();
+                const centis = Math.floor(em / 10); // total hundredths of a second
+                const whole = Math.floor(centis / 100);
+                const frac = (centis % 100).toString().padStart(2, '0');
+                const timerStr = whole + '.' + frac;
+                drawVectorText(el.hudVectors, timerStr, W / 2, y0, s, { align: 'center' });
+                if (impactSpeeds) {
+                    const crashStr = 'H ' + impactSpeeds.h + '  V ' + impactSpeeds.v;
+                    drawVectorText(el.hudVectors, crashStr, W / 2, y0 + dy, s, { align: 'center' });
+                }
             }
 
             // Right: labels left-aligned; numbers right-aligned; arrow after number
@@ -1419,8 +1451,8 @@
                 el.debrisLayer.setAttribute('display', 'none');
                 const showShip = gameState === 'playing' ||
                     (gameState === 'message' && messageLines[0] &&
-                        !messageLines[0].includes('SURVIVORS') &&
-                        !messageLines[0].includes('AUXILIARY'));
+                        !messageLines[0].includes('AUXILIARY') &&
+                        messageLines[0] !== 'DESTROYED');
                 if (showShip) {
                     el.landerG.setAttribute('display', 'inline');
                     el.landerG.setAttribute(
@@ -1445,25 +1477,13 @@
             if (paused) {
                 svgClear(el.messages);
                 el.messages.setAttribute('display', 'inline');
-                const t = svgEl('text', {
-                    x: W / 2, y: 200,
-                    'text-anchor': 'middle',
-                    fill: '#ddd',
-                    'font-family': 'Courier New, monospace',
-                    'font-size': '28'
-                });
-                t.textContent = 'PAUSED';
-                el.messages.appendChild(t);
-                const t2 = svgEl('text', {
-                    x: W / 2, y: 236,
-                    'text-anchor': 'middle',
-                    fill: '#ddd',
-                    'font-family': 'Courier New, monospace',
-                    'font-size': '14',
-                    'fill-opacity': '0.7'
-                });
-                t2.textContent = 'SPACE CONTINUE    ESC MENU';
-                el.messages.appendChild(t2);
+                // y is glyph top for drawVectorText (not text baseline)
+                drawVectorText(el.messages, 'PAUSED', W / 2, 188, 2.8, { align: 'center' });
+                drawVectorText(
+                    el.messages,
+                    'SPACE CONTINUE    ESC MENU',
+                    W / 2, 236, 1.15, { align: 'center' }
+                );
             } else if (gameState === 'message' && messageLines.length) {
                 svgClear(el.messages);
                 el.messages.setAttribute('display', 'inline');
