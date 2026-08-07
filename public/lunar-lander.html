@@ -116,6 +116,19 @@
         let entryBlink = 0;
         let entrySubmitting = false;
 
+        // Attract-mode demo flight (AI pilot on the live playfield)
+        const demo = {
+            active: false,
+            phase: 'fly', // fly | wait
+            waitTimer: 0,
+            targetPad: null,
+            skill: 0.7,   // 0..1 — lower → messier flying / more crashes
+            style: 'land', // 'land' | 'crash'
+            // Thrust pulse: coast most of the time, short burns when needed
+            burnLeft: 0,
+            coastLeft: 0
+        };
+
         // Gear / silhouette in local units (× lander.size/10). Sized to fit pads
         // when small, but drawn a bit larger for readability when zoomed.
         const lander = {
@@ -481,6 +494,7 @@
             // Esc abandons the run without HIGH SCORES entry
             score = 0;
             gameState = 'attract';
+            startDemoFlight();
         }
 
         function qualifiesForTopScores(s) {
@@ -490,6 +504,7 @@
         }
 
         function startInitialsEntry() {
+            stopDemo();
             entryInitials = ['A', 'A', 'A'];
             entryIndex = 0;
             entryBlink = 0;
@@ -532,6 +547,7 @@
             score = 0;
             entrySubmitting = false;
             gameState = 'attract';
+            startDemoFlight();
         }
 
         function cycleEntryLetter(dir) {
@@ -551,10 +567,12 @@
 
         function maybeEnterTopScoresOrAttract() {
             if (qualifiesForTopScores(score)) {
+                stopDemo();
                 startInitialsEntry();
             } else {
                 score = 0;
                 gameState = 'attract';
+                startDemoFlight();
             }
         }
 
@@ -582,6 +600,7 @@
                 if (e.key === 'Escape') {
                     score = 0;
                     gameState = 'attract';
+                    startDemoFlight();
                     return;
                 }
                 if (entrySubmitting) return;
@@ -635,14 +654,207 @@
         }
 
         function insertCoin() {
-            lander.fuel += FUEL_PER_COIN;
             if (gameState === 'attract') {
-                score = score; // keep score if continuing
+                // Fresh run — don't carry over demo's infinite fuel (9999)
+                stopDemo();
+                lander.fuel = FUEL_PER_COIN;
                 beginFlight(true);
+            } else {
+                lander.fuel += FUEL_PER_COIN;
             }
         }
 
+        function stopDemo() {
+            demo.active = false;
+            demo.phase = 'fly';
+            demo.waitTimer = 0;
+            demo.targetPad = null;
+        }
+
+        function startDemoFlight() {
+            if (gameState !== 'attract') return;
+            generateTerrain();
+            regenStars();
+            debris = [];
+            messageLines = [];
+            impactSpeeds = null;
+            lander.x = 28;
+            lander.y = getTerrainHeight(lander.x) - landerFootDepth() - (SPAWN_ALT_HUD / ALT_SCALE);
+            if (lander.y < 78) lander.y = 78;
+            lander.vx = SPAWN_HSPEED_HUD / SPEED_SCALE;
+            lander.vy = SPAWN_VSPEED_HUD / SPEED_SCALE;
+            lander.rotation = -Math.PI / 2;
+            lander.thrusting = false;
+            lander.fuel = 9999; // demo does not burn out
+            viewZoom = 1;
+            zoomAnchored = false;
+            zoomWanted = false;
+            zoomTargetSmooth = 1;
+            prevLanderX = lander.x;
+            demo.active = true;
+            demo.phase = 'fly';
+            demo.waitTimer = 0;
+            demo.skill = 0.4 + Math.random() * 0.55;
+            demo.style = Math.random() < 0.3 ? 'crash' : 'land';
+            demo.burnLeft = 0;
+            demo.coastLeft = 40 + Math.random() * 80; // start in freefall
+            demo.targetPad = landingPads.length
+                ? landingPads[Math.floor(Math.random() * landingPads.length)]
+                : null;
+        }
+
+        /** Attract AI: tip / thrust toward a pad; skill/style decide success vs wreck. */
+        function demoPilot() {
+            const pad = demo.targetPad;
+            if (!pad) return { thrust: false, left: false, right: false };
+
+            const padCx = (pad.x1 + pad.x2) / 2;
+            const dx = padCx - lander.x;
+            const alt = altitudeHud();
+            const hHud = lander.vx * SPEED_SCALE;
+            const vHud = lander.vy * SPEED_SCALE;
+            const skill = demo.style === 'crash' ? demo.skill * 0.45 : demo.skill;
+
+            // Desired horizontal speed toward the pad; kill H when close
+            let wantH = Math.max(-140, Math.min(140, dx * 0.4));
+            if (Math.abs(dx) < 50) wantH *= 0.35;
+            if (Math.abs(dx) < 18) wantH = 0;
+            wantH += (1 - skill) * (Math.random() - 0.5) * 50;
+
+            const errH = wantH - hHud;
+            // Tip so thrust accelerates toward errH (sin(rot) > 0 → +vx)
+            let wantRot = Math.max(-1.0, Math.min(1.0, errH * 0.009));
+            if (alt < 90 && Math.abs(dx) < 35) wantRot *= 0.25;
+            if (alt < 45 && Math.abs(dx) < 22) wantRot = 0;
+            // Crash style: stay tipped / late corrections
+            if (demo.style === 'crash' && alt > 60) {
+                wantRot += (Math.random() - 0.5) * 0.5;
+            }
+
+            const rot = normalizeAngle(lander.rotation);
+            const rotErr = normalizeAngle(wantRot - rot);
+            let left = false;
+            let right = false;
+            if (rotErr > 0.07) right = true;
+            else if (rotErr < -0.07) left = true;
+
+            // --- Thrust: prefer freefall; only burn when needed, in short pulses ---
+            // High alt: allow fast descent. Mid: moderate. Final approach: careful.
+            let maxV;
+            if (alt > 900) maxV = 90 + skill * 40;
+            else if (alt > 400) maxV = 45 + skill * 25;
+            else if (alt > 150) maxV = 22 + skill * 14;
+            else maxV = 6 + skill * 8;
+
+            const needBrake = vHud > maxV;
+            const needH =
+                Math.abs(errH) > 45 &&
+                Math.abs(rotErr) < 0.4 &&
+                Math.sign(Math.sin(rot) || rot) === Math.sign(errH) &&
+                alt < 700;
+            const needLand =
+                alt < 70 && Math.abs(dx) < 32 && Math.abs(hHud) < 32 && vHud > 3;
+
+            const wantBurn = needBrake || needH || needLand;
+
+            // Advance pulse timers (called once per physics frame via updateDemo)
+            if (demo.burnLeft > 0) {
+                demo.burnLeft -= 1;
+                if (demo.burnLeft <= 0) {
+                    // After a burn, coast longer at high alt
+                    const coast =
+                        alt > 500 ? 50 + Math.random() * 90 :
+                        alt > 150 ? 28 + Math.random() * 50 :
+                        10 + Math.random() * 22;
+                    demo.coastLeft = coast * (demo.style === 'crash' ? 1.35 : 1);
+                }
+            } else if (demo.coastLeft > 0) {
+                demo.coastLeft -= 1;
+            }
+
+            let thrust = false;
+            if (wantBurn) {
+                if (demo.burnLeft > 0) {
+                    thrust = true;
+                } else if (demo.coastLeft <= 0) {
+                    // Start a short burn pulse (landing burns a bit longer)
+                    const pulse =
+                        needLand ? 18 + Math.random() * 16 :
+                        needBrake ? 12 + Math.random() * 18 :
+                        8 + Math.random() * 12;
+                    demo.burnLeft = pulse;
+                    thrust = true;
+                }
+                // else: still coasting — freefall even if velocities are high
+            }
+
+            // Emergency: don't freefall into the ground while coasting
+            if (alt < 100 && vHud > 18) thrust = true;
+            if (alt < 40 && vHud > 5) thrust = true;
+
+            // Crash-style: drop thrust near the surface
+            if (demo.style === 'crash' && alt < 120 && Math.random() < 0.03) {
+                thrust = false;
+                demo.burnLeft = 0;
+                demo.coastLeft = 20 + Math.random() * 40;
+            }
+
+            return { thrust, left, right };
+        }
+
+        function finishDemoTouchdown(crashed) {
+            lander.thrusting = false;
+            if (crashed) {
+                spawnExplosion();
+            } else {
+                lander.vx = 0;
+                lander.vy = 0;
+                lander.rotation = 0;
+            }
+            demo.phase = 'wait';
+            demo.waitTimer = crashed ? 160 : 110;
+        }
+
+        function updateDemo(f) {
+            if (!demo.active) {
+                startDemoFlight();
+                return;
+            }
+            if (demo.phase === 'wait') {
+                updateDebris(f);
+                updateZoom(f);
+                demo.waitTimer -= f;
+                if (demo.waitTimer <= 0) startDemoFlight();
+                return;
+            }
+
+            const ctrl = demoPilot();
+            lander.thrusting = false;
+            if (ctrl.thrust) {
+                lander.vx += Math.sin(lander.rotation) * thrustPower * f;
+                lander.vy -= Math.cos(lander.rotation) * thrustPower * f;
+                lander.thrusting = true;
+            }
+            if (ctrl.left) applyRotation(-rotationRate * f);
+            if (ctrl.right) applyRotation(rotationRate * f);
+
+            lander.vy += gravity * f;
+            if (!lander.thrusting) {
+                const dtSec = f / 60;
+                lander.vx *= Math.exp(-DRAG_K_H * dtSec);
+                lander.vy *= Math.exp(-DRAG_K_V * dtSec);
+            }
+            lander.x += lander.vx * f;
+            lander.y += lander.vy * f;
+            if (lander.x < 0) lander.x = W;
+            if (lander.x > W) lander.x = 0;
+
+            updateZoom(f);
+            checkCollision({ demo: true });
+        }
+
         function beginFlight(freshSpawn) {
+            stopDemo();
             generateTerrain();
             regenStars();
             debris = [];
@@ -678,7 +890,12 @@
         }
 
         function targetZoom() {
-            if (gameState === 'attract' || gameState === 'initials') return 1;
+            if (gameState === 'initials') return 1;
+            // Attract demo uses the same altitude zoom as play; idle attract stays 1×
+            if (gameState === 'attract' && !(demo.active && demo.phase === 'fly')) return 1;
+            if (gameState !== 'playing' && gameState !== 'attract' && gameState !== 'message') {
+                return 1;
+            }
             const alt = altitudeHud();
 
             // Hysteresis: engage below START, stay engaged until above END.
@@ -822,7 +1039,12 @@
         // f = dt * 60: physics units are “per 1/60s tick” so rates match HUD/s at any FPS.
         function update(dt) {
             const f = Math.min(dt * 60, 3); // clamp after tab-switch hitches
-            if (gameState === 'attract' || gameState === 'initials' || paused) return;
+            if (gameState === 'initials' || paused) return;
+
+            if (gameState === 'attract') {
+                updateDemo(f);
+                return;
+            }
 
             if (gameState === 'message') {
                 updateDebris(f);
@@ -883,7 +1105,8 @@
             checkCollision();
         }
 
-        function checkCollision() {
+        function checkCollision(opts) {
+            const isDemo = !!(opts && opts.demo);
             const feetY = lander.y + landerFootDepth();
             const groundY = getTerrainHeight(lander.x);
             if (feetY < groundY) return;
@@ -914,7 +1137,16 @@
             lander.y = groundY - landerFootDepth();
             impactSpeeds = { h: Math.round(hHud), v: Math.round(vHud) };
 
-            if (onPad && upright < UPRIGHT_GREAT && vHud <= GREAT_V && hHud <= GREAT_H) {
+            const softOk = onPad && upright < UPRIGHT_GREAT && vHud <= GREAT_V && hHud <= GREAT_H;
+            const goodOk = onPad && upright < UPRIGHT_GOOD && vHud <= GOOD_V && hHud <= GOOD_H;
+            const hardOk = onPad && upright < UPRIGHT_HARD && vHud <= HARD_V && hHud <= HARD_H;
+
+            if (isDemo) {
+                finishDemoTouchdown(!(softOk || goodOk || hardOk));
+                return;
+            }
+
+            if (softOk) {
                 const pts = BASE_LAND_POINTS * multiplier;
                 score += pts;
                 lander.fuel += GREAT_FUEL_BONUS;
@@ -925,7 +1157,7 @@
                 return;
             }
 
-            if (onPad && upright < UPRIGHT_GOOD && vHud <= GOOD_V && hHud <= GOOD_H) {
+            if (goodOk) {
                 const pts = BASE_LAND_POINTS * multiplier;
                 score += pts;
                 lander.fuel += GREAT_FUEL_BONUS;
@@ -936,7 +1168,7 @@
                 return;
             }
 
-            if (onPad && upright < UPRIGHT_HARD && vHud <= HARD_V && hHud <= HARD_H) {
+            if (hardOk) {
                 const pts = HARD_POINTS * multiplier;
                 score += pts;
                 lander.vx = 0;
@@ -1300,25 +1532,34 @@
             return `translate(${ax} ${screenFocusY}) scale(${z}) translate(${-ax} ${-focusY})`;
         }
 
-        function drawHighScoresScreen(parent) {
+        function drawHighScoresScreen(parent, textOpts) {
             // Asteroids-style HIGH SCORES board; returns Y just below the list
-            const titleS = 1.85;
-            drawVectorText(parent, 'HIGH SCORES', W / 2, 36, titleS, { align: 'center' });
+            const o = textOpts || {};
+            const titleS = 1.85 * 1.15;
+            const title = 'HIGH SCORES';
+            drawVectorText(parent, title, W / 2, 32, titleS, {
+                align: 'center', ...o, sw: (o.sw || 1.15) + 0.25
+            });
 
-            const rowS = 1.25;
-            const rowDy = 18;
-            // Centered three-column block: rank | score | initials
-            const rankX = 230;
-            const scoreRight = 500;
-            const initX = 530;
+            const rowS = 1.25 * 1.15;
+            const rowDy = 18 * 1.15;
+            const charW = VFONT_CELL_W * rowS;
+            // Title bounds; initials share title right, "10" shares title left
+            const titleW = vfontWidth(title, titleS);
+            const titleLeft = W / 2 - titleW / 2;
+            const titleRight = W / 2 + titleW / 2;
+            const initX = titleRight - 3 * charW;
+            const scoreRight = initX - 1.2 * charW;
+            // Ranks right-aligned so ones digits line up; "10" left edge = title left
+            const rankRight = titleLeft + vfontWidth('10', rowS);
             let y = 72;
 
             if (!topScoresLoaded) {
-                drawVectorText(parent, 'LOADING', W / 2, y, rowS, { align: 'center' });
+                drawVectorText(parent, 'LOADING', W / 2, y, rowS, { align: 'center', ...o });
                 return y + rowDy + 8;
             }
             if (!topScores.length) {
-                drawVectorText(parent, 'NO SCORES YET', W / 2, y, rowS, { align: 'center' });
+                drawVectorText(parent, 'NO SCORES YET', W / 2, y, rowS, { align: 'center', ...o });
                 return y + rowDy + 8;
             }
 
@@ -1327,16 +1568,16 @@
                 const entry = rows[i];
                 const initials = String(entry.initials || 'AAA').toUpperCase().slice(0, 3);
                 const sc = Math.max(0, Math.floor(Number(entry.score) || 0));
-                drawVectorText(parent, (i + 1) + '.', rankX, y, rowS);
-                drawVectorText(parent, String(sc), scoreRight, y, rowS, { align: 'right' });
-                drawVectorText(parent, initials, initX, y, rowS);
+                drawVectorText(parent, String(i + 1), rankRight, y, rowS, { align: 'right', ...o });
+                drawVectorText(parent, String(sc), scoreRight, y, rowS, { align: 'right', ...o });
+                drawVectorText(parent, initials, initX, y, rowS, o);
                 y += rowDy;
             }
             return y + 16;
         }
 
         function setOverlayScreenMode(active) {
-            // Hide playfield for dedicated menu screens (Asteroids-style)
+            // Hide playfield for dedicated menu screens (e.g. initials entry)
             el.world.setAttribute('display', active ? 'none' : 'inline');
             el.hud.setAttribute('display', 'none');
             el.landerG.setAttribute('display', 'none');
@@ -1350,28 +1591,61 @@
             svgClear(el.attractVectors);
             el.attract.setAttribute('display', 'inline');
             el.initialsEntry.setAttribute('display', 'none');
-            setOverlayScreenMode(true);
+
+            // Dim playfield so leaderboard / instructions read clearly over the demo
+            el.world.setAttribute('display', 'inline');
+            el.world.setAttribute('opacity', '0.38');
+            el.hud.setAttribute('display', 'none');
+            el.messages.setAttribute('display', 'none');
+            el.lowFuel.setAttribute('display', 'none');
+            el.tip.setAttribute('display', 'none');
+            if (!landingPads.length) generateTerrain();
             svgClear(el.attractLander);
 
-            let y = drawHighScoresScreen(el.attractVectors);
+            if (debris.length) {
+                el.landerG.setAttribute('display', 'none');
+                el.debrisLayer.setAttribute('display', 'inline');
+                drawDebrisSvg();
+            } else if (demo.active) {
+                el.debrisLayer.setAttribute('display', 'none');
+                el.landerG.setAttribute('display', 'inline');
+                el.landerG.setAttribute(
+                    'transform',
+                    `translate(${lander.x} ${lander.y}) rotate(${lander.rotation * 180 / Math.PI})`
+                );
+                setLanderLines(el.landerG, lander.thrusting && demo.phase === 'fly');
+            } else {
+                el.landerG.setAttribute('display', 'none');
+                el.debrisLayer.setAttribute('display', 'none');
+            }
+
+            // Bright white vectors over the dimmed demo
+            const bright = { stroke: '#fff', sw: 1.55 };
+            let y = drawHighScoresScreen(el.attractVectors, bright);
 
             // Original attract copy under the board
-            drawVectorText(el.attractVectors, 'INSERT COINS', W / 2, y, 1.9, { align: 'center' });
+            drawVectorText(el.attractVectors, 'INSERT COINS', W / 2, y, 1.9, {
+                align: 'center', ...bright, sw: 1.8
+            });
             y += 28;
-            drawVectorText(el.attractVectors, '750 FUEL UNITS PER COIN', W / 2, y, 1.15, { align: 'center' });
+            drawVectorText(el.attractVectors, '750 FUEL UNITS PER COIN', W / 2, y, 1.15, {
+                align: 'center', ...bright
+            });
             y += 24;
-            drawVectorText(el.attractVectors, 'PRESS C TO INSERT COIN', W / 2, y, 1.15, { align: 'center' });
+            drawVectorText(el.attractVectors, 'PRESS C TO INSERT COIN', W / 2, y, 1.15, {
+                align: 'center', ...bright
+            });
             y += 32;
             drawVectorText(
                 el.attractVectors,
                 '↑/W THRUST   ←→/A D ROTATE',
-                W / 2, y, 1.0, { align: 'center' }
+                W / 2, y, 1.0, { align: 'center', ...bright, sw: 1.4 }
             );
             y += 20;
             drawVectorText(
                 el.attractVectors,
                 'SPACE PAUSE   ESC MENU   C COIN   F FULL SCREEN',
-                W / 2, y, 1.0, { align: 'center' }
+                W / 2, y, 1.0, { align: 'center', ...bright, sw: 1.4 }
             );
         }
 
@@ -1440,6 +1714,7 @@
             el.attract.setAttribute('display', 'none');
             el.initialsEntry.setAttribute('display', 'none');
             el.world.setAttribute('display', 'inline');
+            el.world.removeAttribute('opacity');
             el.hud.setAttribute('display', 'inline');
 
             // Debris or lander
@@ -1513,6 +1788,10 @@
 
         let lastFrameTs = 0;
         function gameLoop(ts) {
+            if (ts == null) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
             if (!lastFrameTs) lastFrameTs = ts;
             let dt = (ts - lastFrameTs) / 1000;
             lastFrameTs = ts;
@@ -1588,7 +1867,8 @@
         }, true);
 
         generateTerrain();
-        gameLoop();
+        startDemoFlight();
+        requestAnimationFrame(gameLoop);
         updateFsHint();
 
     </script>
