@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>LUNAR LANDER</title>
     <style>
         html, body {
@@ -14,8 +14,12 @@
             overflow: hidden;
             font-family: "Courier New", monospace;
             cursor: none;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         #gameContainer {
+            position: relative;
             width: 100vw;
             height: 100vh;
             display: flex;
@@ -55,6 +59,70 @@
             pointer-events: none;
             letter-spacing: 0.04em;
         }
+        #fsHint.touch-hide { display: none; }
+
+        /* Subtle iPad / touch chrome — no labels, no button boxes */
+        #touchControls {
+            position: absolute;
+            width: min(100vw, calc(100vh * 800 / 600));
+            height: min(100vh, calc(100vw * 600 / 800));
+            pointer-events: none;
+            z-index: 4;
+            display: none;
+        }
+        #touchControls.on { display: block; }
+        .touch-rotate {
+            pointer-events: auto;
+            position: absolute;
+            left: max(12px, env(safe-area-inset-left, 0px));
+            bottom: max(16px, env(safe-area-inset-bottom, 0px));
+            width: min(34%, 168px);
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: 1px solid rgba(221, 221, 221, 0.16);
+            background: rgba(221, 221, 221, 0.03);
+            box-sizing: border-box;
+            touch-action: none;
+        }
+        .touch-rotate.active-left,
+        .touch-rotate.active-right {
+            border-color: rgba(221, 221, 221, 0.32);
+            background: rgba(221, 221, 221, 0.06);
+        }
+        .touch-thrust {
+            pointer-events: auto;
+            position: absolute;
+            right: max(14px, env(safe-area-inset-right, 0px));
+            bottom: max(20px, env(safe-area-inset-bottom, 0px));
+            width: min(14%, 52px);
+            height: min(40%, 230px);
+            touch-action: none;
+        }
+        .touch-thrust-track {
+            position: absolute;
+            left: 50%;
+            top: 8px;
+            bottom: 8px;
+            width: 1px;
+            margin-left: -0.5px;
+            background: rgba(221, 221, 221, 0.2);
+        }
+        .touch-thrust-knob {
+            position: absolute;
+            left: 50%;
+            width: 26px;
+            height: 26px;
+            margin-left: -13px;
+            border-radius: 50%;
+            border: 1px solid rgba(221, 221, 221, 0.28);
+            background: rgba(221, 221, 221, 0.07);
+            bottom: 8px;
+            box-sizing: border-box;
+        }
+        .touch-thrust.active .touch-thrust-knob {
+            border-color: rgba(221, 221, 221, 0.45);
+            background: rgba(221, 221, 221, 0.12);
+        }
     </style>
 </head>
 <body>
@@ -86,6 +154,13 @@
                 <g id="initialsVectors"></g>
             </g>
         </svg>
+        <div id="touchControls" aria-hidden="true">
+            <div id="touchRotate" class="touch-rotate"></div>
+            <div id="touchThrust" class="touch-thrust">
+                <div class="touch-thrust-track"></div>
+                <div id="touchThrustKnob" class="touch-thrust-knob"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -482,6 +557,257 @@
         }
         function clearHeldKeys() {
             for (const k of Object.keys(keys)) keys[k] = false;
+            touch.left = false;
+            touch.right = false;
+            touch.thrust = 0;
+            syncTouchVisuals();
+        }
+
+        // --- Arcade SFX (Web Audio; low-fuel = synthesized F5 beeps) ---
+        const SFX = {
+            rumble: '/lunar-lander/rumble.wav',
+            thrust: '/lunar-lander/thrust.wav',
+            crash: '/lunar-lander/crash.wav'
+        };
+        // Middle C (C4, MIDI 60) + 17 semitones = F5 (MIDI 77) ≈ 698.46 Hz
+        const LOWFUEL_HZ = 440 * Math.pow(2, (77 - 69) / 12);
+        const LOWFUEL_BEEP_SEC = 0.09;
+        const LOWFUEL_GAP_SEC = 0.07;
+        const audio = {
+            ctx: null,
+            master: null,
+            buffers: {},
+            loops: {}, // name -> { src, gain }
+            ready: false,
+            loading: null,
+            rumbleVol: 1.0,
+            thrustVol: 0.85,
+            crashVol: 0.9,
+            lowFuelVol: 0.2,
+            fadeIn: 0.12,
+            fadeOut: 0.1
+        };
+        let lowFuelBeepPhase = -1;
+
+        function ensureAudio() {
+            if (audio.loading) return audio.loading;
+            audio.loading = (async () => {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return false;
+                audio.ctx = new AC();
+                audio.master = audio.ctx.createGain();
+                audio.master.gain.value = 0.75;
+                audio.master.connect(audio.ctx.destination);
+                await Promise.all(Object.keys(SFX).map(async (name) => {
+                    try {
+                        const res = await fetch(SFX[name]);
+                        if (!res.ok) throw new Error(res.status);
+                        const buf = await res.arrayBuffer();
+                        let decoded = await audio.ctx.decodeAudioData(buf);
+                        // Looping WAVs often click at the wrap — trim + crossfade seams.
+                        if (name === 'rumble' || name === 'thrust') {
+                            decoded = makeSeamlessLoopBuffer(decoded);
+                        }
+                        audio.buffers[name] = decoded;
+                    } catch (err) {
+                        console.warn('SFX load failed:', name, err);
+                    }
+                }));
+                audio.ready = true;
+                return true;
+            })();
+            return audio.loading;
+        }
+
+        /**
+         * Rebuild a seamless loop for BufferSource.loop (hard wrap end→start).
+         * Matches the first sample to the last sample of the kept range (exclusive end),
+         * preferring near-zero crossings. Avoids crossfades that reintroduce clicks.
+         */
+        function makeSeamlessLoopBuffer(buffer, searchMs) {
+            if (!audio.ctx || !buffer || buffer.numberOfChannels < 1) return buffer;
+            searchMs = searchMs == null ? 150 : searchMs;
+            const sr = buffer.sampleRate;
+            const ch0 = buffer.getChannelData(0);
+            const n = ch0.length;
+            const search = Math.min(Math.floor(sr * searchMs / 1000), Math.floor(n / 4));
+            if (search < 16 || n < search * 2 + 16) return buffer;
+
+            let bestCost = Infinity;
+            let bestI = 0;
+            let bestJ = n; // exclusive end
+            // j is exclusive; seam is ch0[j-1] → ch0[i] when looping
+            for (let i = 1; i < search; i++) {
+                const di = ch0[i] - ch0[i - 1];
+                for (let j = n - search + 1; j <= n; j++) {
+                    const last = j - 1;
+                    if (last <= i) continue;
+                    const dj = ch0[last] - ch0[last - 1];
+                    const seam = Math.abs(ch0[i] - ch0[last]);
+                    const slope = Math.abs(di - dj);
+                    const nearZero = Math.abs(ch0[i]) + Math.abs(ch0[last]);
+                    const cost = seam + 0.5 * slope + 0.15 * nearZero;
+                    if (cost < bestCost) {
+                        bestCost = cost;
+                        bestI = i;
+                        bestJ = j;
+                    }
+                }
+            }
+
+            if (bestJ - bestI < sr * 1.5) return buffer;
+
+            const outLen = bestJ - bestI;
+            const out = audio.ctx.createBuffer(buffer.numberOfChannels, outLen, sr);
+            for (let c = 0; c < buffer.numberOfChannels; c++) {
+                const src = buffer.getChannelData(c);
+                const dst = out.getChannelData(c);
+                for (let k = 0; k < outLen; k++) dst[k] = src[bestI + k];
+
+                // If a tiny residual seam remains, ease the last few samples toward the first
+                const first = dst[0];
+                const last = dst[outLen - 1];
+                const seam = Math.abs(first - last);
+                if (seam > 0.002) {
+                    const soften = Math.min(64, Math.floor(outLen / 20));
+                    for (let k = 0; k < soften; k++) {
+                        const t = (k + 1) / soften;
+                        const idx = outLen - soften + k;
+                        dst[idx] = dst[idx] * (1 - t) + first * t;
+                    }
+                }
+            }
+            return out;
+        }
+
+        function unlockAudio() {
+            ensureAudio().then(() => {
+                if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+            });
+        }
+
+        function audioNow() {
+            return audio.ctx ? audio.ctx.currentTime : 0;
+        }
+
+        function rampGain(gainNode, target, seconds) {
+            if (!gainNode || !audio.ctx) return;
+            const now = audioNow();
+            const g = gainNode.gain;
+            g.cancelScheduledValues(now);
+            // Use the live value — .value can lag automation; this avoids clicks
+            const cur = g.value;
+            g.setValueAtTime(Math.max(0.0001, cur), now);
+            const t = Math.max(0.0001, target);
+            if (seconds <= 0) g.setValueAtTime(t, now);
+            else g.linearRampToValueAtTime(t, now + seconds);
+        }
+
+        function ensureLoop(name) {
+            if (!audio.ready || !audio.buffers[name] || !audio.ctx) return null;
+            let loop = audio.loops[name];
+            if (loop) return loop;
+            const gain = audio.ctx.createGain();
+            gain.gain.value = 0.0001;
+            gain.connect(audio.master);
+            const src = audio.ctx.createBufferSource();
+            src.buffer = audio.buffers[name];
+            src.loop = true;
+            src.connect(gain);
+            try { src.start(0); } catch (_) {}
+            loop = { src, gain, thrustTarget: 0.0001 };
+            audio.loops[name] = loop;
+            return loop;
+        }
+
+        function setRumblePlaying(on) {
+            if (!audio.ready) return;
+            const loop = ensureLoop('rumble');
+            if (!loop) return;
+            rampGain(loop.gain, on ? audio.rumbleVol : 0.0001, on ? 0.4 : 0.35);
+        }
+
+        function setThrustLevel(amount) {
+            if (!audio.ready) return;
+            const loop = ensureLoop('thrust');
+            if (!loop) return;
+            const a = Math.max(0, Math.min(1, amount));
+            const target = a > 0.05 ? a * audio.thrustVol : 0.0001;
+            // Don't re-schedule automation every frame — that clicks
+            if (Math.abs(target - loop.thrustTarget) < 0.012) return;
+            loop.thrustTarget = target;
+            rampGain(loop.gain, target, target > 0.05 ? 0.09 : 0.12);
+        }
+
+        function playCrash() {
+            if (!audio.ready || !audio.buffers.crash || !audio.ctx) return;
+            setThrustLevel(0);
+            const buf = audio.buffers.crash;
+            const dur = buf.duration;
+            const fade = Math.min(0.4, Math.max(0.15, dur * 0.45));
+            const now = audioNow();
+            const gain = audio.ctx.createGain();
+            gain.gain.setValueAtTime(audio.crashVol, now);
+            // Hold, then soften the abrupt arcade cutoff
+            gain.gain.setValueAtTime(audio.crashVol, now + Math.max(0, dur - fade));
+            gain.gain.linearRampToValueAtTime(0.0001, now + dur);
+            gain.connect(audio.master);
+            const src = audio.ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(gain);
+            try { src.start(0); } catch (_) {}
+            src.onended = () => {
+                try { src.disconnect(); gain.disconnect(); } catch (_) {}
+            };
+        }
+
+        function playBeepAt(freqHz, when, durSec, vol) {
+            if (!audio.ctx || !audio.master) return;
+            const osc = audio.ctx.createOscillator();
+            const gain = audio.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freqHz, when);
+            gain.gain.setValueAtTime(0.0001, when);
+            gain.gain.linearRampToValueAtTime(vol, when + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.0001, when + durSec);
+            osc.connect(gain);
+            gain.connect(audio.master);
+            osc.start(when);
+            osc.stop(when + durSec + 0.02);
+        }
+
+        /** Two short F5 beeps (middle C + 17 semitones). */
+        function playLowFuelBeeps() {
+            if (!audio.ready || !audio.ctx) return;
+            const now = audioNow();
+            const v = audio.lowFuelVol;
+            playBeepAt(LOWFUEL_HZ, now, LOWFUEL_BEEP_SEC, v);
+            playBeepAt(
+                LOWFUEL_HZ,
+                now + LOWFUEL_BEEP_SEC + LOWFUEL_GAP_SEC,
+                LOWFUEL_BEEP_SEC,
+                v
+            );
+        }
+
+        function updateLowFuelAlarm(f) {
+            if (gameState === 'playing' && !paused && lander.fuel > 0 && lander.fuel < LOW_FUEL) {
+                lowFuelFlash += f;
+                const phase = Math.floor(lowFuelFlash / 20);
+                // Fire the double-beep when the on-screen warning blinks on
+                if (phase !== lowFuelBeepPhase && phase % 2 === 0) {
+                    lowFuelBeepPhase = phase;
+                    playLowFuelBeeps();
+                }
+            } else {
+                lowFuelBeepPhase = -1;
+            }
+        }
+
+        function stopFlightAudio() {
+            setThrustLevel(0);
+            setRumblePlaying(false);
+            lowFuelBeepPhase = -1;
         }
 
         function returnToAttract() {
@@ -500,6 +826,7 @@
             impactSpeeds = null;
             // Esc abandons the run without HIGH SCORES entry
             score = 0;
+            stopFlightAudio();
             gameState = 'attract';
             startDemoFlight();
         }
@@ -512,6 +839,7 @@
 
         function startInitialsEntry() {
             stopDemo();
+            stopFlightAudio();
             entryInitials = ['A', 'A', 'A'];
             entryIndex = 0;
             entryBlink = 0;
@@ -590,17 +918,21 @@
                 pauseStartedAt = Date.now();
                 lander.thrusting = false;
                 clearHeldKeys();
+                setThrustLevel(0);
+                setRumblePlaying(false);
             } else {
                 // Keep TIME HUD honest across the pause
                 startTime += Date.now() - pauseStartedAt;
                 paused = false;
                 pauseStartedAt = 0;
+                setRumblePlaying(true);
             }
         }
 
         document.addEventListener('keydown', (e) => {
             if (isControlKey(e.key) || e.key === ' ' || e.key === 'Escape') e.preventDefault();
             if (e.repeat) return;
+            unlockAudio();
             keys[e.key] = true;
 
             if (gameState === 'initials') {
@@ -650,17 +982,207 @@
             keys[e.key] = false;
         });
 
+        // Touch / iPad controls (subtle rotate disc + thrust lever)
+        const touch = {
+            left: false,
+            right: false,
+            thrust: 0, // 0..1 analog
+            rotateId: null,
+            thrustId: null,
+            enabled: false
+        };
+
+        function isTouchPlayDevice() {
+            const ua = navigator.userAgent || '';
+            // iPadOS 13+ often reports as MacIntel with multi-touch
+            const iPad = /iPad/.test(ua) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const iPhone = /iPhone|iPod/.test(ua);
+            const coarse = window.matchMedia &&
+                window.matchMedia('(pointer: coarse)').matches;
+            return iPad || iPhone || (coarse && navigator.maxTouchPoints > 0);
+        }
+
+        function syncTouchVisuals() {
+            const rot = document.getElementById('touchRotate');
+            const thr = document.getElementById('touchThrust');
+            const knob = document.getElementById('touchThrustKnob');
+            if (!rot || !thr || !knob) return;
+            rot.classList.toggle('active-left', touch.left);
+            rot.classList.toggle('active-right', touch.right);
+            thr.classList.toggle('active', touch.thrust > 0.05);
+            const track = thr.querySelector('.touch-thrust-track');
+            if (!track) return;
+            const trackH = track.clientHeight || 1;
+            const knobH = knob.offsetHeight || 26;
+            const travel = Math.max(1, trackH - knobH);
+            // thrust 0 at bottom, 1 at top
+            const yFromBottom = touch.thrust * travel;
+            knob.style.bottom = (8 + yFromBottom) + 'px';
+            knob.style.top = 'auto';
+        }
+
+        function setTouchControlsVisible(on) {
+            const el = document.getElementById('touchControls');
+            const hint = document.getElementById('fsHint');
+            touch.enabled = !!on;
+            if (el) el.classList.toggle('on', !!on);
+            if (hint) hint.classList.toggle('touch-hide', !!on);
+            if (!on) {
+                touch.left = false;
+                touch.right = false;
+                touch.thrust = 0;
+                touch.rotateId = null;
+                touch.thrustId = null;
+            }
+            syncTouchVisuals();
+        }
+
+        function thrustAmount() {
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) return 1;
+            return touch.thrust;
+        }
         function thrustHeld() {
-            return keys['ArrowUp'] || keys['w'] || keys['W'];
+            return thrustAmount() > 0.06;
         }
         function leftHeld() {
-            return keys['ArrowLeft'] || keys['a'] || keys['A'];
+            return keys['ArrowLeft'] || keys['a'] || keys['A'] || touch.left;
         }
         function rightHeld() {
-            return keys['ArrowRight'] || keys['d'] || keys['D'];
+            return keys['ArrowRight'] || keys['d'] || keys['D'] || touch.right;
+        }
+
+        function handleTouchUiAction() {
+            // Shared gestures for modes that aren't continuous flight
+            if (gameState === 'attract') {
+                insertCoin();
+                return true;
+            }
+            if (gameState === 'message' && !paused) {
+                beginNextRound();
+                return true;
+            }
+            return false;
+        }
+
+        function bindTouchControls() {
+            const rot = document.getElementById('touchRotate');
+            const thr = document.getElementById('touchThrust');
+            if (!rot || !thr) return;
+
+            function rotFromEvent(e, id) {
+                const t = [...e.changedTouches].find(x => x.identifier === id) ||
+                    (e.touches && [...e.touches].find(x => x.identifier === id));
+                if (!t) return;
+                const r = rot.getBoundingClientRect();
+                const x = t.clientX - r.left;
+                touch.left = x >= r.width * 0.5;
+                touch.right = x < r.width * 0.5;
+                syncTouchVisuals();
+            }
+
+            function thrustFromEvent(e, id) {
+                const t = [...e.changedTouches].find(x => x.identifier === id) ||
+                    (e.touches && [...e.touches].find(x => x.identifier === id));
+                if (!t) return;
+                const track = thr.querySelector('.touch-thrust-track');
+                const r = (track || thr).getBoundingClientRect();
+                const y = t.clientY - r.top;
+                const amt = 1 - Math.max(0, Math.min(1, y / Math.max(1, r.height)));
+                touch.thrust = amt;
+                syncTouchVisuals();
+            }
+
+            rot.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                unlockAudio();
+                if (!touch.enabled) setTouchControlsVisible(true);
+                if (handleTouchUiAction()) return;
+                if (gameState === 'initials') {
+                    const t = e.changedTouches[0];
+                    const r = rot.getBoundingClientRect();
+                    if (t.clientX - r.left >= r.width * 0.5) cycleEntryLetter(-1);
+                    else cycleEntryLetter(1);
+                    return;
+                }
+                const t = e.changedTouches[0];
+                touch.rotateId = t.identifier;
+                rotFromEvent(e, t.identifier);
+            }, { passive: false });
+
+            rot.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (touch.rotateId == null) return;
+                rotFromEvent(e, touch.rotateId);
+            }, { passive: false });
+
+            rot.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                for (const t of e.changedTouches) {
+                    if (t.identifier === touch.rotateId) {
+                        touch.rotateId = null;
+                        touch.left = false;
+                        touch.right = false;
+                        syncTouchVisuals();
+                    }
+                }
+            }, { passive: false });
+
+            rot.addEventListener('touchcancel', (e) => {
+                touch.rotateId = null;
+                touch.left = false;
+                touch.right = false;
+                syncTouchVisuals();
+            }, { passive: false });
+
+            thr.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                unlockAudio();
+                if (!touch.enabled) setTouchControlsVisible(true);
+                if (handleTouchUiAction()) return;
+                if (gameState === 'initials') {
+                    confirmEntryLetter();
+                    return;
+                }
+                const t = e.changedTouches[0];
+                touch.thrustId = t.identifier;
+                thr.classList.add('active');
+                thrustFromEvent(e, t.identifier);
+            }, { passive: false });
+
+            thr.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (touch.thrustId == null) return;
+                thrustFromEvent(e, touch.thrustId);
+            }, { passive: false });
+
+            thr.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                for (const t of e.changedTouches) {
+                    if (t.identifier === touch.thrustId) {
+                        touch.thrustId = null;
+                        touch.thrust = 0;
+                        thr.classList.remove('active');
+                        syncTouchVisuals();
+                    }
+                }
+            }, { passive: false });
+
+            thr.addEventListener('touchcancel', () => {
+                touch.thrustId = null;
+                touch.thrust = 0;
+                thr.classList.remove('active');
+                syncTouchVisuals();
+            }, { passive: false });
+
+            // Reveal controls on first touch anywhere if we missed UA detection
+            window.addEventListener('touchstart', () => {
+                if (!touch.enabled) setTouchControlsVisible(true);
+            }, { passive: true, once: true });
         }
 
         function insertCoin() {
+            unlockAudio();
             if (gameState === 'attract') {
                 // Fresh run — don't carry over demo's infinite fuel (9999)
                 stopDemo();
@@ -886,6 +1408,8 @@
             pauseStartedAt = 0;
             impactSpeeds = null;
             gameState = 'playing';
+            setThrustLevel(0);
+            setRumblePlaying(true);
         }
 
         function altitudePx() {
@@ -979,6 +1503,8 @@
             messageLines = lines;
             messageTimer = durationFrames || 180;
             gameState = 'message';
+            setThrustLevel(0);
+            setRumblePlaying(false);
         }
 
         function normalizeAngle(a) {
@@ -998,6 +1524,7 @@
 
         // --- Explosion: break into rigid main components ---
         function spawnExplosion() {
+            playCrash();
             debris = [];
             const s = landerScale();
             const parts = getLanderParts(s);
@@ -1069,12 +1596,14 @@
             lander.thrusting = false;
 
             if (lander.fuel > 0) {
-                if (thrustHeld()) {
-                    lander.vx += Math.sin(lander.rotation) * thrustPower * f;
-                    lander.vy -= Math.cos(lander.rotation) * thrustPower * f;
-                    lander.fuel = Math.max(0, lander.fuel - FUEL_THRUST * f);
+                const tAmt = thrustAmount();
+                if (tAmt > 0.06) {
+                    lander.vx += Math.sin(lander.rotation) * thrustPower * f * tAmt;
+                    lander.vy -= Math.cos(lander.rotation) * thrustPower * f * tAmt;
+                    lander.fuel = Math.max(0, lander.fuel - FUEL_THRUST * f * tAmt);
                     lander.thrusting = true;
                 }
+                setThrustLevel(paused ? 0 : tAmt);
                 if (leftHeld()) {
                     applyRotation(-rotationRate * f);
                     lander.fuel = Math.max(0, lander.fuel - FUEL_ROTATE * f);
@@ -1083,6 +1612,8 @@
                     applyRotation(rotationRate * f);
                     lander.fuel = Math.max(0, lander.fuel - FUEL_ROTATE * f);
                 }
+            } else {
+                setThrustLevel(0);
             }
 
             lander.vy += gravity * f;
@@ -1102,9 +1633,7 @@
             if (lander.x < 0) lander.x = W;
             if (lander.x > W) lander.x = 0;
 
-            if (lander.fuel > 0 && lander.fuel < LOW_FUEL) {
-                lowFuelFlash += f;
-            }
+            updateLowFuelAlarm(f);
 
             // Smooth zoom toward altitude-based target (fixed landscape)
             updateZoom(f);
@@ -1876,6 +2405,9 @@
 
         generateTerrain();
         startDemoFlight();
+        bindTouchControls();
+        if (isTouchPlayDevice()) setTouchControlsVisible(true);
+        ensureAudio(); // decode WAVs early; playback waits for a user gesture
         requestAnimationFrame(gameLoop);
         updateFsHint();
 
