@@ -23,6 +23,7 @@ This document defines how AI agents (Cursor, Claude, etc.) should work on this p
 | Medication | `src/app/other-fun-stuff/medication/` | Medication logging |
 | Backgammon | `src/app/other-fun-stuff/backgammon-resources/` | Board editor + AI engine |
 | Magic Playlists | `src/app/other-fun-stuff/magic-playlists/` | Spotify playlist tools |
+| Lunar Lander | `/lunar-lander` → `public/lunar-lander.html` | Standalone SVG arcade game + HIGH SCORES (`lunar_lander_scores`) |
 | Shared | `src/apps/shared/` | Navigation, shared UI/hooks |
 
 ## Core Workflow Rules (Non-Negotiable)

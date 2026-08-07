@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUNAR LANDER</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            font-family: "Courier New", monospace;
+            cursor: none;
+        }
+        #gameContainer {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            cursor: none;
+        }
+        #game {
+            width: min(100vw, calc(100vh * 800 / 600));
+            height: min(100vh, calc(100vw * 600 / 800));
+            background: #000;
+            cursor: none;
+            display: block;
+            /* True vectors — crisp at any size */
+            shape-rendering: geometricPrecision;
+        }
+        .scanline {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(
+                to bottom,
+                rgba(0, 0, 0, 0) 50%,
+                rgba(0, 0, 0, 0.1) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 2;
+        }
+        #fsHint {
+            position: fixed;
+            bottom: 10px;
+            right: 14px;
+            color: #555;
+            font-size: 12px;
+            z-index: 3;
+            pointer-events: none;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div id="fsHint">F — FULL SCREEN</div>
+    <div id="gameContainer">
+        <svg id="game" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Lunar Lander">
+            <rect width="800" height="600" fill="#000"/>
+            <g id="world">
+                <g id="stars"></g>
+                <polyline id="terrainLine" fill="none" stroke="#ddd" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+                <g id="terrainDots"></g>
+                <g id="padLabels"></g>
+                <g id="debrisLayer"></g>
+                <g id="landerG"></g>
+            </g>
+            <g id="hud" display="none">
+                <g id="hudVectors"></g>
+                <g id="landerIcon"></g>
+            </g>
+            <text id="lowFuel" x="400" y="200" text-anchor="middle" fill="#ddd" font-family="Courier New, monospace" font-size="22" display="none">LOW ON FUEL</text>
+            <g id="messages" display="none"></g>
+            <text id="tip" x="400" y="584" text-anchor="middle" fill="#ddd" fill-opacity="0.65" font-family="Courier New, monospace" font-size="12" display="none">↑/W: THRUST    ←→/A D: ROTATE    SPACE: PAUSE    ESC: MENU    C: COIN</text>
+            <g id="attract" display="none">
+                <g id="attractLander" transform="translate(400 100)"></g>
+                <g id="attractVectors"></g>
+            </g>
+            <g id="initialsEntry" display="none">
+                <g id="initialsVectors"></g>
+            </g>
+        </svg>
+    </div>
+
+    <script>
+        const W = 800;
+        const H = 600;
+
+        // --- Session / game state ---
+        // playing | message | attract | initials
+        let gameState = 'attract';
+        let paused = false;
+        let pauseStartedAt = 0;
+        let score = 0;
+        let time = 0;
+        let startTime = 0;
+        let messageLines = [];
+        let messageTimer = 0;
+        let debris = [];
+        let lowFuelFlash = 0;
+        // Set on landing/crash; shown under center timer until next flight
+        let impactSpeeds = null; // { h, v }
+
+        // HIGH SCORES leaderboard
+        let topScores = []; // [{ initials, score }]
+        let topScoresLoaded = false;
+        // Initials entry (arcade 3-letter)
+        let entryInitials = ['A', 'A', 'A'];
+        let entryIndex = 0;
+        let entryBlink = 0;
+        let entrySubmitting = false;
+
+        // Gear / silhouette in local units (× lander.size/10). Sized to fit pads
+        // when small, but drawn a bit larger for readability when zoomed.
+        const lander = {
+            x: 120,
+            y: 90,
+            vx: 0,
+            vy: 0,
+            rotation: 0,
+            fuel: 0,
+            thrusting: false,
+            // Base size for wide view (+15%); world-space shrink with zoom (see landerScale)
+            size: 7 * 1.15
+        };
+
+        // Physics in px/frame; HUD numbers scaled separately.
+        // Vertical coast (original): from VSPEED 0, +40 in 4s → g = 10 HUD/s²
+        // Horizontal/vertical coast: linear drag (reduction/s ≈ 0.15 · speed)
+        // Drag applies on both H and V when engines off (Training atmosphere).
+        // Thrust sample: HSPEED 128→73 / 2.5s at ~45° → full thrust ≈ 31.1
+        //
+        // === FEEL TUNABLES (HUD units / second² unless noted) ===
+        // Physics is dt-based so these rates hold at any display refresh rate.
+        const ALT_SCALE = 5.5;            // HUD altitude from pixel clearance (~2200 at spawn)
+        const ALT_PER_VSPEED = 732 / 604; // k from paired sample
+        const SPEED_SCALE = ALT_SCALE * 60 / ALT_PER_VSPEED;
+        const SPAWN_ALT_HUD = 2200;
+        const SPAWN_HSPEED_HUD = 180;
+        const SPAWN_VSPEED_HUD = 10;
+        const GRAVITY_HUD = 12;
+        // Full thrust at 45° up sample → (GRAVITY+6)·√2; +25% for Training feel
+        const THRUST_HUD = (GRAVITY_HUD + 30 / 5) * Math.SQRT2 * 1.25;
+        // Training atmosphere: linear drag per axis, engines off.
+        // d(speed)/dt ≈ −DRAG_K · speed  (≈1/s at 10, ≈30/s at 200)
+        const DRAG_K_H = 0.09;
+        const DRAG_K_V = 0.09;
+        const ROTATION_RATE = 0.038;      // rad per 1/60s tick (same feel as before)
+        const FUEL_THRUST = 0.22;         // fuel per 1/60s tick while thrusting
+        const FUEL_ROTATE = 0.05;         // fuel per 1/60s tick while turning
+        const gravity = GRAVITY_HUD / (SPEED_SCALE * 60);
+        const thrustPower = THRUST_HUD / (SPEED_SCALE * 60);
+        const rotationRate = ROTATION_RATE;
+
+        // Approach zoom: wide view is a fixed camera (ship moves, terrain does not
+        // scroll). Below ZOOM_START altitude we scale about a locked world point
+        // so the landscape stays put and the ship drifts within the close-up.
+        const ZOOM_START_ALT_HUD = 280;   // still wide at ~350 (arcade stills)
+        const ZOOM_MAX = 3.8;
+        let viewZoom = 1;
+        let zoomAnchorX = 0;
+        let zoomAnchorY = 0;
+        let zoomAnchored = false;
+
+        // Landing thresholds (displayed HUD speeds). Manual crash cutoffs: V>15 or H>31.
+        // Great/good are stricter scoring bands under that ceiling.
+        const GREAT_V = 5;
+        const GREAT_H = 8;
+        const GOOD_V = 10;
+        const GOOD_H = 20;
+        const HARD_V = 15;               // manual: crash if vertical exceeds 15
+        const HARD_H = 31;               // manual: crash if horizontal exceeds 31
+        const UPRIGHT_GREAT = 0.25;
+        const UPRIGHT_GOOD = 0.35;
+        const UPRIGHT_HARD = 0.5;
+
+        const FUEL_PER_COIN = 750;
+        const LOW_FUEL = 90;
+        const GREAT_FUEL_BONUS = 50;      // fuel awarded on great/good landings
+        const CRASH_POINTS = 5;          // manual ~5
+        const HARD_POINTS = 15;          // manual ~15 (× pad multiplier)
+        const BASE_LAND_POINTS = 50;     // manual ~50 for good/great (× pad multiplier)
+
+        const terrain = [];
+        const landingPads = [];
+
+        // --- Arcade ship geometry (local coords, nose up) ---
+        // Digitized via trace-ship.html from ship-closeup.png (normalized to foot span ≈ 12).
+        const LANDER_FOOT_X = 6.0;
+        const LANDER_FOOT_Y = 4.59;
+        const LANDER_FOOT_HALF = 1.2;
+        const LANDER_ENG_TIP_Y = 2.8; // flame origin (engine triangle not in this trace)
+
+        // Traced segments in local units (scale s applied at draw time)
+        const SHIP_SEGS = [
+            [[-1.054, -5.86], [1.054, -5.843]],
+            [[1.054, -5.843], [3.107, -3.908]],
+            [[3.107, -3.908], [3.142, -1.64]],
+            [[3.142, -1.64], [0.887, -0.048]],
+            [[0.887, -0.048], [-0.95, -0.025]],
+            [[-0.95, -0.025], [-3.033, -1.741]],
+            [[-3.033, -1.741], [-3.105, -3.891]],
+            [[-3.105, -3.891], [-1.054, -5.86]],
+            [[3.084, -0.061], [3.065, 1.642]],
+            [[3.065, 1.642], [-3.299, 1.626]],
+            [[-3.299, 1.626], [-3.222, -0.038]],
+            [[-3.222, -0.038], [3.084, -0.061]],
+            [[-0.95, -0.025], [-1.28, 1.469]],
+            [[-1.28, 1.469], [-2.607, 3.895]],
+            [[-2.607, 3.895], [2.753, 3.939]],
+            [[2.753, 3.939], [1.402, 1.448]],
+            [[1.402, 1.448], [0.887, -0.048]],
+            [[-3.299, 1.626], [-4.661, 4.517]],
+            [[-6.0, 4.517], [-3.724, 4.546]],
+            [[3.065, 1.642], [4.621, 4.49]],
+            [[3.879, 4.538], [5.626, 4.586]]
+        ];
+
+        // Rigid crash components — index ranges into SHIP_SEGS (main arcade pieces)
+        const SHIP_PARTS = [
+            { name: 'cabin',  from: 0,  to: 8  }, // command pod outline
+            { name: 'engine', from: 8,  to: 12 }, // mid body / engine box
+            { name: 'nozzle', from: 12, to: 17 }, // thruster diamond
+            { name: 'legL',   from: 17, to: 19 }, // left strut + foot
+            { name: 'legR',   from: 19, to: 21 }  // right strut + foot
+        ];
+
+        function getLanderSegments(s) {
+            return SHIP_SEGS.map(([a, b]) => [
+                [a[0] * s, a[1] * s],
+                [b[0] * s, b[1] * s]
+            ]);
+        }
+
+        /** Scaled segment lists for each rigid part (local lander coords). */
+        function getLanderParts(s) {
+            return SHIP_PARTS.map(part => {
+                const segs = SHIP_SEGS.slice(part.from, part.to).map(([a, b]) => [
+                    [a[0] * s, a[1] * s],
+                    [b[0] * s, b[1] * s]
+                ]);
+                let sx = 0, sy = 0, n = 0;
+                for (const [a, b] of segs) {
+                    sx += a[0] + b[0];
+                    sy += a[1] + b[1];
+                    n += 2;
+                }
+                const cx = n ? sx / n : 0;
+                const cy = n ? sy / n : 0;
+                // Segments relative to part centroid (for rigid-body spin)
+                const local = segs.map(([a, b]) => [
+                    [a[0] - cx, a[1] - cy],
+                    [b[0] - cx, b[1] - cy]
+                ]);
+                return { name: part.name, cx, cy, segs: local };
+            });
+        }
+
+        function getLanderNodes(s) {
+            const pts = [];
+            const seen = new Set();
+            for (const [a, b] of getLanderSegments(s)) {
+                for (const p of [a, b]) {
+                    const k = p[0].toFixed(3) + ',' + p[1].toFixed(3);
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    pts.push(p);
+                }
+            }
+            return pts;
+        }
+
+        function landerScale() {
+            // Shrink with zoom, but never smaller than the narrowest 5X pad
+            const gearSpanUnits = 2 * LANDER_FOOT_X;
+            let min5x = Infinity;
+            for (const p of POTENTIAL_PADS) {
+                if (p.multiplier === 5) min5x = Math.min(min5x, p.x2 - p.x1);
+            }
+            const minScale = min5x / gearSpanUnits;
+            const base = lander.size / 10;
+            const z = Math.max(1, viewZoom);
+            return Math.max(minScale, base / Math.pow(z, 0.55));
+        }
+
+        function landerHalfWidth() {
+            return LANDER_FOOT_X * landerScale();
+        }
+
+        function landerFootDepth() {
+            return LANDER_FOOT_Y * landerScale();
+        }
+
+        // --- Fixed arcade terrain (native-res digitize from footage; never regenerates) ---
+        // ~500 vertices; potential flats always in the polyline; each round activates exactly 4.
+        const FIXED_TERRAIN = [
+            [0,400.0],[24.9,400.0],[30.3,400.0],[32.2,406.0],[38,405.9],[39.4,411.9],[42.5,412.2],[44,431.0],[48.4,449.4],[48.2,455.8],[49.2,459.9],[50.4,463.7],
+            [51.4,467.3],[60.5,473.7],[63,486.3],[66.5,492.1],[72.7,498.3],[78.7,498.3],[84,491.9],[90,481.2],[95.4,474.2],[101.8,467.9],[105.3,460.7],[111.2,456.0],
+            [113.7,448.6],[119.9,445.9],[125.6,436.7],[131.5,435.6],[137.4,430.9],[143.9,430.9],[149.3,432.3],[155.7,437.1],[157,443.4],[161.2,449.0],[163.1,455.6],[164.9,457.5],
+            [167.1,461.3],[169.6,467.8],[173.5,473.8],[179.2,473.8],[184.4,461.0],[188.6,458.2],[192.5,460.8],[197,466.8],[200.5,479.9],[209.6,486.2],[210.1,504.5],[215.3,523.0],
+            [215,529.0],[221.5,535.4],[232.8,535.4],[239,529.0],[245.4,522.6],[247.7,517.4],[254.1,510.9],[256.8,504.0],[263,501.9],[266,486.2],[269.2,473.3],[274.9,470.7],
+            [280.3,464.5],[286.7,455.6],[292.7,443.4],[295.1,430.8],[301.3,424.6],[304.5,418.5],[306.5,412.1],[310.5,405.8],[316.6,405.8],[322.1,400.4],[328,389.4],[334.2,381.9],
+            [337.4,369.5],[340.4,350.8],[340.1,338.6],[341.6,326.3],[344.8,313.7],[346.3,310.1],[352.2,308.1],[353,301.8],[357.9,295.0],[363.8,295.0],[365.6,301.5],[371.3,301.5],
+            [373.5,307.9],[376,307.9],[379.9,310.2],[384.9,316.1],[387.6,329.6],[397,335.1],[398.9,341.9],[405.6,363.2],[411.6,364.6],[417.5,369.3],[419.2,375.1],[423.4,381.3],
+            [425.1,387.2],[429.8,393.8],[435,393.8],[435.8,393.8],[437.3,411.9],[438.2,420.5],[441,430.9],[441,436.7],[446.9,436.7],[447.9,439.9],[448.6,442.7],[449.6,444.3],
+            [453.1,449.1],[454.3,452.9],[454.8,456.4],[456.3,460.6],[459.3,467.0],[465.9,473.9],[466.7,492.5],[467.7,495.9],[470.4,505.3],[471.6,510.8],[471.1,517.2],[472.9,522.5],
+            [477.6,529.3],[483.7,529.3],[486.2,541.5],[489.7,547.6],[495.1,553.5],[501.3,560.0],[524.8,560.0],[549,560.0],[550.2,551.0],[551.2,541.2],[557.4,528.9],[560.6,517.2],
+            [563.6,517.1],[568.3,504.3],[572.5,501.7],[578.4,491.8],[584.3,491.0],[590,486.2],[596.4,486.2],[597.7,492.0],[599.9,498.3],[602.1,502.2],[605.3,513.8],[606.3,520.3],
+            [611,526.1],[616,529.4],[619.9,535.4],[623.4,547.3],[632.8,553.7],[644.2,553.7],[656,555.3],[668.4,560.0],[691.1,560.0],[694.8,547.3],[697.8,528.7],[697.1,517.1],
+            [703.5,516.9],[706.2,504.3],[712.4,498.2],[716.1,491.9],[717.3,485.9],[721.3,480.2],[727.5,479.9],[730.7,464.4],[733.4,452.2],[739.3,449.1],[745.5,455.5],[757.1,455.5],
+            [763.3,449.1],[764.3,437.2],[769,421.0],[775.2,418.6],[777.1,411.9],[779.4,408.9],[781.1,405.9],[786,400.4],[800,400.4]
+        ];
+        // Multipliers fixed per site (arcade L→R): 4,3,4,4,2,5,4,5,5,2,5,2,2,3
+        const POTENTIAL_PADS = [
+            { id: 'P0', x1: 24.9, x2: 30.3, y: 400.0, multiplier: 4 },
+            { id: 'P1', x1: 72.7, x2: 78.7, y: 498.3, multiplier: 3 },
+            { id: 'P2', x1: 137.4, x2: 143.9, y: 430.9, multiplier: 4 },
+            { id: 'P3', x1: 173.5, x2: 179.2, y: 473.8, multiplier: 4 },
+            { id: 'P4', x1: 221.5, x2: 232.8, y: 535.4, multiplier: 2 },
+            { id: 'P5', x1: 310.5, x2: 316.6, y: 405.8, multiplier: 5 },
+            { id: 'P13', x1: 357.9, x2: 363.8, y: 295.0, multiplier: 4 },
+            { id: 'P6', x1: 429.8, x2: 435.8, y: 393.8, multiplier: 5 },
+            { id: 'P7', x1: 477.6, x2: 483.7, y: 529.3, multiplier: 5 },
+            { id: 'P8', x1: 501.3, x2: 549, y: 560.0, multiplier: 2 },
+            { id: 'P9', x1: 590, x2: 596.4, y: 486.2, multiplier: 5 },
+            { id: 'P10', x1: 632.8, x2: 644.2, y: 553.7, multiplier: 2 },
+            { id: 'P11', x1: 668.4, x2: 691.1, y: 560.0, multiplier: 2 },
+            { id: 'P12', x1: 745.5, x2: 757.1, y: 455.5, multiplier: 3 }
+        ];
+
+        function shuffleInPlace(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const t = arr[i];
+                arr[i] = arr[j];
+                arr[j] = t;
+            }
+            return arr;
+        }
+
+        function generateTerrain() {
+            // Landscape is static; only which 4 pads are open changes.
+            terrain.length = 0;
+            for (const p of FIXED_TERRAIN) {
+                terrain.push({ x: p[0], y: p[1] });
+            }
+
+            landingPads.length = 0;
+            const picks = shuffleInPlace(POTENTIAL_PADS.slice()).slice(0, 4);
+            picks.sort((a, b) => a.x1 - b.x1);
+            for (const pad of picks) {
+                landingPads.push({
+                    x1: pad.x1,
+                    x2: pad.x2,
+                    y: pad.y,
+                    multiplier: pad.multiplier,
+                    id: pad.id
+                });
+            }
+        }
+
+        function getTerrainHeight(px) {
+            // Polyline may backtrack in X — take the topmost surface at wx
+            // (smallest y = first hit when falling from above).
+            const wx = ((px % W) + W) % W;
+            let best = null;
+            for (let i = 0; i < terrain.length - 1; i++) {
+                const a = terrain[i];
+                const b = terrain[i + 1];
+                const minX = Math.min(a.x, b.x);
+                const maxX = Math.max(a.x, b.x);
+                if (wx < minX || wx > maxX) continue;
+                let y;
+                if (maxX - minX < 1e-6) {
+                    y = Math.min(a.y, b.y);
+                } else {
+                    const t = (wx - a.x) / (b.x - a.x);
+                    y = a.y + (b.y - a.y) * t;
+                }
+                if (best === null || y < best) best = y;
+            }
+            return best !== null ? best : H;
+        }
+
+        // --- Stars ---
+        const stars = [];
+        function regenStars() {
+            stars.length = 0;
+            for (let i = 0; i < 28; i++) {
+                stars.push({ x: Math.random() * W, y: Math.random() * 280 });
+            }
+        }
+        regenStars();
+
+        // --- Input ---
+        const keys = {};
+        function isThrustKey(key) {
+            return key === 'ArrowUp' || key === 'w' || key === 'W';
+        }
+        function isLeftKey(key) {
+            return key === 'ArrowLeft' || key === 'a' || key === 'A';
+        }
+        function isRightKey(key) {
+            return key === 'ArrowRight' || key === 'd' || key === 'D';
+        }
+        function isControlKey(key) {
+            return isThrustKey(key) || isLeftKey(key) || isRightKey(key);
+        }
+        function clearHeldKeys() {
+            for (const k of Object.keys(keys)) keys[k] = false;
+        }
+
+        function returnToAttract() {
+            paused = false;
+            pauseStartedAt = 0;
+            lander.fuel = 0;
+            lander.thrusting = false;
+            debris = [];
+            messageLines = [];
+            messageTimer = 0;
+            viewZoom = 1;
+            zoomAnchored = false;
+            clearHeldKeys();
+            impactSpeeds = null;
+            // Esc abandons the run without HIGH SCORES entry
+            score = 0;
+            gameState = 'attract';
+        }
+
+        function qualifiesForTopScores(s) {
+            if (!Number.isFinite(s) || s <= 0) return false;
+            if (topScores.length < 10) return true;
+            return s > topScores[topScores.length - 1].score;
+        }
+
+        function startInitialsEntry() {
+            entryInitials = ['A', 'A', 'A'];
+            entryIndex = 0;
+            entryBlink = 0;
+            entrySubmitting = false;
+            paused = false;
+            clearHeldKeys();
+            gameState = 'initials';
+        }
+
+        async function loadTopScores() {
+            try {
+                const res = await fetch('/api/lunar-lander/scores');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                topScores = Array.isArray(data.scores) ? data.scores : [];
+                topScoresLoaded = true;
+            } catch (err) {
+                console.warn('HIGH SCORES load failed:', err);
+                topScoresLoaded = true;
+            }
+        }
+
+        async function submitTopScore() {
+            if (entrySubmitting) return;
+            entrySubmitting = true;
+            const initials = entryInitials.join('');
+            const submitScore = score;
+            try {
+                const res = await fetch('/api/lunar-lander/scores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initials, score: submitScore })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (Array.isArray(data.scores)) topScores = data.scores;
+                else await loadTopScores();
+            } catch (err) {
+                console.warn('HIGH SCORES submit failed:', err);
+            }
+            score = 0;
+            entrySubmitting = false;
+            gameState = 'attract';
+        }
+
+        function cycleEntryLetter(dir) {
+            const A = 'A'.charCodeAt(0);
+            const code = entryInitials[entryIndex].charCodeAt(0) - A;
+            const next = (code + dir + 26) % 26;
+            entryInitials[entryIndex] = String.fromCharCode(A + next);
+        }
+
+        function confirmEntryLetter() {
+            if (entryIndex < 2) {
+                entryIndex += 1;
+                return;
+            }
+            submitTopScore();
+        }
+
+        function maybeEnterTopScoresOrAttract() {
+            if (qualifiesForTopScores(score)) {
+                startInitialsEntry();
+            } else {
+                score = 0;
+                gameState = 'attract';
+            }
+        }
+
+        function togglePause() {
+            if (gameState !== 'playing') return;
+            if (!paused) {
+                paused = true;
+                pauseStartedAt = Date.now();
+                lander.thrusting = false;
+                clearHeldKeys();
+            } else {
+                // Keep TIME HUD honest across the pause
+                startTime += Date.now() - pauseStartedAt;
+                paused = false;
+                pauseStartedAt = 0;
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (isControlKey(e.key) || e.key === ' ' || e.key === 'Escape') e.preventDefault();
+            if (e.repeat) return;
+            keys[e.key] = true;
+
+            if (gameState === 'initials') {
+                if (e.key === 'Escape') {
+                    score = 0;
+                    gameState = 'attract';
+                    return;
+                }
+                if (entrySubmitting) return;
+                if (isLeftKey(e.key)) { cycleEntryLetter(-1); return; }
+                if (isRightKey(e.key)) { cycleEntryLetter(1); return; }
+                if (isThrustKey(e.key) || e.key === 'Enter' || e.key === ' ') {
+                    confirmEntryLetter();
+                    return;
+                }
+                // Direct letter typing
+                if (/^[a-zA-Z]$/.test(e.key)) {
+                    entryInitials[entryIndex] = e.key.toUpperCase();
+                    if (entryIndex < 2) entryIndex += 1;
+                    else confirmEntryLetter();
+                }
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                returnToAttract();
+                return;
+            }
+            if (e.key === ' ') {
+                togglePause();
+                return;
+            }
+
+            // Insert coin
+            if (e.key === 'c' || e.key === 'C' || e.key === '5') {
+                if (!paused) insertCoin();
+            }
+            // Advance from message / restart attempt when fuel remains
+            if ((e.key === 'r' || e.key === 'R' || e.key === 'Enter') && gameState === 'message' && !paused) {
+                beginNextRound();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (isControlKey(e.key) || e.key === ' ') e.preventDefault();
+            keys[e.key] = false;
+        });
+
+        function thrustHeld() {
+            return keys['ArrowUp'] || keys['w'] || keys['W'];
+        }
+        function leftHeld() {
+            return keys['ArrowLeft'] || keys['a'] || keys['A'];
+        }
+        function rightHeld() {
+            return keys['ArrowRight'] || keys['d'] || keys['D'];
+        }
+
+        function insertCoin() {
+            lander.fuel += FUEL_PER_COIN;
+            if (gameState === 'attract') {
+                score = score; // keep score if continuing
+                beginFlight(true);
+            }
+        }
+
+        function beginFlight(freshSpawn) {
+            generateTerrain();
+            regenStars();
+            debris = [];
+            messageLines = [];
+            time = 0;
+            startTime = Date.now();
+            lander.x = 28; // far left; just below HUD vertically
+            // Place so HUD altitude matches arcade spawn (~2200)
+            lander.y = getTerrainHeight(lander.x) - landerFootDepth() - (SPAWN_ALT_HUD / ALT_SCALE);
+            if (lander.y < 78) lander.y = 78;
+            lander.vx = SPAWN_HSPEED_HUD / SPEED_SCALE;
+            lander.vy = SPAWN_VSPEED_HUD / SPEED_SCALE;
+            // Arcade spawn: nose left, thrusters right (−90°)
+            lander.rotation = -Math.PI / 2;
+            lander.thrusting = false;
+            viewZoom = 1;
+            zoomAnchored = false;
+            paused = false;
+            pauseStartedAt = 0;
+            impactSpeeds = null;
+            gameState = 'playing';
+        }
+
+        function altitudePx() {
+            return getTerrainHeight(lander.x) - lander.y - landerFootDepth();
+        }
+
+        function altitudeHud() {
+            return Math.max(0, altitudePx() * ALT_SCALE);
+        }
+
+        function targetZoom() {
+            if (gameState === 'attract') return 1;
+            const alt = altitudeHud();
+            if (alt >= ZOOM_START_ALT_HUD) return 1;
+            const t = 1 - alt / ZOOM_START_ALT_HUD;
+            // Ease-in: mostly wide until close, then tightens quickly
+            const eased = t * t;
+            let z = 1 + (ZOOM_MAX - 1) * eased;
+            // Don't zoom so tight that ship + pad can't fit on screen
+            const span = Math.max(36, getTerrainHeight(lander.x) - lander.y + 24);
+            const maxFit = (H * 0.7) / span;
+            return Math.min(z, Math.max(1.15, maxFit));
+        }
+
+        function updateZoom(f) {
+            const tz = targetZoom();
+            // Lock only horizontal anchor — no landscape H-scroll.
+            // Vertical framing is recomputed each draw so the pad stays on-screen.
+            if (tz > 1.02 && !zoomAnchored) {
+                zoomAnchorX = lander.x;
+                zoomAnchored = true;
+            }
+            if (tz <= 1 && viewZoom < 1.05) {
+                zoomAnchored = false;
+            }
+            const k = 1 - Math.pow(0.9, f == null ? 1 : f);
+            viewZoom += (tz - viewZoom) * k;
+        }
+
+        function beginNextRound() {
+            debris = [];
+            messageLines = [];
+            if (lander.fuel <= 0) {
+                maybeEnterTopScoresOrAttract();
+                return;
+            }
+            beginFlight(false);
+        }
+
+        function showMessage(lines, durationFrames) {
+            messageLines = lines;
+            messageTimer = durationFrames || 180;
+            gameState = 'message';
+        }
+
+        function normalizeAngle(a) {
+            return ((a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+        }
+
+        function applyRotation(delta) {
+            // Discrete turn steps can jump past upright (0); snap when crossing.
+            const prev = normalizeAngle(lander.rotation);
+            let next = normalizeAngle(prev + delta);
+            if (prev !== 0 && Math.sign(prev) !== Math.sign(next) &&
+                Math.abs(prev) + Math.abs(next) < Math.PI) {
+                next = 0;
+            }
+            lander.rotation = next;
+        }
+
+        // --- Explosion: break into rigid main components ---
+        function spawnExplosion() {
+            debris = [];
+            const s = landerScale();
+            const parts = getLanderParts(s);
+            const cos = Math.cos(lander.rotation);
+            const sin = Math.sin(lander.rotation);
+            // Capture impact velocity before caller zeros lander.vx/vy
+            const impactVx = lander.vx;
+            const impactVy = lander.vy;
+            // Shared bounce off the surface: keep H, reverse V (all pieces go roughly this way)
+            const bounceVx = impactVx;
+            const bounceVy = -Math.abs(impactVy) * 0.75 - 0.35;
+
+            for (const part of parts) {
+                // Part centroid in world space (starting positions stay apart)
+                const wx = lander.x + part.cx * cos - part.cy * sin;
+                const wy = lander.y + part.cx * sin + part.cy * cos;
+                // Small per-piece scatter around the shared bounce direction
+                const randVx = (Math.random() - 0.5) * 0.7;
+                const randVy = (Math.random() - 0.5) * 0.5;
+                debris.push({
+                    x: wx,
+                    y: wy,
+                    vx: bounceVx + randVx,
+                    vy: bounceVy + randVy,
+                    angle: lander.rotation + (Math.random() - 0.5) * 0.35,
+                    spin: (Math.random() - 0.5) * 0.22,
+                    segs: part.segs,
+                    life: 1
+                });
+            }
+        }
+
+        function updateDebris(f) {
+            for (const d of debris) {
+                d.vy += gravity * 1.4 * f;
+                d.x += d.vx * f;
+                d.y += d.vy * f;
+                d.angle += d.spin * f;
+                d.vx *= Math.pow(0.995, f);
+                d.life -= 0.006 * f;
+            }
+            debris = debris.filter(d => d.life > 0 && d.y < H + 40);
+        }
+
+        // --- Update ---
+        // f = dt * 60: physics units are “per 1/60s tick” so rates match HUD/s at any FPS.
+        function update(dt) {
+            const f = Math.min(dt * 60, 3); // clamp after tab-switch hitches
+            if (gameState === 'attract' || gameState === 'initials' || paused) return;
+
+            if (gameState === 'message') {
+                updateDebris(f);
+                updateZoom(f);
+                messageTimer -= f;
+                if (messageTimer <= 0) {
+                    beginNextRound();
+                }
+                return;
+            }
+
+            if (gameState !== 'playing') return;
+
+            time = Math.floor((Date.now() - startTime) / 1000);
+            lander.thrusting = false;
+
+            if (lander.fuel > 0) {
+                if (thrustHeld()) {
+                    lander.vx += Math.sin(lander.rotation) * thrustPower * f;
+                    lander.vy -= Math.cos(lander.rotation) * thrustPower * f;
+                    lander.fuel = Math.max(0, lander.fuel - FUEL_THRUST * f);
+                    lander.thrusting = true;
+                }
+                if (leftHeld()) {
+                    applyRotation(-rotationRate * f);
+                    lander.fuel = Math.max(0, lander.fuel - FUEL_ROTATE * f);
+                }
+                if (rightHeld()) {
+                    applyRotation(rotationRate * f);
+                    lander.fuel = Math.max(0, lander.fuel - FUEL_ROTATE * f);
+                }
+            }
+
+            lander.vy += gravity * f;
+
+            // Training atmosphere: linear drag per axis when engines off
+            if (!lander.thrusting) {
+                const dtSec = f / 60;
+                lander.vx *= Math.exp(-DRAG_K_H * dtSec);
+                lander.vy *= Math.exp(-DRAG_K_V * dtSec);
+                if (Math.abs(lander.vx) * SPEED_SCALE < 0.05) lander.vx = 0;
+                if (Math.abs(lander.vy) * SPEED_SCALE < 0.05) lander.vy = 0;
+            }
+
+            lander.x += lander.vx * f;
+            lander.y += lander.vy * f;
+
+            if (lander.x < 0) lander.x = W;
+            if (lander.x > W) lander.x = 0;
+
+            if (lander.fuel > 0 && lander.fuel < LOW_FUEL) {
+                lowFuelFlash += f;
+            }
+
+            // Smooth zoom toward altitude-based target (fixed landscape)
+            updateZoom(f);
+
+            checkCollision();
+        }
+
+        function checkCollision() {
+            const feetY = lander.y + landerFootDepth();
+            const groundY = getTerrainHeight(lander.x);
+            if (feetY < groundY) return;
+
+            const half = landerHalfWidth();
+            const left = lander.x - half;
+            const right = lander.x + half;
+
+            let onPad = false;
+            let multiplier = 1;
+            for (const pad of landingPads) {
+                // Center must sit on the pad; most of the gear span must overlap
+                // (narrow arcade pads are only slightly wider than the lander).
+                if (lander.x < pad.x1 || lander.x > pad.x2) continue;
+                const overlap = Math.min(right, pad.x2) - Math.max(left, pad.x1);
+                if (overlap >= half * 1.35) {
+                    onPad = true;
+                    multiplier = pad.multiplier;
+                    break;
+                }
+            }
+
+            const vHud = Math.abs(lander.vy) * SPEED_SCALE;
+            const hHud = Math.abs(lander.vx) * SPEED_SCALE;
+            const upright = Math.abs(normalizeAngle(lander.rotation));
+
+            lander.thrusting = false;
+            lander.y = groundY - landerFootDepth();
+            impactSpeeds = { h: Math.round(hHud), v: Math.round(vHud) };
+
+            if (onPad && upright < UPRIGHT_GREAT && vHud <= GREAT_V && hHud <= GREAT_H) {
+                const pts = BASE_LAND_POINTS * multiplier;
+                score += pts;
+                lander.fuel += GREAT_FUEL_BONUS;
+                lander.vx = 0;
+                lander.vy = 0;
+                lander.rotation = 0;
+                showMessage([
+                    'CONGRATULATIONS',
+                    'THAT WAS A GREAT LANDING',
+                    pts + ' POINTS'
+                ], 200);
+                return;
+            }
+
+            if (onPad && upright < UPRIGHT_GOOD && vHud <= GOOD_V && hHud <= GOOD_H) {
+                const pts = BASE_LAND_POINTS * multiplier;
+                score += pts;
+                lander.fuel += GREAT_FUEL_BONUS;
+                lander.vx = 0;
+                lander.vy = 0;
+                lander.rotation = 0;
+                showMessage([
+                    'CONGRATULATIONS',
+                    'YOU HAVE LANDED',
+                    pts + ' POINTS'
+                ], 200);
+                return;
+            }
+
+            if (onPad && upright < UPRIGHT_HARD && vHud <= HARD_V && hHud <= HARD_H) {
+                const pts = HARD_POINTS * multiplier;
+                score += pts;
+                lander.vx = 0;
+                lander.vy = 0;
+                showMessage([
+                    'YOU LANDED HARD',
+                    'YOU ARE HOPELESSLY MAROONED',
+                    pts + ' POINTS'
+                ], 200);
+                return;
+            }
+
+            // Crash
+            const lost = Math.floor(lander.fuel);
+            spawnExplosion();
+            score += CRASH_POINTS;
+            lander.fuel = 0;
+            lander.vx = 0;
+            lander.vy = 0;
+            showMessage([
+                'AUXILIARY FUEL TANKS DESTROYED',
+                lost + ' FUEL UNITS LOST',
+                'THERE WERE NO SURVIVORS',
+                CRASH_POINTS + ' POINTS'
+            ], 220);
+        }
+
+
+        // --- SVG render (true vectors; viewBox scales without rasterizing) ---
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.getElementById('game');
+        const el = {
+            world: document.getElementById('world'),
+            stars: document.getElementById('stars'),
+            terrainLine: document.getElementById('terrainLine'),
+            terrainDots: document.getElementById('terrainDots'),
+            padLabels: document.getElementById('padLabels'),
+            debrisLayer: document.getElementById('debrisLayer'),
+            landerG: document.getElementById('landerG'),
+            landerIcon: document.getElementById('landerIcon'),
+            hud: document.getElementById('hud'),
+            hudVectors: document.getElementById('hudVectors'),
+            attract: document.getElementById('attract'),
+            attractLander: document.getElementById('attractLander'),
+            attractVectors: document.getElementById('attractVectors'),
+            initialsEntry: document.getElementById('initialsEntry'),
+            initialsVectors: document.getElementById('initialsVectors'),
+            messages: document.getElementById('messages'),
+            lowFuel: document.getElementById('lowFuel'),
+            tip: document.getElementById('tip')
+        };
+
+        // Ed Logg–style stick font (unit cell 0..4 × 0..6, y down). Polylines per glyph.
+        const VFONT_CELL_W = 5;
+        const VFONT_CELL_H = 7;
+        const VFONT = {
+            ' ': [],
+            '0': [[[1,0],[3,0],[4,1],[4,5],[3,6],[1,6],[0,5],[0,1],[1,0]]],
+            '1': [[[1,1],[2,0],[2,6]],[[1,6],[3,6]]],
+            '2': [[[0,1],[1,0],[3,0],[4,1],[4,2],[0,6],[4,6]]],
+            '3': [[[0,1],[1,0],[3,0],[4,1],[4,2],[3,3],[2,3]],[[3,3],[4,4],[4,5],[3,6],[1,6],[0,5]]],
+            '4': [[[3,0],[0,4],[4,4]],[[3,0],[3,6]]],
+            '5': [[[4,0],[0,0],[0,3],[3,3],[4,4],[4,5],[3,6],[1,6],[0,5]]],
+            '6': [[[3,0],[1,0],[0,1],[0,5],[1,6],[3,6],[4,5],[4,4],[3,3],[0,3]]],
+            '7': [[[0,0],[4,0],[2,6]]],
+            '8': [[[1,0],[3,0],[4,1],[4,2],[3,3],[1,3],[0,2],[0,1],[1,0]],[[1,3],[3,3],[4,4],[4,5],[3,6],[1,6],[0,5],[0,4],[1,3]]],
+            '9': [[[1,6],[3,6],[4,5],[4,1],[3,0],[1,0],[0,1],[0,2],[1,3],[4,3]]],
+            'A': [[[0,6],[0,2],[2,0],[4,2],[4,6]],[[0,3],[4,3]]],
+            'B': [[[0,0],[0,6],[3,6],[4,5],[4,4],[3,3],[0,3]],[[0,0],[3,0],[4,1],[4,2],[3,3]]],
+            'C': [[[4,1],[3,0],[1,0],[0,1],[0,5],[1,6],[3,6],[4,5]]],
+            'D': [[[0,0],[0,6],[2,6],[4,4],[4,2],[2,0],[0,0]]],
+            'E': [[[4,0],[0,0],[0,6],[4,6]],[[0,3],[3,3]]],
+            'F': [[[4,0],[0,0],[0,6]],[[0,3],[3,3]]],
+            'G': [[[4,1],[3,0],[1,0],[0,1],[0,5],[1,6],[3,6],[4,5],[4,3],[2,3]]],
+            'H': [[[0,0],[0,6]],[[4,0],[4,6]],[[0,3],[4,3]]],
+            'I': [[[1,0],[3,0]],[[2,0],[2,6]],[[1,6],[3,6]]],
+            'J': [[[2,0],[4,0],[4,5],[3,6],[1,6],[0,5]]],
+            'K': [[[0,0],[0,6]],[[4,0],[0,3],[4,6]]],
+            'L': [[[0,0],[0,6],[4,6]]],
+            'M': [[[0,6],[0,0],[2,3],[4,0],[4,6]]],
+            'N': [[[0,6],[0,0],[4,6],[4,0]]],
+            'O': [[[1,0],[3,0],[4,1],[4,5],[3,6],[1,6],[0,5],[0,1],[1,0]]],
+            'P': [[[0,6],[0,0],[3,0],[4,1],[4,2],[3,3],[0,3]]],
+            'Q': [[[1,0],[3,0],[4,1],[4,4],[3,5],[1,6],[0,5],[0,1],[1,0]],[[2,4],[4,6]]],
+            'R': [[[0,6],[0,0],[3,0],[4,1],[4,2],[3,3],[0,3]],[[2,3],[4,6]]],
+            'S': [[[4,1],[3,0],[1,0],[0,1],[0,2],[1,3],[3,3],[4,4],[4,5],[3,6],[1,6],[0,5]]],
+            'T': [[[0,0],[4,0]],[[2,0],[2,6]]],
+            'U': [[[0,0],[0,5],[1,6],[3,6],[4,5],[4,0]]],
+            'V': [[[0,0],[0,4],[2,6],[4,4],[4,0]]],
+            'W': [[[0,0],[0,6],[2,3],[4,6],[4,0]]],
+            'X': [[[0,0],[4,6]],[[4,0],[0,6]]],
+            'Y': [[[0,0],[2,3],[4,0]],[[2,3],[2,6]]],
+            'Z': [[[0,0],[4,0],[0,6],[4,6]]],
+            '_': [[[0,6],[4,6]]],
+            '/': [[[0,6],[4,0]]],
+            '.': [[[1.5, 5], [2.5, 5], [2.5, 6], [1.5, 6], [1.5, 5]]],
+            '→': [[[0,3],[4,3]],[[2,1],[4,3],[2,5]]],
+            '←': [[[4,3],[0,3]],[[2,1],[0,3],[2,5]]],
+            '↑': [[[2,6],[2,0]],[[0,2],[2,0],[4,2]]],
+            '↓': [[[2,0],[2,6]],[[0,4],[2,6],[4,4]]]
+        };
+
+        function vfontWidth(str, scale) {
+            return str.length * VFONT_CELL_W * scale;
+        }
+
+        function drawVectorText(parent, str, x, y, scale, opts) {
+            // y is the top of the glyph cell. align: 'left' | 'right' | 'center'
+            const align = (opts && opts.align) || 'left';
+            const stroke = (opts && opts.stroke) || '#ddd';
+            const sw = (opts && opts.sw) || 1.15;
+            let pen = x;
+            const w = vfontWidth(str, scale);
+            if (align === 'right') pen = x - w;
+            else if (align === 'center') pen = x - w / 2;
+
+            for (const ch of str) {
+                const glyph = VFONT[ch] || VFONT[ch.toUpperCase()] || [];
+                for (const poly of glyph) {
+                    const pts = poly.map(p => `${pen + p[0] * scale},${y + p[1] * scale}`).join(' ');
+                    parent.appendChild(svgEl('polyline', {
+                        points: pts,
+                        fill: 'none',
+                        stroke,
+                        'stroke-width': sw,
+                        'stroke-linejoin': 'round',
+                        'stroke-linecap': 'round',
+                        'vector-effect': 'non-scaling-stroke'
+                    }));
+                }
+                pen += VFONT_CELL_W * scale;
+            }
+            return w;
+        }
+
+        function elapsedMs() {
+            // Mission clock in ms; frozen while paused (uses pauseStartedAt as "now")
+            if (gameState !== 'playing' && gameState !== 'message') return 0;
+            if (!startTime) return 0;
+            const now = paused ? pauseStartedAt : Date.now();
+            return Math.max(0, now - startTime);
+        }
+
+        function drawHudVectors() {
+            svgClear(el.hudVectors);
+            const s = 1.55;
+            const leftX = 12;
+            const valueCol = 70;
+            const y0 = 14;
+            const dy = 20;
+
+            // Left: label + value on one line (arcade)
+            drawVectorText(el.hudVectors, 'SCORE', leftX, y0, s);
+            drawVectorText(el.hudVectors, score.toString().padStart(4, '0'), valueCol, y0, s);
+
+            const mins = Math.floor(time / 60);
+            const secs = time % 60;
+            const timeStr =
+                mins.toString().padStart(2, '0') + ' ' + secs.toString().padStart(2, '0');
+            drawVectorText(el.hudVectors, 'TIME', leftX, y0 + dy, s);
+            drawVectorText(el.hudVectors, timeStr, valueCol, y0 + dy, s);
+
+            const fuelDisp = Math.max(0, Math.floor(lander.fuel)).toString().padStart(4, '0');
+            drawVectorText(el.hudVectors, 'FUEL', leftX, y0 + dy * 2, s);
+            drawVectorText(el.hudVectors, fuelDisp, valueCol, y0 + dy * 2, s);
+            svgClear(el.landerIcon); // no duplicate craft on the playfield
+
+            // Center: precise count-up for physics timing (hundredths; freezes when paused)
+            const em = elapsedMs();
+            const centis = Math.floor(em / 10); // total hundredths of a second
+            const whole = Math.floor(centis / 100);
+            const frac = (centis % 100).toString().padStart(2, '0');
+            const timerStr = whole + '.' + frac;
+            drawVectorText(el.hudVectors, timerStr, W / 2, y0, s, { align: 'center' });
+            if (impactSpeeds) {
+                const crashStr = 'H ' + impactSpeeds.h + '  V ' + impactSpeeds.v;
+                drawVectorText(el.hudVectors, crashStr, W / 2, y0 + dy, s, { align: 'center' });
+            }
+
+            // Right: labels left-aligned; numbers right-aligned; arrow after number
+            const alt = Math.max(0, Math.floor(altitudePx() * ALT_SCALE));
+            const hSpeed = Math.round(Math.abs(lander.vx) * SPEED_SCALE);
+            const vSpeed = Math.round(Math.abs(lander.vy) * SPEED_SCALE);
+            const hArrow = lander.vx >= 0 ? '→' : '←';
+            const vArrow = lander.vy >= 0 ? '↓' : '↑';
+            const rightLabelX = 560; // left edge of right HUD block
+            const numRight = 760;    // right edge of numeric column
+            const arrowX = numRight + 8;
+
+            function rightRow(label, numStr, arrow, row) {
+                const yy = y0 + dy * row;
+                drawVectorText(el.hudVectors, label, rightLabelX, yy, s);
+                drawVectorText(el.hudVectors, numStr, numRight, yy, s, { align: 'right' });
+                if (arrow) drawVectorText(el.hudVectors, arrow, arrowX, yy, s);
+            }
+            rightRow('ALTITUDE', String(alt), null, 0);
+            rightRow('HORIZONTAL SPEED', String(hSpeed), hArrow, 1);
+            rightRow('VERTICAL SPEED', String(vSpeed), vArrow, 2);
+        }
+
+        function svgClear(node) {
+            while (node.firstChild) node.removeChild(node.firstChild);
+        }
+
+        function svgEl(name, attrs) {
+            const n = document.createElementNS(svgNS, name);
+            if (attrs) {
+                for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]);
+            }
+            return n;
+        }
+
+        function setLanderLines(group, thrusting, scaleOverride) {
+            svgClear(group);
+            const s = scaleOverride != null ? scaleOverride : landerScale();
+            for (const [a, b] of getLanderSegments(s)) {
+                group.appendChild(svgEl('line', {
+                    x1: a[0], y1: a[1], x2: b[0], y2: b[1],
+                    stroke: '#ddd', 'stroke-width': 1.25, fill: 'none',
+                    'vector-effect': 'non-scaling-stroke'
+                }));
+            }
+            // Vertex nodes — shrink with camera zoom (half prior size on screen)
+            const nodeR = Math.max(0.2, 0.275 * s) / Math.max(1, viewZoom);
+            for (const p of getLanderNodes(s)) {
+                group.appendChild(svgEl('circle', {
+                    cx: p[0], cy: p[1], r: nodeR, fill: '#ddd'
+                }));
+            }
+            if (thrusting) {
+                const tipY = LANDER_ENG_TIP_Y * s;
+                const flame = tipY + (9 + Math.random() * 12) * s;
+                const halfW = 2.6 * s;
+                group.appendChild(svgEl('polyline', {
+                    points: `${-halfW},${tipY} 0,${flame} ${halfW},${tipY}`,
+                    stroke: '#ddd', 'stroke-width': 1.25, fill: 'none',
+                    'vector-effect': 'non-scaling-stroke'
+                }));
+            }
+        }
+
+        function screenDotRadius(logicalR) {
+            // Filled dots scale with the camera; shrink them so screen size stays put
+            const z = Math.max(viewZoom, 1);
+            return logicalR / z;
+        }
+
+        function rebuildStars() {
+            svgClear(el.stars);
+            const r = screenDotRadius(0.7);
+            for (const star of stars) {
+                el.stars.appendChild(svgEl('circle', {
+                    cx: star.x, cy: star.y, r, fill: '#ddd'
+                }));
+            }
+        }
+
+        function rebuildTerrainGraphics() {
+            if (!terrain.length) {
+                el.terrainLine.setAttribute('points', '');
+                svgClear(el.terrainDots);
+                svgClear(el.padLabels);
+                return;
+            }
+            el.terrainLine.setAttribute(
+                'points',
+                terrain.map(p => `${p.x},${p.y}`).join(' ')
+            );
+            svgClear(el.terrainDots);
+            const r = screenDotRadius(0.45);
+            for (const p of terrain) {
+                el.terrainDots.appendChild(svgEl('circle', {
+                    cx: p.x, cy: p.y, r, fill: '#ddd'
+                }));
+            }
+            svgClear(el.padLabels);
+            for (const pad of landingPads) {
+                const mid = (pad.x1 + pad.x2) / 2;
+                const g = svgEl('g', {});
+                drawVectorText(g, pad.multiplier + 'X', mid, pad.y + 8, 1.1, {
+                    align: 'center',
+                    sw: 1.1
+                });
+                el.padLabels.appendChild(g);
+            }
+        }
+
+        function syncDotSizes() {
+            const starR = screenDotRadius(0.7);
+            for (const c of el.stars.children) c.setAttribute('r', starR);
+            const dotR = screenDotRadius(0.45);
+            for (const c of el.terrainDots.children) c.setAttribute('r', dotR);
+        }
+
+        // Hook terrain rebuild whenever pads/terrain change
+        const _generateTerrain = generateTerrain;
+        generateTerrain = function () {
+            _generateTerrain();
+            rebuildStars();
+            rebuildTerrainGraphics();
+        };
+
+        const _regenStars = regenStars;
+        regenStars = function () {
+            _regenStars();
+            rebuildStars();
+        };
+
+        function drawDebrisSvg() {
+            svgClear(el.debrisLayer);
+            for (const d of debris) {
+                const alpha = Math.max(0, Math.min(1, d.life));
+                const cos = Math.cos(d.angle);
+                const sin = Math.sin(d.angle);
+                for (const [a, b] of d.segs) {
+                    const ax = d.x + a[0] * cos - a[1] * sin;
+                    const ay = d.y + a[0] * sin + a[1] * cos;
+                    const bx = d.x + b[0] * cos - b[1] * sin;
+                    const by = d.y + b[0] * sin + b[1] * cos;
+                    el.debrisLayer.appendChild(svgEl('line', {
+                        x1: ax, y1: ay,
+                        x2: bx, y2: by,
+                        stroke: '#ddd',
+                        'stroke-width': 1.25,
+                        'stroke-opacity': String(alpha),
+                        'stroke-linecap': 'round',
+                        'stroke-linejoin': 'round',
+                        'vector-effect': 'non-scaling-stroke'
+                    }));
+                }
+            }
+        }
+
+        function worldCameraTransform() {
+            if (viewZoom <= 1.02 || !zoomAnchored) return '';
+            const z = viewZoom;
+            const ax = zoomAnchorX;
+            const shipY = lander.y;
+            const groundY = getTerrainHeight(lander.x);
+            // Focus between ship and surface so both stay in frame
+            const focusY = shipY * 0.45 + groundY * 0.55;
+
+            // Prefer ship in upper-middle; pull up if pad would fall off the bottom
+            const topMargin = 110;
+            const bottomMargin = 36;
+            let screenFocusY = H * 0.40;
+
+            let screenGround = screenFocusY + z * (groundY - focusY);
+            if (screenGround > H - bottomMargin) {
+                screenFocusY -= screenGround - (H - bottomMargin);
+            }
+            let screenShip = screenFocusY + z * (shipY - focusY);
+            if (screenShip < topMargin) {
+                screenFocusY += topMargin - screenShip;
+            }
+            // Prefer keeping the pad visible if both clamps fight
+            screenGround = screenFocusY + z * (groundY - focusY);
+            if (screenGround > H - bottomMargin) {
+                screenFocusY -= screenGround - (H - bottomMargin);
+            }
+
+            return `translate(${ax} ${screenFocusY}) scale(${z}) translate(${-ax} ${-focusY})`;
+        }
+
+        function drawHighScoresScreen(parent) {
+            // Asteroids-style HIGH SCORES board; returns Y just below the list
+            const titleS = 1.85;
+            drawVectorText(parent, 'HIGH SCORES', W / 2, 36, titleS, { align: 'center' });
+
+            const rowS = 1.25;
+            const rowDy = 18;
+            // Centered three-column block: rank | score | initials
+            const rankX = 230;
+            const scoreRight = 500;
+            const initX = 530;
+            let y = 72;
+
+            if (!topScoresLoaded) {
+                drawVectorText(parent, 'LOADING', W / 2, y, rowS, { align: 'center' });
+                return y + rowDy + 8;
+            }
+            if (!topScores.length) {
+                drawVectorText(parent, 'NO SCORES YET', W / 2, y, rowS, { align: 'center' });
+                return y + rowDy + 8;
+            }
+
+            const rows = topScores.slice(0, 10);
+            for (let i = 0; i < rows.length; i++) {
+                const entry = rows[i];
+                const initials = String(entry.initials || 'AAA').toUpperCase().slice(0, 3);
+                const sc = Math.max(0, Math.floor(Number(entry.score) || 0));
+                drawVectorText(parent, (i + 1) + '.', rankX, y, rowS);
+                drawVectorText(parent, String(sc), scoreRight, y, rowS, { align: 'right' });
+                drawVectorText(parent, initials, initX, y, rowS);
+                y += rowDy;
+            }
+            return y + 16;
+        }
+
+        function setOverlayScreenMode(active) {
+            // Hide playfield for dedicated menu screens (Asteroids-style)
+            el.world.setAttribute('display', active ? 'none' : 'inline');
+            el.hud.setAttribute('display', 'none');
+            el.landerG.setAttribute('display', 'none');
+            el.debrisLayer.setAttribute('display', 'none');
+            el.messages.setAttribute('display', 'none');
+            el.lowFuel.setAttribute('display', 'none');
+            el.tip.setAttribute('display', 'none');
+        }
+
+        function drawAttractScreen() {
+            svgClear(el.attractVectors);
+            el.attract.setAttribute('display', 'inline');
+            el.initialsEntry.setAttribute('display', 'none');
+            setOverlayScreenMode(true);
+            svgClear(el.attractLander);
+
+            let y = drawHighScoresScreen(el.attractVectors);
+
+            // Original attract copy under the board
+            drawVectorText(el.attractVectors, 'INSERT COINS', W / 2, y, 1.9, { align: 'center' });
+            y += 28;
+            drawVectorText(el.attractVectors, '750 FUEL UNITS PER COIN', W / 2, y, 1.15, { align: 'center' });
+            y += 24;
+            drawVectorText(el.attractVectors, 'PRESS C TO INSERT COIN', W / 2, y, 1.15, { align: 'center' });
+            y += 32;
+            drawVectorText(
+                el.attractVectors,
+                '↑/W THRUST   ←→/A D ROTATE',
+                W / 2, y, 1.0, { align: 'center' }
+            );
+            y += 20;
+            drawVectorText(
+                el.attractVectors,
+                'SPACE PAUSE   ESC MENU   C COIN   F FULL SCREEN',
+                W / 2, y, 1.0, { align: 'center' }
+            );
+        }
+
+        function drawInitialsScreen() {
+            svgClear(el.initialsVectors);
+            el.attract.setAttribute('display', 'none');
+            el.initialsEntry.setAttribute('display', 'inline');
+            setOverlayScreenMode(true);
+            entryBlink += 1;
+
+            // Asteroids name-entry copy (rotate = ←→, hyperspace = thrust / Enter)
+            const lineS = 1.25;
+            const lineDy = 28;
+            let y = 100;
+            const lines = [
+                'YOUR SCORE IS ONE OF THE TEN BEST',
+                'PLEASE ENTER YOUR INITIALS',
+                'PUSH ROTATE TO SELECT LETTER',
+                'PUSH HYPERSPACE WHEN LETTER IS CORRECT'
+            ];
+            for (const line of lines) {
+                drawVectorText(el.initialsVectors, line, W / 2, y, lineS, { align: 'center' });
+                y += lineDy;
+            }
+
+            drawVectorText(
+                el.initialsVectors,
+                'SCORE ' + String(score).padStart(4, '0'),
+                W / 2, 230, 1.4, { align: 'center' }
+            );
+
+            // Large initials with Asteroids-style underscore cursor (e.g. NZ_)
+            const letterS = 4.0;
+            let shown = '';
+            for (let i = 0; i < 3; i++) {
+                if (i < entryIndex) {
+                    shown += entryInitials[i];
+                } else if (i === entryIndex) {
+                    const blinkOn = Math.floor(entryBlink / 18) % 2 === 0 || entrySubmitting;
+                    shown += blinkOn ? entryInitials[i] : '_';
+                }
+                // positions after cursor stay blank until reached
+            }
+            drawVectorText(el.initialsVectors, shown, W / 2, 320, letterS, { align: 'center' });
+
+            drawVectorText(
+                el.initialsVectors,
+                'ESC SKIP',
+                W / 2, 520, 1.0, { align: 'center' }
+            );
+        }
+
+        function draw() {
+            el.world.setAttribute('transform', worldCameraTransform());
+            syncDotSizes();
+
+            if (gameState === 'attract') {
+                drawAttractScreen();
+                return;
+            }
+            if (gameState === 'initials') {
+                drawInitialsScreen();
+                return;
+            }
+
+            el.attract.setAttribute('display', 'none');
+            el.initialsEntry.setAttribute('display', 'none');
+            el.world.setAttribute('display', 'inline');
+            el.hud.setAttribute('display', 'inline');
+
+            // Debris or lander
+            if (debris.length) {
+                el.landerG.setAttribute('display', 'none');
+                el.debrisLayer.setAttribute('display', 'inline');
+                drawDebrisSvg();
+            } else {
+                el.debrisLayer.setAttribute('display', 'none');
+                const showShip = gameState === 'playing' ||
+                    (gameState === 'message' && messageLines[0] &&
+                        !messageLines[0].includes('SURVIVORS') &&
+                        !messageLines[0].includes('AUXILIARY'));
+                if (showShip) {
+                    el.landerG.setAttribute('display', 'inline');
+                    el.landerG.setAttribute(
+                        'transform',
+                        `translate(${lander.x} ${lander.y}) rotate(${lander.rotation * 180 / Math.PI})`
+                    );
+                    setLanderLines(el.landerG, lander.thrusting && gameState === 'playing' && !paused);
+                } else {
+                    el.landerG.setAttribute('display', 'none');
+                }
+            }
+
+            drawHudVectors();
+
+            if (gameState === 'playing' && lander.fuel > 0 && lander.fuel < LOW_FUEL &&
+                !paused && Math.floor(lowFuelFlash / 20) % 2 === 0) {
+                el.lowFuel.setAttribute('display', 'inline');
+            } else {
+                el.lowFuel.setAttribute('display', 'none');
+            }
+
+            if (paused) {
+                svgClear(el.messages);
+                el.messages.setAttribute('display', 'inline');
+                const t = svgEl('text', {
+                    x: W / 2, y: 200,
+                    'text-anchor': 'middle',
+                    fill: '#ddd',
+                    'font-family': 'Courier New, monospace',
+                    'font-size': '28'
+                });
+                t.textContent = 'PAUSED';
+                el.messages.appendChild(t);
+                const t2 = svgEl('text', {
+                    x: W / 2, y: 236,
+                    'text-anchor': 'middle',
+                    fill: '#ddd',
+                    'font-family': 'Courier New, monospace',
+                    'font-size': '14',
+                    'fill-opacity': '0.7'
+                });
+                t2.textContent = 'SPACE CONTINUE    ESC MENU';
+                el.messages.appendChild(t2);
+            } else if (gameState === 'message' && messageLines.length) {
+                svgClear(el.messages);
+                el.messages.setAttribute('display', 'inline');
+                let y = 200;
+                for (const line of messageLines) {
+                    const t = svgEl('text', {
+                        x: W / 2, y,
+                        'text-anchor': 'middle',
+                        fill: '#ddd',
+                        'font-family': 'Courier New, monospace',
+                        'font-size': '22'
+                    });
+                    t.textContent = line;
+                    el.messages.appendChild(t);
+                    y += 32;
+                }
+            } else {
+                el.messages.setAttribute('display', 'none');
+            }
+
+            if (gameState === 'playing' && time < 6) {
+                el.tip.setAttribute('display', 'inline');
+            } else {
+                el.tip.setAttribute('display', 'none');
+            }
+        }
+
+        let lastFrameTs = 0;
+        function gameLoop(ts) {
+            if (!lastFrameTs) lastFrameTs = ts;
+            let dt = (ts - lastFrameTs) / 1000;
+            lastFrameTs = ts;
+            if (dt > 0.05) dt = 0.05;
+            update(dt);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        svg.tabIndex = 0;
+        svg.style.outline = 'none';
+        window.addEventListener('load', () => svg.focus());
+        svg.addEventListener('mousedown', () => svg.focus());
+        loadTopScores();
+
+        function isFullscreen() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        }
+
+        async function lockEscapeKey() {
+            // Keep Esc for game menu; only F exits fullscreen (Keyboard Lock API)
+            try {
+                if (navigator.keyboard && navigator.keyboard.lock) {
+                    await navigator.keyboard.lock(['Escape']);
+                }
+            } catch (_) {}
+        }
+
+        function unlockEscapeKey() {
+            try {
+                if (navigator.keyboard && navigator.keyboard.unlock) {
+                    navigator.keyboard.unlock();
+                }
+            } catch (_) {}
+        }
+
+        async function toggleFullscreen() {
+            const root = document.documentElement;
+            try {
+                if (!isFullscreen()) {
+                    if (root.requestFullscreen) {
+                        await root.requestFullscreen({ navigationUI: 'hide' });
+                    } else if (root.webkitRequestFullscreen) {
+                        root.webkitRequestFullscreen();
+                    }
+                    await lockEscapeKey();
+                } else {
+                    unlockEscapeKey();
+                    if (document.exitFullscreen) await document.exitFullscreen();
+                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                }
+            } catch (_) {}
+            svg.focus();
+        }
+
+        function updateFsHint() {
+            const hint = document.getElementById('fsHint');
+            if (hint) hint.style.opacity = isFullscreen() ? '0' : '1';
+            // If fullscreen ended outside our toggle (rare), release the Esc lock
+            if (!isFullscreen()) unlockEscapeKey();
+            else lockEscapeKey();
+        }
+        document.addEventListener('fullscreenchange', updateFsHint);
+        document.addEventListener('webkitfullscreenchange', updateFsHint);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+            // Esc is game-only (attract / skip initials); never use it to leave fullscreen
+            if (e.key === 'Escape') e.preventDefault();
+        }, true);
+
+        generateTerrain();
+        gameLoop();
+        updateFsHint();
+
+    </script>
+</body>
+</html>

@@ -57,3 +57,6 @@ test_debug.js
 
 # documentation
 PROJECT_STATUS.md
+
+# supabase CLI
+supabase/.temp/

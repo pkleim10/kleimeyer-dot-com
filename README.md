@@ -16,6 +16,7 @@ Production: [https://kleimeyer.com](https://kleimeyer.com)
 | Medication | `/other-fun-stuff/medication` |
 | Backgammon | `/other-fun-stuff/backgammon-resources` |
 | Magic Playlists | `/other-fun-stuff/magic-playlists` |
+| Lunar Lander | `/lunar-lander` |
 
 Feature code lives under `src/apps/`; routes under `src/app/`. See `AGENTS.md` for agent/workflow conventions.
 

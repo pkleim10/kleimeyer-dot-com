@@ -1,0 +1,1 @@
+-- Baseline placeholder: remote migration 001 already applied.
