@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.0] - 2026-08-08
+
+### Fixed
+- Feat(lunar-lander): edge-strip touch rotate with upright detent: Use left/right screen strips for swipe-rotate and hold-thrust, add an
+- Feat(lunar-lander): refine iPad controls and crash reason codes: Use aim-pad attitude and a right-edge thrust strip, lock pads after
+
 ## [1.54.0] - 2026-08-07
 
 ### Fixed
