@@ -71,19 +71,19 @@
             display: none;
         }
         #touchControls.on { display: block; }
-        #touchControls.locked .touch-rotate {
+        #touchControls.locked .touch-rotate,
+        #touchControls.locked .touch-thrust {
             opacity: 0.22;
             pointer-events: none;
         }
-        /* Thrust: full-height strip 0–1″ from the physical right edge of the screen */
+        /* Thrust: full-height strip 0–2″ from the physical right edge */
         .touch-thrust {
             pointer-events: auto;
             position: fixed;
             right: 0;
-            left: auto;
             top: 0;
             bottom: 0;
-            width: 1in;
+            width: 2in;
             border: none;
             border-radius: 0;
             background: transparent;
@@ -94,54 +94,25 @@
         .touch-thrust.active {
             background: rgba(221, 221, 221, 0.05);
         }
-        #touchControls.locked .touch-thrust {
-            opacity: 0.22;
-            pointer-events: none;
-        }
+        /* Rotate: full-height strip 0–2.5″ from the physical left edge.
+           Drag left = clockwise, drag right = counterclockwise. */
         .touch-rotate {
             pointer-events: auto;
-            position: absolute;
-            left: max(12px, env(safe-area-inset-left, 0px));
-            right: auto;
-            top: 50%;
-            transform: translateY(-50%);
-            width: min(34%, 168px);
-            aspect-ratio: 1;
-            border-radius: 50%;
-            border: 1px solid rgba(221, 221, 221, 0.16);
-            background: rgba(221, 221, 221, 0.03);
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2.5in;
+            border: none;
+            border-radius: 0;
+            background: transparent;
             box-sizing: border-box;
             touch-action: none;
-        }
-        /* Faint upright tick — top of ring = nose up / landing attitude */
-        .touch-rotate::before {
-            content: '';
-            position: absolute;
-            left: 50%;
-            top: 5px;
-            width: 2px;
-            height: 10px;
-            margin-left: -1px;
-            background: rgba(221, 221, 221, 0.28);
-            border-radius: 1px;
-            pointer-events: none;
+            z-index: 5;
         }
         .touch-rotate.aiming {
-            border-color: rgba(221, 221, 221, 0.34);
-            background: rgba(221, 221, 221, 0.06);
+            background: rgba(221, 221, 221, 0.05);
         }
-        .touch-aim-pip {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            margin: -5px 0 0 -5px;
-            border-radius: 50%;
-            border: 1px solid rgba(221, 221, 221, 0.55);
-            background: rgba(221, 221, 221, 0.18);
-            pointer-events: none;
-            display: none;
-        }
-        .touch-aim-pip.on { display: block; }
     </style>
 </head>
 <body>
@@ -174,10 +145,8 @@
             </g>
         </svg>
         <div id="touchControls" aria-hidden="true">
+            <div id="touchRotate" class="touch-rotate"></div>
             <div id="touchThrust" class="touch-thrust"></div>
-            <div id="touchRotate" class="touch-rotate">
-                <div id="touchAimPip" class="touch-aim-pip"></div>
-            </div>
         </div>
     </div>
 
@@ -577,7 +546,14 @@
             for (const k of Object.keys(keys)) keys[k] = false;
             touch.left = false;
             touch.right = false;
-            touch.wantRot = null;
+            touch.rotDir = 0;
+            touch.rotLastX = null;
+            touch.rotAccX = 0;
+            touch.rotActive = false;
+            touch.rotDetentLatched = false;
+            touch.rotEscapeAcc = 0;
+            touch.rotPrevAbsAng = 0;
+            touch.rotDetentCoolUntil = 0;
             touch.thrust = 0;
             syncTouchVisuals();
         }
@@ -1006,16 +982,30 @@
             keys[e.key] = false;
         });
 
-        // Touch / iPad controls (subtle rotate disc + thrust lever)
+        // Touch / iPad controls: left 2.5″ swipe-rotate, right 2″ hold-thrust
         const touch = {
             left: false,
             right: false,
-            wantRot: null, // absolute aim angle (radians) while touching rotate pad
-            thrust: 0, // 0..1 analog
+            rotDir: 0,       // -1 CCW, +1 CW (from horizontal drag)
+            rotLastX: null,
+            rotAccX: 0,      // accumulated dx so slow drags still register
+            rotLastMoveAt: 0,
+            rotActive: false,
+            rotDetentLatched: false, // soft upright notch
+            rotEscapeAcc: 0,         // drag needed to leave upright detent
+            rotPrevAbsAng: 0,        // for edge-triggered detent entry
+            rotDetentCoolUntil: 0,   // after escape, don't re-latch immediately
+            thrust: 0, // 0 or 1
             rotateId: null,
             thrustId: null,
             enabled: false
         };
+        const TOUCH_ROT_DEAD_PX = 2.5;    // accumulate this much horizontal drag to engage
+        const TOUCH_ROT_IDLE_MS = 180;    // keep turning briefly between sparse touchmoves
+        const TOUCH_ROT_RATE = 0.72;      // fraction of keyboard rotation rate (touch feel)
+        const TOUCH_DETENT_RAD = 0.12;    // ~7° — snap into upright when crossing this
+        const TOUCH_DETENT_ESCAPE_PX = 12; // horizontal drag to leave upright
+        const TOUCH_DETENT_COOL_MS = 280; // don't re-catch upright right after escape
 
         function isTouchPlayDevice() {
             const ua = navigator.userAgent || '';
@@ -1031,23 +1021,9 @@
         function syncTouchVisuals() {
             const rot = document.getElementById('touchRotate');
             const thr = document.getElementById('touchThrust');
-            const pip = document.getElementById('touchAimPip');
             if (!rot || !thr) return;
-            rot.classList.toggle('aiming', touch.wantRot != null);
+            rot.classList.toggle('aiming', touch.rotActive);
             thr.classList.toggle('active', touch.thrust > 0.05);
-            if (pip) {
-                if (touch.wantRot != null) {
-                    const r = rot.clientWidth * 0.5;
-                    // wantRot 0 = up; place pip on the ring in that direction
-                    const px = r + Math.sin(touch.wantRot) * (r - 10);
-                    const py = r - Math.cos(touch.wantRot) * (r - 10);
-                    pip.style.left = px + 'px';
-                    pip.style.top = py + 'px';
-                    pip.classList.add('on');
-                } else {
-                    pip.classList.remove('on');
-                }
-            }
         }
 
         function setTouchControlsVisible(on) {
@@ -1059,7 +1035,14 @@
             if (!on) {
                 touch.left = false;
                 touch.right = false;
-                touch.wantRot = null;
+                touch.rotDir = 0;
+                touch.rotLastX = null;
+                touch.rotAccX = 0;
+                touch.rotActive = false;
+                touch.rotDetentLatched = false;
+                touch.rotEscapeAcc = 0;
+                touch.rotPrevAbsAng = 0;
+                touch.rotDetentCoolUntil = 0;
                 touch.thrust = 0;
                 touch.rotateId = null;
                 touch.thrustId = null;
@@ -1071,7 +1054,14 @@
             const el = document.getElementById('touchControls');
             if (el) el.classList.toggle('locked', !!locked);
             if (locked) {
-                touch.wantRot = null;
+                touch.rotDir = 0;
+                touch.rotLastX = null;
+                touch.rotAccX = 0;
+                touch.rotActive = false;
+                touch.rotDetentLatched = false;
+                touch.rotEscapeAcc = 0;
+                touch.rotPrevAbsAng = 0;
+                touch.rotDetentCoolUntil = 0;
                 touch.rotateId = null;
                 touch.left = false;
                 touch.right = false;
@@ -1095,22 +1085,61 @@
             return keys['ArrowRight'] || keys['d'] || keys['D'];
         }
 
-        /** Touch pad: steer toward an absolute heading (0 = upright). */
-        function applyTouchAimRotation(f) {
-            if (touch.wantRot == null) return false;
-            const err = normalizeAngle(touch.wantRot - lander.rotation);
-            const dead = 0.05;
-            if (err < -dead) {
-                applyRotation(-rotationRate * f);
-                return true;
+        /**
+         * Left-edge experiment: drag left → clockwise, drag right → CCW.
+         * Soft upright detent (edge-triggered) — escape drag breaks out cleanly.
+         */
+        function applyTouchSwipeRotation(f) {
+            if (!touch.rotActive) return false;
+            if (performance.now() - touch.rotLastMoveAt > TOUCH_ROT_IDLE_MS) {
+                touch.rotDir = 0;
             }
-            if (err > dead) {
-                applyRotation(rotationRate * f);
-                return true;
+
+            const now = performance.now();
+            const ang = normalizeAngle(lander.rotation);
+            const absAng = Math.abs(ang);
+            const cooling = now < touch.rotDetentCoolUntil;
+
+            // Hold upright until enough escape drag
+            if (touch.rotDetentLatched) {
+                lander.rotation = 0;
+                touch.rotPrevAbsAng = 0;
+                if (Math.abs(touch.rotEscapeAcc) < TOUCH_DETENT_ESCAPE_PX) {
+                    return false;
+                }
+                touch.rotDetentLatched = false;
+                touch.rotDir = touch.rotEscapeAcc < 0 ? 1 : -1; // left → CW
+                touch.rotEscapeAcc = 0;
+                touch.rotDetentCoolUntil = now + TOUCH_DETENT_COOL_MS;
+                touch.rotLastMoveAt = now;
             }
-            // Close enough — snap to aim to kill jitter
-            if (Math.abs(err) < dead) lander.rotation = touch.wantRot;
-            return false;
+
+            let turned = false;
+            if (touch.rotDir > 0) {
+                applyRotation(rotationRate * TOUCH_ROT_RATE * f);
+                turned = true;
+            } else if (touch.rotDir < 0) {
+                applyRotation(-rotationRate * TOUCH_ROT_RATE * f);
+                turned = true;
+            }
+
+            const absAfter = Math.abs(normalizeAngle(lander.rotation));
+            // Latch only when crossing into the notch from outside (not while leaving)
+            if (
+                !cooling &&
+                !touch.rotDetentLatched &&
+                touch.rotPrevAbsAng >= TOUCH_DETENT_RAD &&
+                absAfter < TOUCH_DETENT_RAD
+            ) {
+                lander.rotation = 0;
+                touch.rotDetentLatched = true;
+                touch.rotDir = 0;
+                touch.rotEscapeAcc = 0;
+                touch.rotAccX = 0;
+                turned = true;
+            }
+            touch.rotPrevAbsAng = Math.abs(normalizeAngle(lander.rotation));
+            return turned;
         }
 
         function handleTouchUiAction() {
@@ -1129,26 +1158,125 @@
             const thr = document.getElementById('touchThrust');
             if (!rot || !thr) return;
 
-            function rotFromEvent(e, id) {
-                const t = [...e.changedTouches].find(x => x.identifier === id) ||
+            function findTouch(e, id) {
+                return [...e.changedTouches].find(x => x.identifier === id) ||
                     (e.touches && [...e.touches].find(x => x.identifier === id));
+            }
+
+            function rotMoveFromEvent(e, id) {
+                const t = findTouch(e, id);
                 if (!t) return;
-                const r = rot.getBoundingClientRect();
-                const dx = t.clientX - (r.left + r.width * 0.5);
-                const dy = t.clientY - (r.top + r.height * 0.5);
-                // Ignore dead center taps (no clear direction)
-                if (dx * dx + dy * dy < 8 * 8) return;
-                // Screen y-down → game angle: 0 = up, + = nose right (CW)
-                touch.wantRot = Math.atan2(dx, -dy);
+                if (touch.rotLastX == null) {
+                    touch.rotLastX = t.clientX;
+                    return;
+                }
+                const dx = t.clientX - touch.rotLastX;
+                touch.rotLastX = t.clientX;
+
+                // Initials: same left/right drag selects letters
+                if (gameState === 'initials') {
+                    touch.rotAccX += dx;
+                    const step = Math.max(TOUCH_ROT_DEAD_PX * 3, 10);
+                    if (touch.rotAccX <= -step) {
+                        cycleEntryLetter(-1); // drag left
+                        touch.rotAccX = 0;
+                    } else if (touch.rotAccX >= step) {
+                        cycleEntryLetter(1); // drag right
+                        touch.rotAccX = 0;
+                    }
+                    syncTouchVisuals();
+                    return;
+                }
+
+                // While latched upright, build escape distance instead of turning
+                if (touch.rotDetentLatched) {
+                    touch.rotEscapeAcc += dx;
+                    // Soft clamp so reversing cancels escape
+                    if (Math.abs(touch.rotEscapeAcc) > TOUCH_DETENT_ESCAPE_PX * 1.5) {
+                        touch.rotEscapeAcc = Math.sign(touch.rotEscapeAcc) *
+                            TOUCH_DETENT_ESCAPE_PX * 1.5;
+                    }
+                    touch.rotLastMoveAt = performance.now();
+                    syncTouchVisuals();
+                    return;
+                }
+
+                touch.rotAccX += dx;
+
+                // Moving left → CW (+); moving right → CCW (−)
+                // Accumulate so slow/fine thumb motion still engages.
+                if (touch.rotAccX <= -TOUCH_ROT_DEAD_PX) {
+                    touch.rotDir = 1;
+                    touch.rotAccX = 0;
+                    touch.rotLastMoveAt = performance.now();
+                } else if (touch.rotAccX >= TOUCH_ROT_DEAD_PX) {
+                    touch.rotDir = -1;
+                    touch.rotAccX = 0;
+                    touch.rotLastMoveAt = performance.now();
+                } else if (touch.rotDir !== 0 && Math.abs(dx) > 0.2) {
+                    // Same-direction micro-moves keep the turn alive
+                    if ((touch.rotDir > 0 && dx < 0) || (touch.rotDir < 0 && dx > 0)) {
+                        touch.rotLastMoveAt = performance.now();
+                    }
+                }
                 syncTouchVisuals();
             }
 
-            function clearAim() {
+            function beginRotateTracking(t) {
+                if (touch.rotateId != null) clearRotate();
+                touch.rotateId = t.identifier;
+                touch.rotLastX = t.clientX;
+                touch.rotAccX = 0;
+                touch.rotDir = 0;
+                touch.rotActive = true;
+                touch.rotDetentLatched = gameState === 'playing' &&
+                    Math.abs(normalizeAngle(lander.rotation)) < 0.03;
+                touch.rotEscapeAcc = 0;
+                touch.rotPrevAbsAng = gameState === 'playing'
+                    ? Math.abs(normalizeAngle(lander.rotation))
+                    : 0;
+                touch.rotDetentCoolUntil = 0;
+                touch.rotLastMoveAt = performance.now();
+                // Track move/end on document so sliding past the strip doesn't kill input
+                document.addEventListener('touchmove', onDocRotMove, { passive: false, capture: true });
+                document.addEventListener('touchend', onDocRotEnd, { passive: false, capture: true });
+                document.addEventListener('touchcancel', onDocRotEnd, { passive: false, capture: true });
+                syncTouchVisuals();
+            }
+
+            function clearRotate() {
+                document.removeEventListener('touchmove', onDocRotMove, true);
+                document.removeEventListener('touchend', onDocRotEnd, true);
+                document.removeEventListener('touchcancel', onDocRotEnd, true);
                 touch.rotateId = null;
-                touch.wantRot = null;
+                touch.rotDir = 0;
+                touch.rotLastX = null;
+                touch.rotAccX = 0;
+                touch.rotActive = false;
+                touch.rotDetentLatched = false;
+                touch.rotEscapeAcc = 0;
+                touch.rotPrevAbsAng = 0;
+                touch.rotDetentCoolUntil = 0;
                 touch.left = false;
                 touch.right = false;
                 syncTouchVisuals();
+            }
+
+            function onDocRotMove(e) {
+                if (touch.rotateId == null) return;
+                e.preventDefault();
+                rotMoveFromEvent(e, touch.rotateId);
+            }
+
+            function onDocRotEnd(e) {
+                if (touch.rotateId == null) return;
+                for (const t of e.changedTouches) {
+                    if (t.identifier === touch.rotateId) {
+                        e.preventDefault();
+                        clearRotate();
+                        return;
+                    }
+                }
             }
 
             function setThrustOn(on) {
@@ -1162,34 +1290,12 @@
                 if (!touch.enabled) setTouchControlsVisible(true);
                 if (handleTouchUiAction()) return;
                 if (gameState === 'initials') {
-                    const t = e.changedTouches[0];
-                    const r = rot.getBoundingClientRect();
-                    // Initials: left/right of pad still cycles letters
-                    if (t.clientX - r.left < r.width * 0.5) cycleEntryLetter(-1);
-                    else cycleEntryLetter(1);
+                    // Drag left/right in the left strip to cycle letters
+                    beginRotateTracking(e.changedTouches[0]);
                     return;
                 }
                 if (gameState !== 'playing' || paused) return;
-                const t = e.changedTouches[0];
-                touch.rotateId = t.identifier;
-                rotFromEvent(e, t.identifier);
-            }, { passive: false });
-
-            rot.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                if (touch.rotateId == null) return;
-                rotFromEvent(e, touch.rotateId);
-            }, { passive: false });
-
-            rot.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                for (const t of e.changedTouches) {
-                    if (t.identifier === touch.rotateId) clearAim();
-                }
-            }, { passive: false });
-
-            rot.addEventListener('touchcancel', () => {
-                clearAim();
+                beginRotateTracking(e.changedTouches[0]);
             }, { passive: false });
 
             thr.addEventListener('touchstart', (e) => {
@@ -1198,6 +1304,7 @@
                 if (!touch.enabled) setTouchControlsVisible(true);
                 if (handleTouchUiAction()) return;
                 if (gameState === 'initials') {
+                    // Tap right strip to confirm letter / finish entry
                     confirmEntryLetter();
                     return;
                 }
@@ -1652,9 +1759,9 @@
                     lander.thrusting = true;
                 }
                 setThrustLevel(paused ? 0 : tAmt);
-                // Touch: aim pad sets absolute heading. Keyboard: hold left/right.
-                if (touch.wantRot != null) {
-                    if (applyTouchAimRotation(f)) {
+                // Touch: left-edge horizontal drag rotates. Keyboard: hold left/right.
+                if (touch.rotActive) {
+                    if (applyTouchSwipeRotation(f)) {
                         lander.fuel = Math.max(0, lander.fuel - FUEL_ROTATE * f);
                     }
                 } else {
@@ -2262,16 +2369,23 @@
             setOverlayScreenMode(true);
             entryBlink += 1;
 
-            // Asteroids name-entry copy (rotate = ←→, hyperspace = thrust / Enter)
+            // Asteroids name-entry copy; touch devices get left-drag / right-tap hints
             const lineS = 1.25;
             const lineDy = 28;
             let y = 100;
-            const lines = [
-                'YOUR SCORE IS ONE OF THE TEN BEST',
-                'PLEASE ENTER YOUR INITIALS',
-                'PUSH ROTATE TO SELECT LETTER',
-                'PUSH HYPERSPACE WHEN LETTER IS CORRECT'
-            ];
+            const lines = touch.enabled
+                ? [
+                    'YOUR SCORE IS ONE OF THE TEN BEST',
+                    'PLEASE ENTER YOUR INITIALS',
+                    'SLIDE LEFT SIDE TO SELECT LETTER',
+                    'TAP RIGHT SIDE WHEN LETTER IS CORRECT'
+                ]
+                : [
+                    'YOUR SCORE IS ONE OF THE TEN BEST',
+                    'PLEASE ENTER YOUR INITIALS',
+                    'PUSH ROTATE TO SELECT LETTER',
+                    'PUSH HYPERSPACE WHEN LETTER IS CORRECT'
+                ];
             for (const line of lines) {
                 drawVectorText(el.initialsVectors, line, W / 2, y, lineS, { align: 'center' });
                 y += lineDy;
